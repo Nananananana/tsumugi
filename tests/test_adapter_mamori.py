@@ -11,6 +11,8 @@ that is a hard constraint rather than a preference.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 mamori = pytest.importorskip(
@@ -35,6 +37,7 @@ from tsumugi.infrastructure.adapters.mamori import (  # noqa: E402
     MamoriRedactor,
     protect_package,
 )
+from tsumugi.ports.llm import Endpoint  # noqa: E402
 from tsumugi.ports.redactor import Redactor  # noqa: E402
 
 from .helpers import build_document  # noqa: E402
@@ -221,3 +224,133 @@ class TestTheBoundaryHolds:
         assert recorded["by"].startswith("mamori@")
         assert recorded["scope"] == redactor.scope
         assert recorded["reversible"] is True
+
+
+class TestTheWholeLoopThroughProtection:
+    """`ask` with a redactor, against real mamori and a scripted model.
+
+    The model is scripted rather than real: what is being tested is the
+    bracketing, and a real model would make the test slow, flaky and dependent
+    on a machine having pulled something. What is *not* faked is the redactor,
+    because ADR-0009 is a claim about a real placeholder scheme surviving a
+    round trip, and a fake one is written by whoever wants the claim to hold.
+    """
+
+    def _corpus(self, tmp_path: Path) -> tuple[object, object, object]:
+        from tsumugi.application.ingest import ingest_paths
+        from tsumugi.infrastructure.index.fts import FtsIndex
+        from tsumugi.infrastructure.parsers import parser_for
+        from tsumugi.infrastructure.storage.database import connect
+        from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
+
+        root = tmp_path / "notes"
+        root.mkdir()
+        with (root / "meeting.md").open("w", encoding="utf-8", newline="") as handle:
+            handle.write(TEXT)
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(root.rglob("*.md")),
+            root=root,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+        return store, index, connection
+
+    def test_a_citation_quoting_a_placeholder_resolves_to_the_real_text(
+        self, tmp_path: Path, session: object
+    ) -> None:
+        import json
+
+        from tsumugi.application.ask import ask
+        from tsumugi.infrastructure.cost.heuristic import CharacterCost
+
+        store, index, connection = self._corpus(tmp_path)
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+
+        class Quoting:
+            """Answers with a sentence from whatever prompt it is given."""
+
+            def __init__(self) -> None:
+                self.prompt = ""
+
+            @property
+            def name(self) -> str:
+                return "quoting/1"
+
+            @property
+            def endpoint(self) -> Endpoint:
+                return Endpoint(url="memory://quoting", is_local=True)
+
+            def generate(self, prompt: str) -> str:
+                self.prompt = prompt
+                # The line of context, protected, exactly as the model sees it.
+                line = next(
+                    text
+                    for text in prompt.splitlines()
+                    if "打ち合わせは金曜" in text and not text.startswith("[")
+                )
+                return json.dumps(
+                    {"claims": [{"text": "金曜である。", "citations": [line.strip()]}]},
+                    ensure_ascii=False,
+                )
+
+        provider = Quoting()
+        asked = ask(
+            "打ち合わせは金曜",
+            store=store,  # type: ignore[arg-type]
+            index=index,  # type: ignore[arg-type]
+            cost_model=CharacterCost(),
+            budget=Budget.characters(4000),
+            provider=provider,  # type: ignore[arg-type]
+            redactor=redactor,
+        )
+
+        # The prompt really was protected: the name is not in it.
+        assert "田中太郎" not in provider.prompt
+        # And the citation, quoted as a placeholder, resolved to the real text.
+        assert asked.trustworthy, asked.verification.summary()
+        assert asked.verification.claims[0].support is Support.SUPPORTED
+        connection.close()  # type: ignore[attr-defined]
+
+    def test_the_package_records_the_scope_and_never_the_mapping(
+        self, tmp_path: Path, session: object
+    ) -> None:
+        # tsumugi holds the scope identifier so a verifier can say *which*
+        # session would be needed. Holding the mapping would put every real
+        # value back into an index that is already a plaintext copy.
+        from tsumugi.application.ask import ask
+        from tsumugi.infrastructure.cost.heuristic import CharacterCost
+
+        store, index, connection = self._corpus(tmp_path)
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+
+        class Silent:
+            @property
+            def name(self) -> str:
+                return "silent/1"
+
+            @property
+            def endpoint(self) -> Endpoint:
+                return Endpoint(url="memory://silent", is_local=True)
+
+            def generate(self, prompt: str) -> str:
+                return '{"claims": [{"text": "no comment", "citations": []}]}'
+
+        asked = ask(
+            "打ち合わせは金曜",
+            store=store,  # type: ignore[arg-type]
+            index=index,  # type: ignore[arg-type]
+            cost_model=CharacterCost(),
+            budget=Budget.characters(4000),
+            provider=Silent(),  # type: ignore[arg-type]
+            redactor=redactor,
+        )
+        protection = asked.package.provenance.protection
+        assert protection is not None
+        assert protection.scope == redactor.scope
+        serialised = asked.package.to_json()
+        assert "田中太郎" in serialised, "the package holds the real text; it is never redacted"
+        assert "tanaka@example.com" in serialised
+        connection.close()  # type: ignore[attr-defined]
