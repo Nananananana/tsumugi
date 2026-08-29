@@ -76,8 +76,12 @@ class AnswerScore:
     grounded: bool = False
     on_target: bool = False
     abstained: bool = False
-    #: Trap fact ids a resolved citation landed inside.
+    #: Trap fact ids a resolved citation landed inside, where the trap says
+    #: something *other* than the answer.
     trapped: tuple[str, ...] = ()
+    #: Trap fact ids that are copies of the answer. Reported, never counted as
+    #: being fooled: quoting a copy is quoting the answer.
+    cited_a_copy: tuple[str, ...] = ()
 
     @property
     def ran(self) -> bool:
@@ -105,6 +109,7 @@ class AnswerSummary:
     grounded: int = 0
     on_target: int = 0
     trapped: int = 0
+    cited_a_copy: int = 0
     abstention_cases: int = 0
     abstained_correctly: int = 0
     by_language: dict[str, tuple[int, int]] = field(default_factory=dict)
@@ -130,8 +135,15 @@ class AnswerSummary:
             f"  grounded    {self._share(self.grounded):>5}   every citation resolved",
             f"  on target   {self._share(self.on_target):>5}   a citation landed in a planted fact",
             f"  trapped     {self._share(self.trapped):>5}   a citation landed in a "
-            f"planted adversary",
+            f"passage that says something else",
         ]
+        if self.cited_a_copy:
+            # Reported and not counted above. A near-duplicate carries the
+            # answer's own content, so quoting it is quoting the answer.
+            lines.append(
+                f"  ({self.cited_a_copy} cited a verbatim copy of the answer, which is "
+                f"not being fooled)"
+            )
         if self.unreadable:
             # Reported as a count, not a rate. It is a fact about the model's
             # ability to follow an output contract, not about retrieval, and
@@ -195,7 +207,7 @@ def answer_case(case: Case, provider: LLMProvider, *, candidate_limit: int = 50)
             for citation in claim.citations
             for location in citation.locations
         ]
-        planted, tripped = _where_the_citations_landed(case, located)
+        planted, tripped, copies = _where_the_citations_landed(case, located)
 
         return AnswerScore(
             case_id=case.case_id,
@@ -210,20 +222,26 @@ def answer_case(case: Case, provider: LLMProvider, *, candidate_limit: int = 50)
             abstained=bool(asked.verification.claims)
             and all(not claim.citations for claim in asked.verification.claims),
             trapped=tripped,
+            cited_a_copy=copies,
         )
+
+
+#: Trap kinds that carry the answer's own content. Citing one of these is
+#: citing the answer, so it is reported and never counted as being fooled.
+_COPIES: frozenset[str] = frozenset({"near_duplicate"})
 
 
 def _where_the_citations_landed(
     case: Case, located: Sequence[Located]
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Split resolved citations into planted answers and planted adversaries.
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Split resolved citations into answers, adversaries, and copies.
 
     Matched by span overlap in the document, not by string equality: a model
     quotes a fragment, and a fragment of a planted fact is still that fact.
     """
-    trap_facts = set(case.traps)
     answers: set[str] = set()
     adversaries: set[str] = set()
+    copies: set[str] = set()
 
     for location in located:
         document = case.document_for(location.source_path)
@@ -234,12 +252,13 @@ def _where_the_citations_landed(
                 continue
             if not location.anchor.span.overlaps(fact.span):
                 continue
-            if fact_id in trap_facts:
-                adversaries.add(fact_id)
+            trap = case.traps.get(fact_id)
+            if trap is not None:
+                (copies if trap.kind in _COPIES else adversaries).add(fact_id)
             elif fact_id in case.must_include:
                 answers.add(fact_id)
 
-    return tuple(sorted(answers)), tuple(sorted(adversaries))
+    return tuple(sorted(answers)), tuple(sorted(adversaries)), tuple(sorted(copies))
 
 
 def answer_cases(
@@ -260,6 +279,7 @@ def summarise_answers(scores: Sequence[AnswerScore], *, model: str) -> AnswerSum
         summary.grounded += int(score.grounded)
         summary.on_target += int(score.on_target)
         summary.trapped += int(bool(score.trapped))
+        summary.cited_a_copy += int(bool(score.cited_a_copy))
         if score.unreadable:
             # Counted, and then out of every rate. It is not an abstention and
             # it is not an ungrounded answer; it is an answer nobody can check.

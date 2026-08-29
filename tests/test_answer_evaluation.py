@@ -147,13 +147,12 @@ class TestWhatItCanTellApart:
 
 
 class TestTheTrapMetric:
-    def test_quoting_a_planted_adversary_is_recorded_as_trapped(self) -> None:
-        # Separate from `grounded` on purpose. A model that quotes the
-        # superseded version has cited real text -- it *is* in the corpus --
-        # so grounding cannot catch it, and calling it ungrounded would be
-        # wrong. Being fooled and fabricating are different failures.
+    def test_quoting_a_superseded_passage_is_recorded_as_trapped(self) -> None:
+        # Separate from `grounded` on purpose. The old version really is in the
+        # corpus, so the citation resolves and grounding cannot catch it.
+        # Being fooled and fabricating are different failures.
         case = _case_with("superseded")
-        trap_id = next(iter(case.traps))
+        trap_id = next(id for id, trap in case.traps.items() if trap.kind == "superseded")
         score = answer_case(case, Scripted(quotations=(case.facts[trap_id].text,)))
         if not score.trapped:
             # The package is allowed to leave an adversary out entirely; when
@@ -164,6 +163,17 @@ class TestTheTrapMetric:
             assert trap_id in score.trapped
             assert score.grounded, "the adversary really is in the corpus"
 
+    def test_quoting_a_verbatim_copy_is_not_being_fooled(self) -> None:
+        # A near_duplicate carries the answer's own content, so citing it is
+        # citing the answer. Counting it reported 88% of a held-out run as
+        # fooled -- alarming, precise, and about nothing.
+        case = _case_with("near_duplicate")
+        copy_id = next(id for id, trap in case.traps.items() if trap.kind == "near_duplicate")
+        score = answer_case(case, Scripted(quotations=(case.facts[copy_id].text,)))
+        assert copy_id not in score.trapped
+        if score.grounded:
+            assert copy_id in score.cited_a_copy, "reported, and not as a failure"
+
     def test_a_summary_counts_a_trapped_case_once(self) -> None:
         # Two adversaries quoted in one answer is one fooled answer, not two.
         scores = [
@@ -172,6 +182,20 @@ class TestTheTrapMetric:
             )
         ]
         assert summarise_answers(scores, model="m").trapped == 1
+
+    def test_a_copy_is_reported_beside_the_rates_and_not_among_them(self) -> None:
+        scores = [
+            AnswerScore(
+                case_id="a",
+                language="ja",
+                trap_kinds=("near_duplicate",),
+                grounded=True,
+                cited_a_copy=("dup",),
+            )
+        ]
+        summary = summarise_answers(scores, model="m")
+        assert summary.trapped == 0 and summary.cited_a_copy == 1
+        assert "not being fooled" in summary.describe()
 
 
 class TestAModelThatIgnoresTheContract:

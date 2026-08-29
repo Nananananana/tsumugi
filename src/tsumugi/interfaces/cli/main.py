@@ -34,6 +34,7 @@ from ...evaluation.answering import answer_cases, summarise_answers
 from ...evaluation.dataset import Case, load_cases
 from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
+from ...infrastructure.adapters.mamori import open_session
 from ...infrastructure.adapters.ollama import DEFAULT_MODEL, DEFAULT_URL, OllamaProvider
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
@@ -145,6 +146,24 @@ def build_parser() -> argparse.ArgumentParser:
     question.add_argument("--min-score", type=float, default=0.0, help="relevance floor")
     question.add_argument(
         "--corpus", type=Path, metavar="PATH", help="where the corpus lives now, if it has moved"
+    )
+    question.add_argument(
+        "--protect",
+        action="store_true",
+        help=(
+            "run the prompt through mamori before it goes, and restore before "
+            "verifying. Needs `pip install mamori`; refuses rather than sending "
+            "unprotected if it is missing."
+        ),
+    )
+    question.add_argument(
+        "--scope",
+        metavar="NAME",
+        help=(
+            "the mamori session to protect under. One scope is one conversation: "
+            "a value keeps its placeholder across turns, which is what lets a "
+            "citation from an earlier turn still restore"
+        ),
     )
     question.add_argument(
         "--show-prompt", action="store_true", help="print exactly what was sent, first"
@@ -482,19 +501,25 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
     # reach a remote host should find that out while they can still stop it.
     print(f"sending to {provider.name} at {provider.endpoint.describe()}", file=sys.stderr)
 
-    asked = ask(
-        args.query,
-        store=store,
-        index=index,
-        cost_model=_cost_model(budget.unit),
-        budget=budget,
-        provider=provider,
-        ledger=SqliteLedger(connection),
-        candidate_limit=config.candidate_limit,
-        minimum_score=args.min_score,
-        version=__version__,
-        freshness=(FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)),
-    )
+    with open_session(args.scope) if args.protect else contextlib.nullcontext(None) as redactor:
+        if redactor is not None:
+            print(f"protecting with {redactor.name}, scope {redactor.scope}", file=sys.stderr)
+        asked = ask(
+            args.query,
+            store=store,
+            index=index,
+            cost_model=_cost_model(budget.unit),
+            budget=budget,
+            provider=provider,
+            redactor=redactor,
+            ledger=SqliteLedger(connection),
+            candidate_limit=config.candidate_limit,
+            minimum_score=args.min_score,
+            version=__version__,
+            freshness=(
+                FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)
+            ),
+        )
 
     if args.json:
         # The package is included whole rather than by id: an answer and the

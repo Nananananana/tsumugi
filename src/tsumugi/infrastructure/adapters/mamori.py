@@ -24,14 +24,41 @@ test suite runs without it installed, and an architecture test asserts both.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from ...domain.package import Protection
+from ...errors import ConfigurationError
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from mamori import PrivacySession
 
-__all__ = ["MamoriRedactor", "protect_package"]
+__all__ = ["MamoriRedactor", "open_session", "protect_package"]
+
+
+@contextmanager
+def open_session(scope: str | None = None) -> Iterator[MamoriRedactor]:
+    """A redactor for the length of one conversation.
+
+    Here rather than at the call site because ``import mamori`` belongs in this
+    file and nowhere else -- an architecture test asserts it, and it caught the
+    first attempt to put this in the CLI.
+
+    Raises :class:`~tsumugi.errors.ConfigurationError` when mamori is missing.
+    A caller who asked for protection and silently got none would have been
+    told the opposite of what happened.
+    """
+    try:
+        import mamori as _mamori
+    except ImportError as error:  # pragma: no cover - depends on the environment
+        raise ConfigurationError(
+            "protection needs mamori, which is not installed. `pip install mamori`, "
+            "or go without -- but then the prompt goes as it is."
+        ) from error
+
+    with _mamori.PrivacySession(scope=scope) as session:
+        yield MamoriRedactor(session)
 
 
 class MamoriRedactor:
