@@ -27,6 +27,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from .anchor import Anchor
 from .hashing import ContentHash
@@ -139,6 +140,47 @@ class VerificationReport:
 
     def summary(self) -> str:
         return ", ".join(f"{n} {name}" for name, n in self.counts.items() if n)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The report as plain data, the same shape everywhere it is emitted.
+
+        Here rather than at the edge that happens to print it. A verification
+        report is a document -- it is what a reader keeps to show that an
+        answer was checked -- and a shape defined inside one CLI branch is a
+        shape the next consumer writes again, slightly differently.
+
+        Offsets are reported and quotations are not resolved into text: this
+        says where the model's words were found, and the package it was checked
+        against still holds what was sent.
+        """
+        return {
+            "package_id": self.package_id,
+            "counts": dict(self.counts),
+            "claims": [
+                {
+                    "text": claim.text,
+                    "support": claim.support.value,
+                    "unverifiable_because": claim.unverifiable_because,
+                    "citations": [
+                        {
+                            "quotation": citation.quotation,
+                            "locations": [
+                                {
+                                    "item_id": location.item_id,
+                                    "source_path": location.source_path,
+                                    "section": location.section,
+                                    "start": location.anchor.span.start,
+                                    "end": location.anchor.span.end,
+                                }
+                                for location in citation.locations
+                            ],
+                        }
+                        for citation in claim.citations
+                    ],
+                }
+                for claim in self.claims
+            ],
+        }
 
 
 def verify_claims(

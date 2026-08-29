@@ -149,6 +149,11 @@ def build_parser() -> argparse.ArgumentParser:
     question.add_argument(
         "--show-prompt", action="store_true", help="print exactly what was sent, first"
     )
+    question.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the package, the answer and the verification as one document",
+    )
     question.set_defaults(run=_ask)
 
     trace = commands.add_parser("trace", help="find where a quotation came from")
@@ -491,6 +496,26 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
         freshness=(FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)),
     )
 
+    if args.json:
+        # The package is included whole rather than by id: an answer and the
+        # evidence it was checked against are only meaningful together, and a
+        # consumer that has to go and fetch one of the two will eventually
+        # report on a pair that does not match.
+        print(
+            json.dumps(
+                {
+                    "provider": asked.provider,
+                    "prompt": asked.prompt,
+                    "answer": asked.answer,
+                    "package": asked.package.to_dict(),
+                    "verification": asked.verification.to_dict(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0 if asked.trustworthy else 1
+
     if args.show_prompt:
         print(asked.prompt)
         print()
@@ -551,38 +576,7 @@ def _verify(args: argparse.Namespace, config: TsumugiConfig) -> int:
         SqliteLedger(_connect(index_path, create=False)).close(report)
 
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "package_id": report.package_id,
-                    "counts": report.counts,
-                    "claims": [
-                        {
-                            "text": claim.text,
-                            "support": claim.support.value,
-                            "citations": [
-                                {
-                                    "quotation": citation.quotation,
-                                    "locations": [
-                                        {
-                                            "item_id": location.item_id,
-                                            "source_path": location.source_path,
-                                            "start": location.anchor.span.start,
-                                            "end": location.anchor.span.end,
-                                        }
-                                        for location in citation.locations
-                                    ],
-                                }
-                                for citation in claim.citations
-                            ],
-                        }
-                        for claim in report.claims
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
         return 0 if report.clean else 1
 
     for claim in report.claims:

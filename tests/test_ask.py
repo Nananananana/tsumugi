@@ -443,3 +443,43 @@ def test_replacing_provenance_leaves_the_package_valid(corpus: Any) -> None:
     round_tripped = ContextPackage.from_json(asked.package.to_json())
     assert round_tripped.package_id == asked.package.package_id
     assert replace(asked.package).provenance.protection is not None
+
+
+class TestTheReportIsADocument:
+    """A verification report serialises the same way everywhere.
+
+    It used to exist only as a dict literal inside one CLI branch. A shape
+    defined at the edge that prints it is a shape the next consumer writes
+    again, slightly differently -- and two slightly different records of "was
+    this answer checked?" is worse than one.
+    """
+
+    def test_it_carries_the_package_it_checked(self, corpus: Any) -> None:
+        asked = _ask(corpus)
+        document = asked.verification.to_dict()
+        assert document["package_id"] == str(asked.package.package_id)
+
+    def test_every_claim_keeps_its_verdict_and_its_offsets(self, corpus: Any) -> None:
+        asked = _ask(corpus)
+        claim = asked.verification.to_dict()["claims"][0]
+        assert claim["support"] == "supported"
+        location = claim["citations"][0]["locations"][0]
+        # Offsets, not resolved text. This says where the words were found;
+        # the package still holds what was sent.
+        assert location["end"] > location["start"]
+        assert location["source_path"]
+
+    def test_it_is_json(self, corpus: Any) -> None:
+        # Round-trips, and holds no object that only Python understands.
+        document = _ask(corpus).verification.to_dict()
+        assert json.loads(json.dumps(document, ensure_ascii=False)) == document
+
+    def test_an_unverifiable_claim_says_why_in_the_document_too(self, corpus: Any) -> None:
+        # The reason is the whole point of the outcome existing (ADR-0009).
+        # A serialisation that dropped it would turn "unknown" into "false".
+        from tsumugi.domain.claim import Claim, VerificationReport
+
+        report = VerificationReport.of(
+            [Claim(text="a claim", unverifiable_because="no restorer for scope-1")]
+        )
+        assert report.to_dict()["claims"][0]["unverifiable_because"] == "no restorer for scope-1"

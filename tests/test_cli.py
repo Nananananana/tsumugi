@@ -569,3 +569,30 @@ class TestOutputEncoding:
             env={"PATH": "", "PYTHONIOENCODING": "cp1252"},
         )
         assert finished.returncode == 0
+
+
+class TestAskJson:
+    """The flag itself. What it emits is asserted in `test_ask.py`, against a
+    fake provider, because a CLI test that needed ollama running would be a
+    test that is skipped on every machine that matters."""
+
+    def test_it_fails_with_a_message_rather_than_a_traceback(self, corpus: Path) -> None:
+        main(["ingest", str(corpus)])
+        # Port 1 on loopback: reserved, nothing is listening.
+        assert main(["ask", "テント", "--url", "http://127.0.0.1:1", "--json"]) == 2
+
+    def test_it_emits_the_answer_and_the_evidence_together(self) -> None:
+        # The package is included whole rather than by id. An answer and the
+        # evidence behind it are only meaningful together, and a consumer that
+        # has to fetch the other half will eventually report on a mismatched
+        # pair.
+        source = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "tsumugi"
+            / "interfaces"
+            / "cli"
+            / "main.py"
+        ).read_text(encoding="utf-8")
+        assert '"verification": asked.verification.to_dict()' in source
+        assert '"package": asked.package.to_dict()' in source

@@ -37,6 +37,15 @@ stable.
   The check runs in both directions: an unnamed network import fails, and so
   does a name left behind after its adapter stopped needing one.
 
+- **`tsumugi ask --json`** emits the provider, the prompt, the answer, the
+  package and the verification as one document. The package is included whole
+  rather than by id: an answer and the evidence it was checked against are only
+  meaningful together, and a consumer that has to fetch the other half will
+  eventually report on a pair that does not match.
+- **`VerificationReport.to_dict()`.** The report used to be a dict literal
+  inside one CLI branch. A shape defined at the edge that prints it is a shape
+  the next consumer writes again, slightly differently — and two slightly
+  different records of "was this answer checked?" is worse than one.
 - **`tsumugi eval --model NAME`** — the measurement the eval has disclaimed
   since the corpus existed. It printed "nothing here measures whether an answer
   built from a package is correct" because the pipeline stopped at a rendered
