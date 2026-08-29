@@ -68,6 +68,17 @@ stable.
 - [docs/architecture.md](docs/architecture.md), written only once there was an
   architecture to describe.
 
+### Measured
+
+- [docs/measurements.md](docs/measurements.md), with `tools/measure_index.py`
+  to reproduce it. The index is **2.62x the corpus** on 666 real documents, and
+  terms per character tracks the CJK share. ADR-0007's flagged cost is real and
+  affordable; roughly 45% of the index is stored document text rather than the
+  search structure, so the bigram decision is not the larger half of the bill.
+- Re-ingesting an unchanged corpus is **5.5x cheaper** than a cold build, which
+  moves the incremental-ingestion trigger from about 2,200 documents to about
+  12,000. Nothing to build yet.
+
 ### Decided
 
 - Apache-2.0, for the explicit patent grant.

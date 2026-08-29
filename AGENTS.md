@@ -134,5 +134,11 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Still open: which model generates the evaluation corpus and how genres are
   sampled — the seed and the model get recorded with the fixtures. Needed before
   the corpus is generated, not before then.
+- Measured, in `docs/measurements.md`: the index runs **2.6x the corpus** on 666
+  real documents, and terms per character tracks the CJK share
+  (`CJK + 0.15 x non-CJK`). ADR-0007's flagged cost is real and affordable.
+- **Incremental ingestion is not close.** Re-ingest over an unchanged corpus is
+  5.5x cheaper than a cold build, so the ten-second trigger arrives near 12,000
+  documents rather than 2,200. Watch the re-ingest number, not the cold one.
 - Owed, and known: a `forget` command (the store method exists, nothing calls
   it), and `--rebuild` for when the tokenizer changes.

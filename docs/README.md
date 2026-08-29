@@ -26,6 +26,7 @@ expensive way.
 | `docs/context-package.md` | The ContextPackage contract, for producers and consumers |
 | `docs/threat-model.md` | What tsumugi protects, what it does not, and what it becomes |
 | `docs/evaluation-corpus.md` | The labelled dataset: its shape, its traps, and what it cannot tell you |
+| `docs/measurements.md` | What the index costs, on real corpora, with the tool that produced it |
 | `docs/adr/` | Decisions as they were made, with their reasons — history |
 | `docs/proposals/` | Proposed or planned work — not necessarily implemented |
 | `CHANGELOG.md` | The released history, briefly |
