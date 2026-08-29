@@ -15,6 +15,7 @@ surface will change.
 from __future__ import annotations
 
 from .domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
+from .domain.budget import Budget, Unit
 from .domain.document import Block, Document, Section, register_block_kind
 from .domain.hashing import ContentHash
 from .domain.span import Span
@@ -35,6 +36,7 @@ __all__ = [
     "Anchor",
     "AnchorError",
     "Block",
+    "Budget",
     "ConfigurationError",
     "ContentHash",
     "ContractError",
@@ -47,6 +49,7 @@ __all__ = [
     "StaleAnchorError",
     "StorageError",
     "TsumugiError",
+    "Unit",
     "UnresolvableAnchorError",
     "__version__",
     "register_block_kind",

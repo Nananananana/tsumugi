@@ -105,12 +105,62 @@ Retrieval quality gets measured properly against the labelled corpus in
 is, the only claims this project makes about retrieval are the six hit counts in
 [ADR 0007](adr/0007-index-japanese-by-bigram.md).
 
+## The token estimator's error
+
+[ADR 0006](adr/0006-the-budget-is-an-estimate.md) says a token budget is an
+estimate and that the estimate must state how wrong it is. Reproduce with:
+
+```bash
+python tools/measure_cost.py calibrate <corpus> [<corpus> ...]
+```
+
+Fitted by least squares against `cl100k_base` over 8,591 four-hundred-character
+windows of mixed Japanese, Chinese, English and source code, with **every
+seventh window held out** and used only for scoring.
+
+| Tokens per character | |
+|---|---|
+| Latin | 0.215 |
+| CJK ideograph | 1.292 |
+| Kana | 1.192 |
+| Digit | 0.814 |
+| Space | 0.160 |
+| Other | 0.484 |
+| Hangul | 1.2 — **not fitted**, see below |
+
+**A kanji costs six times a Latin character.** That spread is the whole argument
+of ADR-0006: one constant for both would be comfortable in English and blow the
+context window in Japanese, which is the direction that hurts.
+
+| Error | p50 | p95 | worst |
+|---|---|---|---|
+| In-sample | 0.0507 | 0.1786 | 0.766 |
+| **Held out** | **0.0495** | **0.1828** | 0.612 |
+
+The held-out row is what ships in `measured_error`, and therefore what travels
+in every package. The two rows agreeing to within half a percentage point is not
+evidence that the estimator is good — it is evidence that the number is not
+flattered by the corpus it was fitted on. A model with seven parameters should
+behave this way.
+
+**Practical reading:** at p95 the estimate is off by 18%, so a caller who cannot
+afford an overrun should set an 8,000-token budget at about 6,800 — or use
+`Budget.characters()`, which is counted rather than estimated.
+
+**Hangul was never fitted.** The calibration corpus had no Korean, so least
+squares returned zero, which would say Hangul is free — and a budget that thinks
+Korean costs nothing is worse than one that guesses. The weight is set by
+analogy with kana and marked in the source as an assumption. The measured error
+above says nothing about Korean text.
+
 ## What these numbers are not
 
 - **Not a benchmark against anything else.** No other tool was run.
 - **Not representative of a personal notes corpus.** Corpus A is source code and
   developer documentation; the largest CJK-heavy sample available here was six
   documents. The extrapolation above is an extrapolation, and is labelled as one.
+- **Measured against one tokenizer.** `cl100k_base` says little about a model
+  that tokenizes differently. Naming it is honest rather than sufficient.
 - **One machine, one SSD, one SQLite build.** Timings on spinning disk, on a
   network drive, or on a SQLite compiled differently will differ.
 - **Not tracked over time yet.** There is no regression gate on any of this. When
