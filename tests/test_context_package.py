@@ -420,3 +420,52 @@ class TestFittingToBudget:
         fitted = fit_to_budget(candidates, budget=Budget.characters(limit), cost_of=len)
         assert fitted.spent <= limit
         assert sum(i.cost for i in fitted.items) == fitted.spent
+
+
+class TestTheRenderedPromptCarriesTheMarking:
+    """ADR-0008 marks redundancy and never removes it. Marked *where*?
+
+    Until now, only in the JSON. The one party that could act on a "this
+    repeats c1" note -- the model reading the prompt -- was the one party
+    never told. Marking a consumer cannot see is not marking.
+    """
+
+    def _package(self, *signals: str) -> ContextPackage:
+        item = ContextItem(
+            item_id="itm_002",
+            text="the tent weighs 2.4kg",
+            anchor=Anchor(
+                document_id="doc_1",
+                span=Span(0, 21),
+                text_hash=ContentHash.of("the tent weighs 2.4kg"),
+                version=ContentHash.of("the tent weighs 2.4kg"),
+            ),
+            source_path="notes/copy.md",
+            cost=21,
+            selection=SelectionTrace(rank=1, score=1.0, signals=signals),
+        )
+        return ContextPackage(
+            query="how heavy is the tent",
+            items=(item,),
+            omissions=(),
+            budget=BudgetReport(budget=Budget.characters(100), estimate=21, estimator="chars"),
+            provenance=PackageProvenance(tsumugi_version="test"),
+        )
+
+    def test_a_duplicate_says_what_it_repeats(self) -> None:
+        rendered = self._package("lexical_match", "redundant_with:itm_001").render()
+        assert "repeats itm_001" in rendered
+
+    def test_retrieval_signals_stay_out_of_the_prompt(self) -> None:
+        # `lexical_match` and friends are how the ranker explains itself to a
+        # reader of the document. They are noise in a prompt, and noise in a
+        # prompt is budget spent on nothing.
+        rendered = self._package("lexical_match", "heading_match").render()
+        assert "lexical_match" not in rendered
+        assert "repeats" not in rendered
+
+    def test_the_marking_is_read_from_the_signal_rather_than_stored_twice(self) -> None:
+        # One source of truth: the signal is what assembly produced and what
+        # the published document carries.
+        package = self._package("redundant_with:itm_001")
+        assert "redundant_with:itm_001" in package.to_dict()["items"][0]["selection"]["signals"]

@@ -250,6 +250,14 @@ class ContextPackage:
                     header += f" -- {item.provenance.layer.value}"
                     if item.provenance.confidence is not None:
                         header += f", confidence {item.provenance.confidence}"
+                # ADR-0008 marks redundancy and never removes it. The mark used
+                # to live only in the JSON, which left the one party that could
+                # act on it -- the model reading this prompt -- as the one
+                # party never told. Marking a consumer cannot see is not
+                # marking.
+                repeats = _repeats(item)
+                if repeats:
+                    header += f" -- repeats {', '.join(repeats)}"
                 rendered.append(f"{header}\n{item.text}")
             blocks.append("# CONTEXT\n\n" + "\n\n".join(rendered))
 
@@ -515,6 +523,22 @@ def _provenance_to_dict(provenance: PackageProvenance) -> dict[str, Any]:
             "reversible": provenance.protection.reversible,
         }
     return payload
+
+
+def _repeats(item: ContextItem) -> list[str]:
+    """Item ids this one was found to duplicate, from its selection signals.
+
+    Read out of the signals rather than stored twice: the signal is what
+    ``assembly`` produced and what the published document carries, and a second
+    copy of the same fact is a second thing to keep in step.
+    """
+    if item.selection is None:
+        return []
+    return [
+        signal.split(":", 1)[1]
+        for signal in item.selection.signals
+        if signal.startswith("redundant_with:")
+    ]
 
 
 def corpus_state(versions: Sequence[ContentHash]) -> ContentHash:

@@ -40,6 +40,19 @@ DEFAULT: Final[dict[str, Any]] = {
         "Quote the exact text you rely on. Do not report character offsets.",
         "If the context does not answer the question, say so plainly.",
         "Context marked as an interpretation is a reading, not a fact.",
+        # Measured. Given a corpus holding an old figure and a corrected one,
+        # llama3.1:8b cited both in seven of eight held-out cases -- correctly,
+        # in the sense that both passages are really there, and uselessly, in
+        # the sense that the reader is left to work out which is current.
+        #
+        # tsumugi will not choose for it. ADR-0015 records the measurement
+        # behind that: no similarity threshold separates a correction from a
+        # passage about a different subject, so a library that picked would be
+        # guessing on the reader's behalf. Asking the model to *surface* the
+        # disagreement is not the same as asking it to resolve one, and it is
+        # the answer this project gives everywhere else -- ambiguity is
+        # information (ADR-0005).
+        "If two passages disagree, say so and cite both. Do not quietly pick one.",
     ],
 }
 
