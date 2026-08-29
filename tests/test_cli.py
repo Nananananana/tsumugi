@@ -322,6 +322,78 @@ class TestVerify:
         assert report["claims"][0]["citations"][0]["locations"][0]["source_path"]
 
 
+class TestForget:
+    def test_it_removes_a_document_from_the_index(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        assert run("forget", "notes/mountain.md", index=index_path) == 0
+        assert "forgotten" in capsys.readouterr().out
+        assert run("search", "東京", index=index_path) == 1
+
+    def test_forgetting_something_not_held_is_not_an_error_message(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Asking to forget something already gone is a reasonable thing to do
+        # twice.
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        assert run("forget", "notes/never-existed.md", index=index_path) == 1
+        assert "not held" in capsys.readouterr().out
+
+    def test_it_leaves_nothing_recoverable(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Removing rows is not removing text. The index is a complete plaintext
+        # copy of a corpus, so this is the check that matters.
+        secret = "ZZQX-forget-me-4402"
+        (corpus / "notes" / "secret.md").write_text(f"# note\n\n{secret}\n", encoding="utf-8")
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        assert secret.encode("utf-8") in index_path.read_bytes()
+        run("forget", "notes/secret.md", index=index_path)
+        assert secret.encode("utf-8") not in index_path.read_bytes()
+
+    def test_it_says_what_it_does_not_cover(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        run("forget", "notes/mountain.md", index=index_path)
+        assert "already sent to a model" in capsys.readouterr().out
+
+
+class TestRebuild:
+    def test_it_reads_the_corpus_again(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        assert run("ingest", str(corpus), "--rebuild", index=index_path) == 0
+        out = capsys.readouterr().out
+        assert "discarding what the index holds" in out
+        # Everything is new again, because the old index is gone.
+        assert "3 new" in out
+
+    def test_a_forgotten_document_comes_back(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # A rebuild reads the corpus, and the corpus still has the file. That
+        # is the difference between `forget` and `--rebuild`, and it is worth
+        # a test because it is easy to expect the opposite.
+        run("ingest", str(corpus), index=index_path)
+        run("forget", "notes/mountain.md", index=index_path)
+        capsys.readouterr()
+
+        run("ingest", str(corpus), "--rebuild", index=index_path)
+        capsys.readouterr()
+        assert run("search", "東京", index=index_path) == 0
+
+
 class TestDoctor:
     def test_it_reports_the_corpus(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]

@@ -9,6 +9,25 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — `forget`, and `ingest --rebuild`
+
+- **`tsumugi forget PATH`.** The index keeps the text it anchored, so deleting a
+  file from your corpus does not delete it from here — that is what lets an
+  anchor survive an edit, and it is exactly why this had to exist. It vacuums,
+  and says what it does not cover: anything already sent to a model.
+- **`tsumugi ingest --rebuild`** empties the index and reads the corpus again.
+  Needed after the tokenizer changes, and the error about that mismatch now
+  names a flag that exists.
+
+### Fixed — the CLI leaked its database connections
+
+- A process that exits closes its files, which is why every command worked and
+  nothing noticed. But a leaked connection holds a read lock, a read lock stops
+  the next command's `wal_checkpoint` from truncating, and so `forget` vacuumed
+  and left the text sitting in the write-ahead log. Found by a test that runs
+  two commands in one process, and the reason `forget` now checkpoints on both
+  sides of its `VACUUM`.
+
 ### Fixed — staleness could never fire
 
 - **`build_context` compared an anchor against the store**, which holds the

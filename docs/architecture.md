@@ -29,8 +29,8 @@ adapters.
                           └────────────────────┘
 ```
 
-Nine commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
-`mcp`, `eval`, `doctor`.
+Ten commands: `ingest`, `search`, `context`, `verify`, `trace`, `forget`,
+`ledger`, `mcp`, `eval`, `doctor`.
 
 `context` is the one the library is for. It retrieves, confirms, ranks, fits to
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
@@ -419,5 +419,5 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-668 tests, 93% line coverage. Every test runs with no network, no model and no
+678 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

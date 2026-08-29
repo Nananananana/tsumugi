@@ -9,6 +9,7 @@ from, and a file you do not know about is a file you cannot protect
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sqlite3
 import sys
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from ... import __version__
 from ...application.build_context import build_context
+from ...application.forgetting import forget_documents
 from ...application.ingest import ingest_paths
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
@@ -34,7 +36,7 @@ from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.freshness import FilesystemFreshness, NeverStale
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
-from ...infrastructure.storage.database import SCHEMA_VERSION, connect
+from ...infrastructure.storage.database import SCHEMA_VERSION, connect, empty
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.cost import CostModel
@@ -64,6 +66,15 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("path", type=Path, help="the folder, or a single file")
     ingest.add_argument(
         "--show-skipped", action="store_true", help="list every file that was not read"
+    )
+    ingest.add_argument(
+        "--rebuild",
+        action="store_true",
+        help=(
+            "discard the index and read the corpus again. Needed after the tokenizer "
+            "changes, because terms from two tokenizers do not line up and the failure "
+            "looks like an empty corpus"
+        ),
     )
     ingest.set_defaults(run=_ingest)
 
@@ -113,6 +124,18 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--json", action="store_true")
     verify.set_defaults(run=_verify)
 
+    forget = commands.add_parser(
+        "forget",
+        help="remove documents from the index, and vacuum",
+        description=(
+            "The index keeps the text it anchored, so deleting a file from your corpus "
+            "does not delete it from here. This does, and vacuums afterwards -- removing "
+            "rows is not removing text."
+        ),
+    )
+    forget.add_argument("paths", nargs="+", help="source paths, as `tsumugi search` prints them")
+    forget.set_defaults(run=_forget)
+
     ledger = commands.add_parser("ledger", help="what was sent, and what the model actually used")
     ledger.add_argument(
         "--since", metavar="ISO8601", help="only entries at or after this timestamp"
@@ -154,6 +177,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+#: Connections opened while serving one command, closed when it returns.
+#:
+#: A process that exits closes its files for you, which is why this went
+#: unnoticed: every command worked. But a leaked connection holds a read lock,
+#: and a read lock stops the next command's `wal_checkpoint` from truncating --
+#: so `forget` would vacuum and leave the text in the write-ahead log. Found by
+#: a test that runs two commands in one process.
+_OPEN: list[sqlite3.Connection] = []
+
+
+def _connect(path: Path, *, create: bool = True) -> sqlite3.Connection:
+    connection = connect(path, create=create)
+    _OPEN.append(connection)
+    return connection
+
+
+def _close_everything() -> None:
+    while _OPEN:
+        with contextlib.suppress(sqlite3.Error):  # closing twice is harmless
+            _OPEN.pop().close()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -173,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     except KeyboardInterrupt:  # pragma: no cover
         return 130
+    finally:
+        _close_everything()
 
 
 # -- commands ------------------------------------------------------------
@@ -188,7 +235,12 @@ def _ingest(args: argparse.Namespace, config: TsumugiConfig) -> int:
     print(f"index:  {index_path}")
     print(f"corpus: {root}")
 
-    connection = connect(index_path)
+    connection = _connect(index_path)
+    if args.rebuild:
+        # Emptied rather than deleted: the file is open, and its path is often
+        # one the user named.
+        print("rebuild: discarding what the index holds")
+        empty(connection)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
     if root.is_file():
@@ -227,7 +279,7 @@ def _ingest(args: argparse.Namespace, config: TsumugiConfig) -> int:
 
 
 def _search(args: argparse.Namespace, config: TsumugiConfig) -> int:
-    connection = connect(config.resolved_index_path(), create=False)
+    connection = _connect(config.resolved_index_path(), create=False)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
     results, truncated = run_search(
@@ -275,7 +327,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
     except ValueError as error:
         raise ConfigurationError(str(error)) from error
 
-    connection = connect(config.resolved_index_path(), create=False)
+    connection = _connect(config.resolved_index_path(), create=False)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
     package = build_context(
@@ -321,7 +373,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
 
 
 def _trace(args: argparse.Namespace, config: TsumugiConfig) -> int:
-    connection = connect(config.resolved_index_path(), create=False)
+    connection = _connect(config.resolved_index_path(), create=False)
     store = SqliteDocumentStore(connection)
 
     traces = trace_quotation(args.quotation, store)
@@ -359,7 +411,7 @@ def _verify(args: argparse.Namespace, config: TsumugiConfig) -> int:
     # so a missing ledger entry is not an error.
     index_path = config.resolved_index_path()
     if index_path.exists():
-        SqliteLedger(connect(index_path, create=False)).close(report)
+        SqliteLedger(_connect(index_path, create=False)).close(report)
 
     if args.json:
         print(
@@ -479,8 +531,26 @@ def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
     return 1 if breached else 0
 
 
+def _forget(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    connection = _connect(config.resolved_index_path(), create=False)
+    store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+
+    removed, missing = forget_documents(args.paths, store=store, index=index)
+    for gone in removed:
+        print(f"forgotten  {gone.source_path}  ({gone.versions} revisions)")
+    for path in missing:
+        # Not an error: asking to forget something already gone is reasonable.
+        print(f"not held   {path}")
+
+    if removed:
+        print()
+        print(f"{len(removed)} documents removed and the index vacuumed.")
+        print("Anything already sent to a model is not covered by this.")
+    return 0 if removed else 1
+
+
 def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:
-    connection = connect(config.resolved_index_path(), create=False)
+    connection = _connect(config.resolved_index_path(), create=False)
     ledger = SqliteLedger(connection)
 
     if args.forget:
@@ -532,7 +602,7 @@ def _doctor(args: argparse.Namespace, config: TsumugiConfig) -> int:
         return 1
 
     size = index_path.stat().st_size
-    connection = connect(index_path, create=False)
+    connection = _connect(index_path, create=False)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
     print(f"size:    {size / 1024:.1f} KiB")

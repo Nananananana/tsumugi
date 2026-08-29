@@ -12,13 +12,12 @@ this file holds evidence.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
 from ...errors import StorageError
 
-__all__ = ["SCHEMA_VERSION", "connect", "requires_fts5"]
+__all__ = ["SCHEMA_VERSION", "connect", "empty", "requires_fts5"]
 
 SCHEMA_VERSION: Final = 1
 
@@ -105,6 +104,19 @@ def _migrate(connection: sqlite3.Connection) -> None:
             connection.execute(f"PRAGMA user_version = {version}")
 
 
-def transactional(connection: sqlite3.Connection) -> Callable[[], sqlite3.Connection]:
-    """The connection as a context manager, named for what it does."""
-    return lambda: connection
+def empty(connection: sqlite3.Connection) -> None:
+    """Discard everything the index holds, keeping the schema.
+
+    Done inside the connection rather than by deleting the file, because the
+    caller is usually holding that file open and because the path is often one
+    the user named. Vacuumed and checkpointed afterwards: an index is a
+    complete plaintext copy of a corpus, and "the rows are gone" is not the
+    same as "the text is gone".
+    """
+    with connection:
+        connection.execute("DELETE FROM documents")
+        connection.execute("DELETE FROM search")
+        connection.execute("DELETE FROM index_meta")
+    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    connection.execute("VACUUM")
+    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")

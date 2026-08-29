@@ -125,10 +125,10 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 668 tests, 93% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 678 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
-- **Built:** `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
-  `mcp`, `eval`, `doctor`. Domain (span,
+- **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
+  `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,
   hash, document, anchor, normalization, budget, omission, selection, package,
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
@@ -162,5 +162,8 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - **Incremental ingestion is not close.** Re-ingest over an unchanged corpus is
   5.5x cheaper than a cold build, so the ten-second trigger arrives near 12,000
   documents rather than 2,200. Watch the re-ingest number, not the cold one.
-- Owed, and known: a `forget` command (the store method exists, nothing calls
-  it), and `--rebuild` for when the tokenizer changes.
+- **Close what you open.** The CLI closes its connections in a `finally`. A
+  process that exits closes its files for you, which is why the leak went
+  unnoticed -- but a held read lock stops the next command's
+  `wal_checkpoint` from truncating, so `forget` vacuumed and left the text in
+  the write-ahead log.

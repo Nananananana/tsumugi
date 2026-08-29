@@ -70,7 +70,8 @@ class FtsIndex:
         elif row["value"] != self._tokenizer.name:
             raise ValueError(
                 f"this index was built by {row['value']!r} and is being searched by "
-                f"{self._tokenizer.name!r}. Delete the index and run `tsumugi ingest` again."
+                f"{self._tokenizer.name!r}. Run `tsumugi ingest --rebuild` to read "
+                f"the corpus again."
             )
 
     def add(self, document: Document) -> None:

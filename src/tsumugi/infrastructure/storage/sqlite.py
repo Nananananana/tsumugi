@@ -112,9 +112,14 @@ class SqliteDocumentStore:
                 "DELETE FROM documents WHERE document_id = ?", (document_id,)
             )
             removed = cursor.rowcount
-        # Deleting rows leaves the text in free pages. For a file that holds a
-        # person's notes, "removed from the table" is not removed.
+        # Deleting rows leaves the text in free pages, and under WAL the
+        # deletion itself sits in the -wal file until it is checkpointed. For a
+        # file that holds a person's notes, "removed from the table" is not
+        # removed, and neither is "removed from the table but still in the
+        # write-ahead log".
+        self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         self._connection.execute("VACUUM")
+        self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         return removed
 
     def count(self) -> int:
