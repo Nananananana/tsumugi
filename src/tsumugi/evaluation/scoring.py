@@ -302,7 +302,7 @@ def _covered_facts(case: Case, package: ContextPackage) -> set[str]:
     """Facts whose planted span is inside some item of the package."""
     covered: set[str] = set()
     for item in package.items:
-        document = _document_of(case, item.source_path)
+        document = case.document_for(item.source_path)
         if document is None:
             continue
         for fact_id, fact in case.facts.items():
@@ -314,7 +314,7 @@ def _covered_facts(case: Case, package: ContextPackage) -> set[str]:
 
 
 def _overlaps_any_fact(case: Case, item: ContextItem) -> bool:
-    document = _document_of(case, item.source_path)
+    document = case.document_for(item.source_path)
     if document is None:
         return False
     return any(
@@ -322,16 +322,6 @@ def _overlaps_any_fact(case: Case, item: ContextItem) -> bool:
         for fact_id, fact in case.facts.items()
         if case.fact_document.get(fact_id) == document
     )
-
-
-def _document_of(case: Case, source_path: str) -> str | None:
-    """Map a package's source path back to the case's document key."""
-    if source_path in case.documents:
-        return source_path
-    for key in case.documents:
-        if source_path.endswith(key):
-            return key
-    return None
 
 
 def _expected_rule(case: Case, fact_id: str) -> str | None:
@@ -346,7 +336,7 @@ def _rule_that_dropped(case: Case, package: ContextPackage, fact_id: str) -> str
     fact = case.facts[fact_id]
     document = case.fact_document[fact_id]
     for omission in package.omissions:
-        if _document_of(case, omission.source_path) != document:
+        if case.document_for(omission.source_path) != document:
             continue
         if omission.span.overlaps(fact.span):
             return omission.rule.value

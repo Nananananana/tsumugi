@@ -20,6 +20,7 @@ from tsumugi.domain.package import BudgetReport, ContextPackage, PackageProvenan
 from tsumugi.domain.selection import ContextItem
 from tsumugi.domain.span import Span
 from tsumugi.evaluation import load_case, load_cases, run_case, score_case, strip_markup, summarise
+from tsumugi.evaluation.dataset import Case
 
 from .helpers import build_document
 
@@ -333,3 +334,36 @@ class TestRunningForReal:
         trap_rate = summarise(scores).trap_rate
         assert trap_rate is not None
         assert trap_rate <= 0.2
+
+
+class TestOneRuleForWhichDocument:
+    """`Case.document_for` existed twice, with two different answers.
+
+    One matched any suffix, so a package citing `other.md` resolved to a case
+    document called `her.md`. It never fired on the committed corpus -- every
+    document there has a distinct name -- which is exactly why it was worth
+    consolidating before it did.
+    """
+
+    def _case(self) -> Case:
+        return load_cases(CASES)[0]
+
+    def test_an_exact_key_matches(self) -> None:
+        case = self._case()
+        key = next(iter(case.documents))
+        assert case.document_for(key) == key
+
+    def test_a_path_under_a_workspace_matches(self) -> None:
+        case = self._case()
+        key = next(iter(case.documents))
+        assert case.document_for(f"/tmp/workspace/corpus/{key}") == key
+        assert case.document_for(rf"C:\workspace\corpus\{key}") == key
+
+    def test_a_suffix_that_is_not_a_path_boundary_does_not_match(self) -> None:
+        case = self._case()
+        key = next(iter(case.documents))
+        # "another-current.md" is not "current.md" in a subdirectory.
+        assert case.document_for(f"another-{key}") is None
+
+    def test_an_unknown_document_is_none_rather_than_a_guess(self) -> None:
+        assert self._case().document_for("nothing/like/it.md") is None

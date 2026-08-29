@@ -93,6 +93,27 @@ class Case:
     #: ADR-0010 end to end.
     edit_after_ingest: Mapping[str, str] = field(repr=False, default_factory=dict)
 
+    def document_for(self, source_path: str) -> str | None:
+        """Which of this case's documents a package's ``source_path`` names.
+
+        One rule, in one place. It existed twice with two different answers --
+        one matched any suffix, so ``other.md`` matched a document called
+        ``her.md`` -- which is the kind of divergence that shows up much later
+        as a model scoring better or worse than it did.
+
+        Matching is on a path boundary: a package built from a temporary
+        workspace carries an absolute or root-relative path, and the case knows
+        only its own keys.
+        """
+        if source_path in self.documents:
+            return source_path
+        normalised = source_path.replace("\\", "/")
+        for key in self.documents:
+            wanted = key.replace("\\", "/")
+            if normalised == wanted or normalised.endswith("/" + wanted):
+                return key
+        return None
+
     def __post_init__(self) -> None:
         if self.split not in {"train", "held_out"}:
             raise ValueError(f"{self.case_id}: unknown split {self.split!r}")

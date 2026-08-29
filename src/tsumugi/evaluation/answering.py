@@ -215,7 +215,7 @@ def _where_the_citations_landed(
     adversaries: set[str] = set()
 
     for location in located:
-        document = _document_of(case, location.source_path)
+        document = case.document_for(location.source_path)
         if document is None:
             continue
         for fact_id, fact in case.facts.items():
@@ -229,16 +229,6 @@ def _where_the_citations_landed(
                 answers.add(fact_id)
 
     return tuple(sorted(answers)), tuple(sorted(adversaries))
-
-
-def _document_of(case: Case, source_path: str) -> str | None:
-    if source_path in case.documents:
-        return source_path
-    tail = source_path.replace("\\", "/").rsplit("/", 1)[-1]
-    for relative in case.documents:
-        if relative.replace("\\", "/").rsplit("/", 1)[-1] == tail:
-            return relative
-    return None
 
 
 def answer_cases(
