@@ -212,13 +212,19 @@ tsumugi demo --model qwen2.5:7b-instruct   # the same walk-through, with a real 
 ```
 
 ```console
-sending to ollama/qwen2.5:7b-instruct at http://127.0.0.1:11434 (local)
+$ tsumugi ask "テントの重量は?" --model qwen2.5:14b-instruct
+sending to ollama/qwen2.5:14b-instruct at http://127.0.0.1:11434 (local)
 テントの重量は2.4kgです。
 
---- 4f2a1c8b ---
+--- fd045294137b ---
   supported    テントの重量は2.4kgです。
   1 supported
 ```
+
+That corpus also held an older note saying 3.1kg. The model quoted the current
+one; had it quoted the old one, the citation would still have resolved —
+**being fooled by a superseded passage and inventing one are different
+failures, and only the second is something verification can catch.**
 
 The model is asked for text and never for a decision. It does not rank, does
 not choose what is sent, and does not resolve a citation — so the worst a

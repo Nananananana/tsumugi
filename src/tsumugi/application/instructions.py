@@ -54,6 +54,14 @@ DEFAULT: Final[dict[str, Any]] = {
 ANSWERING: Final[dict[str, Any]] = {
     "role": DEFAULT["role"],
     "rules": [
+        # First, and stated in words as well as in the schema. A JSON Schema
+        # section on its own is not an instruction: llama3.1:8b answered all
+        # fifty evaluation cases in fluent prose, which verifies as zero claims
+        # -- and zero claims reads clean. The schema below is the specification;
+        # this line and the example are what a model actually follows.
+        "Reply with JSON only, matching OUTPUT_SCHEMA below. No prose, no "
+        'markdown fence. For example: {"claims": [{"text": "The tent weighs '
+        '2.4kg.", "citations": ["weighs 2.4kg"]}]}',
         *DEFAULT["rules"],
         "A citation is a span of text copied out of a passage, character for "
         "character. It is not a filename, not a heading, and not a [c1] label.",

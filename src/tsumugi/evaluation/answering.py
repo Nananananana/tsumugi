@@ -109,12 +109,23 @@ class AnswerSummary:
     abstained_correctly: int = 0
     by_language: dict[str, tuple[int, int]] = field(default_factory=dict)
 
+    @property
+    def checked(self) -> int:
+        """Answers that could be checked at all.
+
+        The denominator for every rate. An unreadable answer says nothing
+        about grounding, and dividing by it would report a model that cannot
+        follow an output contract as a model that cites badly -- two different
+        problems with two different fixes.
+        """
+        return self.ran - self.unreadable
+
     def _share(self, count: int) -> str:
-        return f"{count / self.ran:.0%}" if self.ran else "n/a"
+        return f"{count / self.checked:.0%}" if self.checked else "n/a"
 
     def describe(self) -> str:
         lines = [
-            f"{self.ran} cases answered by {self.model}"
+            f"{self.checked} of {self.ran} answers checkable, by {self.model}"
             + (f", {self.failed} failed to run" if self.failed else ""),
             f"  grounded    {self._share(self.grounded):>5}   every citation resolved",
             f"  on target   {self._share(self.on_target):>5}   a citation landed in a planted fact",
@@ -249,6 +260,10 @@ def summarise_answers(scores: Sequence[AnswerScore], *, model: str) -> AnswerSum
         summary.grounded += int(score.grounded)
         summary.on_target += int(score.on_target)
         summary.trapped += int(bool(score.trapped))
+        if score.unreadable:
+            # Counted, and then out of every rate. It is not an abstention and
+            # it is not an ungrounded answer; it is an answer nobody can check.
+            continue
         if score.expected_to_abstain:
             summary.abstention_cases += 1
             summary.abstained_correctly += int(score.abstained)

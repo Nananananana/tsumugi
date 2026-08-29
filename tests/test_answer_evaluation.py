@@ -195,9 +195,15 @@ class TestAModelThatIgnoresTheContract:
         ]
         summary = summarise_answers(scores, model="m")
         assert summary.ran == 2 and summary.unreadable == 1 and summary.failed == 0
+        # And out of the denominator. An unreadable answer says nothing about
+        # grounding, so counting it as ungrounded would report a model that
+        # cannot follow an output contract as one that cites badly.
+        assert summary.checked == 1
+        assert summary.grounded == 1
         described = summary.describe()
-        # A count, in words. Not a percentage sitting beside the four rates,
-        # because it is not measuring the same kind of thing.
+        assert "grounded     100%" in described
+        # A count, in words. Not a percentage beside the four rates, because
+        # it is not measuring the same kind of thing.
         assert "1 of those answers" in described
 
 
@@ -223,6 +229,20 @@ class TestFailureIsRecordedNotRaised:
         assert summary.ran == 2 and summary.failed == 1
         assert summary.grounded == 1
         assert "50%" in summary.describe()
+
+
+class TestTheOutputContractIsStatedInWords:
+    def test_it_asks_for_json_in_a_rule_and_not_only_in_a_schema(self) -> None:
+        # Earned, and expensively. When the JSON shape moved into
+        # `# OUTPUT_SCHEMA` and no rule said "reply with JSON", llama3.1:8b
+        # answered all fifty evaluation cases in fluent prose -- which verifies
+        # as zero claims, and zero claims reads clean. A schema is a
+        # specification; a rule is what a model follows.
+        from tsumugi.application.instructions import ANSWERING
+
+        rules = " ".join(ANSWERING["rules"])
+        assert "JSON only" in rules
+        assert '"claims"' in rules, "and an example, because weak models copy shapes"
 
 
 class TestItIsNeverAGate:
