@@ -41,6 +41,7 @@ from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.cost import CostModel
 from ..mcp.server import serve
+from .demo import run_demo
 
 __all__ = ["build_parser", "main"]
 
@@ -169,6 +170,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--failures", action="store_true", help="name every case that is not clean"
     )
     evaluate.set_defaults(run=_eval)
+
+    demo = commands.add_parser(
+        "demo",
+        help="watch the whole thing happen, in a throwaway directory",
+        description=(
+            "Builds a small rigged corpus, asks it something, shows what was left out "
+            "and why, checks an answer's citations, and traces one back to a line. No "
+            "model, no network, nothing written outside a temporary directory."
+        ),
+    )
+    demo.add_argument(
+        "--keep", action="store_true", help="leave the corpus and index behind to poke at"
+    )
+    demo.set_defaults(run=_demo)
 
     doctor = commands.add_parser("doctor", help="what this index holds, and what it is")
     doctor.set_defaults(run=_doctor)
@@ -549,6 +564,12 @@ def _forget(args: argparse.Namespace, config: TsumugiConfig) -> int:
         print(f"{len(removed)} documents removed and the index vacuumed.")
         print("Anything already sent to a model is not covered by this.")
     return 0 if removed else 1
+
+
+def _demo(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    # Deliberately ignores the configured index: a demo must not touch, or even
+    # open, whatever real corpus the reader has.
+    return run_demo(keep=args.keep)
 
 
 def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:

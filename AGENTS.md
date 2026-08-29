@@ -125,7 +125,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 726 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 741 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
   `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,

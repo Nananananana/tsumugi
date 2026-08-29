@@ -27,6 +27,20 @@ Local-first. No network in the core. **Zero runtime dependencies.**
 
 ---
 
+## See it work
+
+```bash
+tsumugi demo
+```
+
+The whole pipeline in a throwaway directory: a small rigged corpus, a question,
+what was left out and why, an answer whose citations get checked, and a
+quotation traced back to a line in a file. No model, no network, and it does not
+touch whatever index you already have.
+
+Then [`examples/library.py`](examples/library.py) is the same shape as ordinary
+Python, commented for *why* rather than *what*.
+
 ## The problem
 
 You have a folder of notes. When a language model could answer something from it,
