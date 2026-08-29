@@ -23,6 +23,7 @@ from ..domain.budget import Unit
 from ..domain.package import ContextPackage
 from ..infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ..infrastructure.filesystem import walk
+from ..infrastructure.freshness import FilesystemFreshness
 from ..infrastructure.index.fts import FtsIndex
 from ..infrastructure.parsers import parser_for
 from ..infrastructure.storage.database import connect
@@ -52,6 +53,11 @@ def run_case(case: Case, *, candidate_limit: int = 50) -> CaseScore:
         found = walk(root)
         ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
 
+        # A stale_anchor case edits a document after it was indexed. Nothing
+        # re-ingests: the point is that the index holds what it read and the
+        # anchors into it are reported as historical (ADR-0010).
+        case.apply_edits(root)
+
         def build() -> ContextPackage:
             return build_context(
                 case.question,
@@ -61,6 +67,7 @@ def run_case(case: Case, *, candidate_limit: int = 50) -> CaseScore:
                 budget=case.budget,
                 candidate_limit=candidate_limit,
                 version="eval",
+                freshness=FilesystemFreshness(root),
             )
 
         package = build()

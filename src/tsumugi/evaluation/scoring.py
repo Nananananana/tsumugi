@@ -105,6 +105,16 @@ class CaseScore:
     relevant_items: int = 0
     within_budget: bool = True
     reproducible: bool = True
+    #: The corpus did not hold the answer and the package sent context anyway.
+    #:
+    #: **Reported, not gated.** tsumugi has no way to say "nothing here answers
+    #: this": a package is passages that bear on a question, and documents
+    #: about the right subject do bear on it. Saying the answer is absent is a
+    #: semantic judgement, and the instruction set leaves it to the model
+    #: ("if the context does not answer the question, say so plainly"). The
+    #: number is kept because the gap is worth watching, not because failing it
+    #: is a regression.
+    answered_the_unanswerable: bool = False
 
     @property
     def evidence_recall(self) -> float | None:
@@ -147,6 +157,7 @@ class Summary:
     accounted: int = 0
     over_budget: tuple[str, ...] = ()
     unreproducible: tuple[str, ...] = ()
+    answered_the_unanswerable: tuple[str, ...] = ()
     by_genre: dict[str, tuple[int, int]] = field(default_factory=dict)
     by_language: dict[str, tuple[int, int]] = field(default_factory=dict)
 
@@ -190,6 +201,13 @@ class Summary:
             lines.append(f"  OVER BUDGET: {', '.join(self.over_budget)}")
         if self.unreproducible:
             lines.append(f"  NOT REPRODUCIBLE: {', '.join(self.unreproducible)}")
+        if self.answered_the_unanswerable:
+            # An observation, not a failure. See CaseScore.
+            lines.append(
+                f"  note: {len(self.answered_the_unanswerable)} unanswerable questions "
+                f"still returned context. tsumugi cannot say the corpus lacks an "
+                f"answer; the instruction set asks the model to."
+            )
         if not self.over_budget and not self.unreproducible:
             lines.append("  budget adherence and reproducibility: held on every case")
 
@@ -248,6 +266,7 @@ def score_case(
         relevant_items=relevant,
         within_budget=package.budget.estimate <= case.budget.limit,
         reproducible=rebuilt is None or rebuilt.package_id == package.package_id,
+        answered_the_unanswerable=case.is_unanswerable and bool(package.items),
     )
 
 
@@ -267,6 +286,11 @@ def summarise(scores: Sequence[CaseScore]) -> Summary:
             summary.over_budget = (*summary.over_budget, score.case_id)
         if not score.reproducible:
             summary.unreproducible = (*summary.unreproducible, score.case_id)
+        if score.answered_the_unanswerable:
+            summary.answered_the_unanswerable = (
+                *summary.answered_the_unanswerable,
+                score.case_id,
+            )
 
         for table, key in ((summary.by_genre, score.genre), (summary.by_language, score.language)):
             clean, total = table.get(key, (0, 0))

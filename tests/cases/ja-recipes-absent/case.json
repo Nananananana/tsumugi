@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-recipes-absent",
+  "genre": "recipes",
+  "language": "ja",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "生地の保証期間は何年か",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}

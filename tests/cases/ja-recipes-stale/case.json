@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-recipes-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# 手順\n\nこの記録は全面的に書き直された。以前の内容は残っていない。\n"
+  },
+  "genre": "recipes",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "生地の寝かせ時間は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

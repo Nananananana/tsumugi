@@ -9,6 +9,34 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Fixed — staleness could never fire
+
+- **`build_context` compared an anchor against the store**, which holds the
+  text it anchored and so always matches. That check catches a corrupt index
+  and nothing else; whether the *file* had moved on was never asked. A package
+  would silently offer a passage from a file rewritten last week as though it
+  were current. True since v0.2, and found by adding `stale_anchor` cases to
+  the evaluation corpus.
+- `FreshnessCheck` is a port, because finding out costs I/O. The filesystem
+  implementation compares byte length first — allowing for a byte order mark,
+  which ingest strips — and hashes only when that matches. A caller with no
+  corpus to hand gets `freshness/unchecked` recorded in the package's
+  providers, so nobody reads "no stale anchors" as "nothing was stale".
+- `tsumugi context --corpus PATH` turns it on.
+
+### Added — twenty more cases, and two traps that needed their own shape
+
+- `absent_answer`: a question the corpus does not answer. `stale_anchor`: a
+  document edited after it was indexed, which is the only way to exercise
+  ADR-0010 end to end.
+- Omission correctness **45% → 95%** once staleness could be detected.
+- One finding is **reported and not gated**: four of ten English
+  `absent_answer` cases still return context. That is not a defect. A package
+  is passages that bear on a question, and documents about the right subject do
+  bear on it; saying "the corpus has no answer" is a semantic judgement the
+  instruction set leaves to the model. The number is kept because the gap is
+  worth watching.
+
 ### Added — redundancy, marked and never removed
 
 - **Near-duplicate detection** (ADR-0008), on character shingles and set

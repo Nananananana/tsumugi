@@ -259,6 +259,21 @@ def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
     return f"{head}{{{{F:{fact_id}}}}}{answer_text}{{{{/F}}}}\n\n{_FILLER[genre.language]}"
 
 
+#: Questions no document in the corpus answers. Kept in the same subject area
+#: as the genre so that retrieval *will* propose documents -- a question about
+#: an unrelated topic would return nothing for the boring reason.
+_UNANSWERABLE = {
+    "ja": "の保証期間は何年か",
+    "en": "what is the warranty period of ",
+}
+
+
+def _unanswerable_question(genre: Genre) -> str:
+    if genre.language == "ja":
+        return f"{genre.subject}{_UNANSWERABLE['ja']}"
+    return f"{_UNANSWERABLE['en']}{genre.subject}"
+
+
 def _bulk_document(genre: Genre, n: int) -> str:
     """Competition, so that a budget can actually bind."""
     if genre.language == "ja":
@@ -272,6 +287,71 @@ def _bulk_document(genre: Genre, n: int) -> str:
         f"Background on how {genre.subject} has been handled before.\n"
         f"{_FILLER[genre.language] * 3}"
     )
+
+
+def build_absent_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
+    """A question the corpus does not answer.
+
+    The documents are all about the right subject, so retrieval proposes them
+    and confirmation has real work to do. Assembling a plausible-looking
+    package for a question nothing answers is the failure an evidence system
+    exists to avoid, and nothing else in the corpus tests it.
+    """
+    case_id = f"{genre.language}-{genre.key}-absent"
+    documents = {
+        "current.md": _answer_document(genre, "answer"),
+        "neighbour.md": _near_miss_document(genre, "near-miss"),
+    }
+    manifest: dict[str, object] = {
+        "case_id": case_id,
+        "genre": genre.key,
+        "language": genre.language,
+        "question": _unanswerable_question(genre),
+        "budget": {"unit": "characters", "limit": 1200},
+        "must_include": [],
+        "must_not_include": [],
+        "traps": {"answer": {"kind": "absent_answer"}},
+        "split": "train",
+        "tier": "ci",
+    }
+    return case_id, documents, manifest
+
+
+def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
+    """A document edited after it was indexed.
+
+    Exercises ADR-0010 through the whole pipeline: the evidence was true in the
+    version that was read, the file has moved on, and the package has to say so
+    rather than offering it as current or dropping it without a word.
+    """
+    case_id = f"{genre.language}-{genre.key}-stale"
+    documents = {
+        "current.md": _answer_document(genre, "answer"),
+        "drifting.md": _superseded_document(genre, "drifted"),
+    }
+    if genre.language == "ja":
+        edited = (
+            f"# {genre.heading}\n\nこの記録は全面的に書き直された。以前の内容は残っていない。\n"
+        )
+    else:
+        edited = (
+            f"# {genre.heading}\n\nThis record was rewritten. "
+            f"Nothing of the earlier text remains here.\n"
+        )
+    manifest: dict[str, object] = {
+        "case_id": case_id,
+        "genre": genre.key,
+        "language": genre.language,
+        "question": genre.question,
+        "budget": {"unit": "characters", "limit": 1200},
+        "must_include": ["answer"],
+        "must_not_include": [],
+        "traps": {"drifted": {"kind": "stale_anchor", "expect_omission_rule": "stale_anchor"}},
+        "edit_after_ingest": {"drifting.md": edited},
+        "split": "train",
+        "tier": "ci",
+    }
+    return case_id, documents, manifest
 
 
 def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[str, object]]:
@@ -418,21 +498,27 @@ def main(argv: list[str] | None = None) -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     written, rejected = 0, 0
+    built: list[tuple[str, dict[str, str], dict[str, object]]] = []
     for genre in GENRES:
-        for variant in range(args.per_genre):
-            case_id, documents, manifest = build_case(genre, variant)
-            write_case(args.out, case_id, documents, manifest)
+        built.extend(build_case(genre, variant) for variant in range(args.per_genre))
+        # One of each of the two traps that need their own case shape: a
+        # question nothing answers, and a document edited after ingest.
+        built.append(build_absent_case(genre))
+        built.append(build_stale_case(genre))
 
-            # Discarded rather than shipped. A broken case fails a correct
-            # implementation, and that is the expensive kind of failure.
-            problems = check(args.out / case_id)
-            if problems:
-                for problem in problems:
-                    print(f"REJECTED {case_id}: {problem}", file=sys.stderr)
-                shutil.rmtree(args.out / case_id)
-                rejected += 1
-                continue
-            written += 1
+    for case_id, documents, manifest in built:
+        write_case(args.out, case_id, documents, manifest)
+
+        # Discarded rather than shipped. A broken case fails a correct
+        # implementation, and that is the expensive kind of failure.
+        problems = check(args.out / case_id)
+        if problems:
+            for problem in problems:
+                print(f"REJECTED {case_id}: {problem}", file=sys.stderr)
+            shutil.rmtree(args.out / case_id)
+            rejected += 1
+            continue
+        written += 1
 
     print(f"{written} cases written to {args.out}, {rejected} rejected by the oracle")
     return 1 if rejected else 0

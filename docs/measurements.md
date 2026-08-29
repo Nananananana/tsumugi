@@ -103,17 +103,59 @@ tsumugi eval            # everything
 tsumugi eval --tier ci  # the fast tier CI runs
 ```
 
-| | train (20) | held out (10) | all (30) |
-|---|---|---|---|
-| Evidence recall | 100% | 100% | **100%** |
-| Evidence precision | — | — | **98.8%** |
-| Lexical-near-miss trap rate | 10.0% | 10.0% | **10.0%** |
-| Omission correctness | — | — | **90.0%** |
-| Budget adherence | exact | exact | exact |
-| Reproducibility | exact | exact | exact |
+Fifty cases: thirty across ten genres in three budget shapes, plus one
+`absent_answer` and one `stale_anchor` case per genre.
 
-**Train and held-out agree**, which is what says the trap rate is not fitted to
-the cases it was measured on.
+| | all (50) |
+|---|---|
+| Evidence recall | **100%** |
+| Evidence precision | **99.0%** |
+| Lexical-near-miss trap rate | **10.0%** |
+| Omission correctness | **95.0%** |
+| Budget adherence | exact |
+| Reproducibility | exact |
+
+**Train and held-out agree at 10% on the trap rate**, which is what says it is
+not fitted to the cases it was measured on.
+
+### What the corpus has found so far
+
+Three real defects, each invisible from every other angle:
+
+| Run | Found |
+|---|---|
+| First | **Unconfirmed candidates entering packages**, contradicting ADR-0007 in its own words. Four commits old. |
+| Same | **Confirmation weaker in English than Japanese** — a single shared word confirmed a document about something else. |
+| Adding `stale_anchor` cases | **Staleness could never fire.** `build_context` compared the anchor against the *store*, which holds the text it anchored and so always matches. Nothing read the disk. True since v0.2 (see below). |
+
+### Staleness was structurally undetectable
+
+ADR-0010 says an anchor whose document has changed **on disk** is stale.
+`build_context` checked `resolve(anchor, stored_document)` — which by
+construction always resolves, because the store holds the text it anchored.
+That check catches a corrupt index and nothing else.
+
+Only the disk knows, so checking costs I/O, so it is a port:
+`FreshnessCheck`, with a filesystem implementation that compares byte length
+first and hashes only when that matches. A caller without a corpus to hand gets
+`freshness/unchecked` recorded in the package's providers, so nobody reads "no
+stale anchors" as "nothing was stale".
+
+Omission correctness went **45% → 95%** when the check was wired in.
+
+### One thing tsumugi cannot do, now measured
+
+Four of ten English `absent_answer` cases still return context for a question
+the corpus does not answer. That is **reported and not gated**, because it is
+not a defect: a package is passages that bear on a question, and documents
+about the right subject do bear on it. Saying "the corpus has no answer" is a
+semantic judgement, and the instruction set leaves it to the model — *"if the
+context does not answer the question, say so plainly."*
+
+The Japanese cases return nothing, and the difference is the needle mechanism
+rather than any semantic capability: an English question shares the subject
+phrase with the subject's documents, and a Japanese one shares the whole query
+or nothing.
 
 ### What the first run found
 
@@ -144,7 +186,7 @@ stage does not — or a stopword list, which is a vocabulary list per language a
 does not generalise. Chasing it on thirty synthetic cases would be fitting the
 ranker to the fixtures.
 
-### Omission correctness: 0% → 90%, and what the 0% bought
+### Omission correctness: 0% → 90% → 95%, and what the 0% bought
 
 The metric asks whether the *reason given* for an exclusion was right, and it
 read **0%** on its first run. It was the first number in this project that
@@ -158,10 +200,10 @@ not detectable and not what the rule means
 ([ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md)). The trap
 is now a verbatim copy, which is what `redundant_candidate` does mean.
 
-The remaining 10% is one case where the copy fitted the budget and was
-correctly *sent*, carrying a `redundant_with:` signal rather than becoming an
-omission. That is ADR-0008's rule working: redundancy lowers priority and never
-vetoes.
+Wiring in the freshness check took it to **95%**. The remaining 5% is one case
+where the copy fitted the budget and was correctly *sent*, carrying a
+`redundant_with:` signal rather than becoming an omission. That is ADR-0008's
+rule working: redundancy lowers priority and never vetoes.
 
 ### Near-duplicate detection: what containment separates
 
@@ -253,11 +295,10 @@ above says nothing about Korean text.
 - **Not a measure of whether an answer is correct.** Retrieval finding the right
   passage says nothing about what a model then does with it, and no number here
   is about that.
-- **Thirty cases is a tenth of what
-  [evaluation-corpus.md](evaluation-corpus.md) describes**, and only two of its
-  seven trap kinds are planted. `near_duplicate`, `absent_answer`,
-  `mixed_script` and `stale_anchor` have no cases yet — and they are the
-  interesting ones.
+- **Fifty cases is a twentieth to a half of what
+  [evaluation-corpus.md](evaluation-corpus.md) describes**, and five of its
+  seven trap kinds are planted. `mixed_script` and a standalone
+  `budget_squeeze` are still missing.
 - **The index and cost numbers above are not gated.** Retrieval is: CI runs the
   `ci` tier and fails below its floors. Index size and ingest speed are re-run
   by hand.

@@ -15,6 +15,7 @@ that hides bugs.
 from __future__ import annotations
 
 from .cost import CostModel
+from .freshness import FreshnessCheck
 from .index import Index, IndexHit
 from .ledger import LedgerStore
 from .parser import ParsedDocument, Parser
@@ -25,6 +26,7 @@ from .tokenizer import Tokenizer
 __all__ = [
     "CostModel",
     "DocumentStore",
+    "FreshnessCheck",
     "Index",
     "IndexHit",
     "LedgerStore",

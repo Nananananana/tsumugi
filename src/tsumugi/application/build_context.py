@@ -27,6 +27,7 @@ from ..domain.package import (
 )
 from ..domain.selection import ItemProvenance
 from ..ports.cost import CostModel
+from ..ports.freshness import FreshnessCheck
 from ..ports.index import Index
 from ..ports.store import DocumentStore
 from .search import search
@@ -64,6 +65,7 @@ def build_context(
     minimum_score: float = 0.0,
     context_characters: int = 400,
     version: str = "",
+    freshness: FreshnessCheck | None = None,
 ) -> ContextPackage:
     """Select what bears on ``query``, fit it to ``budget``, and account for the rest."""
     results, truncation = search(
@@ -104,19 +106,33 @@ def build_context(
         # A stale anchor is not dropped either: it is carried with its reason,
         # so the package can say the evidence was true in the version it was
         # indexed from (ADR-0010).
+        #
+        # Two different checks, and only one of them used to exist. Resolving
+        # against the *store* can never report staleness, because the store
+        # holds the text it anchored -- that check catches a corrupt index and
+        # nothing else. Whether the *file* has moved on needs the disk, which
+        # is what `freshness` is for. Without it, a package silently offers a
+        # passage from a file rewritten last week as though it were current;
+        # the evaluation corpus found that, and it had been true since v0.2.
         document = store.get(result.anchor.document_id)
         if disqualified is None and document is not None:
             status = resolve(result.anchor, document).status
-            if status is ResolutionStatus.STALE:
+            if status is ResolutionStatus.UNRESOLVABLE:
+                disqualified = (
+                    OmissionRule.STALE_ANCHOR,
+                    "the text is no longer at the offsets recorded for it",
+                )
+            elif freshness is not None and not freshness.is_current(document):
+                disqualified = (
+                    OmissionRule.STALE_ANCHOR,
+                    "the file has changed since it was indexed; this passage was true "
+                    "in the version that was read, and is not offered as current",
+                )
+            elif status is ResolutionStatus.STALE:
                 disqualified = (
                     OmissionRule.STALE_ANCHOR,
                     "the document has changed since it was indexed; this passage was "
                     "true in the version that was read, and is not offered as current",
-                )
-            elif status is ResolutionStatus.UNRESOLVABLE:
-                disqualified = (
-                    OmissionRule.STALE_ANCHOR,
-                    "the text is no longer at the offsets recorded for it",
                 )
 
         candidates.append(
@@ -174,7 +190,10 @@ def build_context(
         provenance=PackageProvenance(
             tsumugi_version=version,
             corpus_state=corpus_state([d.version for d in store.all_current()]),
-            providers=("filesystem",),
+            providers=(
+                "filesystem",
+                freshness.name if freshness is not None else "freshness/unchecked",
+            ),
         ),
         instructions=_INSTRUCTIONS,
         created_at=datetime.now(UTC).isoformat(),

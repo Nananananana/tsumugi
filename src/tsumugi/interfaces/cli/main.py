@@ -31,6 +31,7 @@ from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
+from ...infrastructure.freshness import FilesystemFreshness, NeverStale
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
 from ...infrastructure.storage.database import SCHEMA_VERSION, connect
@@ -85,6 +86,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context.add_argument(
         "--min-score", type=float, default=0.0, help="relevance floor for inclusion"
+    )
+    context.add_argument(
+        "--corpus",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "the folder the index was built from. Given it, passages from files that "
+            "have changed since they were indexed are reported as stale rather than "
+            "offered as current"
+        ),
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
     context.add_argument(
@@ -276,6 +287,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         candidate_limit=config.candidate_limit,
         minimum_score=args.min_score,
         version=__version__,
+        freshness=FilesystemFreshness(args.corpus) if args.corpus else NeverStale(),
     )
 
     SqliteLedger(connection).open(package)

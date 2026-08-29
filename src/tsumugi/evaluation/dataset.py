@@ -87,6 +87,11 @@ class Case:
     facts: Mapping[str, PlantedFact] = field(repr=False, default_factory=dict)
     #: ``fact id -> the document it was planted in``.
     fact_document: Mapping[str, str] = field(repr=False, default_factory=dict)
+    #: ``relative path -> replacement text``, applied **after** ingest and
+    #: before the package is built. This is how a ``stale_anchor`` case makes a
+    #: document change under the index, which is the only way to exercise
+    #: ADR-0010 end to end.
+    edit_after_ingest: Mapping[str, str] = field(repr=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.split not in {"train", "held_out"}:
@@ -136,6 +141,18 @@ class Case:
 
     def trap_for(self, fact_id: str) -> Trap | None:
         return self.traps.get(fact_id)
+
+    @property
+    def is_unanswerable(self) -> bool:
+        """The corpus does not hold the answer, and the package should say so
+        rather than assembling something plausible."""
+        return any(trap.kind == "absent_answer" for trap in self.traps.values())
+
+    def apply_edits(self, root: Path) -> None:
+        """Rewrite the documents a ``stale_anchor`` case edits."""
+        for relative, text in sorted(self.edit_after_ingest.items()):
+            with (root / relative).open("w", encoding="utf-8", newline="") as handle:
+                handle.write(text)
 
 
 def load_case(directory: Path) -> Case:
@@ -195,6 +212,7 @@ def load_case(directory: Path) -> Case:
         documents=documents,
         facts=facts,
         fact_document=fact_document,
+        edit_after_ingest=manifest.get("edit_after_ingest") or {},
     )
 
 

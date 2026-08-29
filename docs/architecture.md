@@ -94,6 +94,7 @@ tokenizer is a *proposer*; replacing any of them cannot change an answer below.
 | That every candidate leaves as an item or an omission | `domain/assembly.py` |
 | Whether a quotation is really in the text that was sent | `domain/matching.py` |
 | Whether two passages are near-duplicates | `domain/redundancy.py` |
+| Whether the file a passage came from has changed | `infrastructure/freshness.py` |
 | Whether a claim is supported, unsupported, uncited or unverifiable | `domain/claim.py` |
 
 ## Key types
@@ -211,8 +212,8 @@ retrieval dataset ever shows bigrams costing real recall. An index records which
 tokenizer built it and refuses to be searched by another, because the terms
 would not line up and the failure would look like an empty corpus.
 
-`DocumentStore`, `Index`, `CostModel`, `Redactor` and `LedgerStore` are the
-others. `CostModel` has
+`DocumentStore`, `Index`, `CostModel`, `Redactor`, `LedgerStore` and
+`FreshnessCheck` are the others. `CostModel` has
 three implementations: `CharacterCost` and `ByteCost` count exactly, and
 `HeuristicTokenCost` estimates tokens by script class and reports its own
 measured error ([ADR 0006](adr/0006-the-budget-is-an-estimate.md), numbers in
@@ -418,5 +419,5 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-599 tests, 93% line coverage. Every test runs with no network, no model and no
+668 tests, 93% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.
