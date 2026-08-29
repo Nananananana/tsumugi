@@ -82,10 +82,10 @@ class AnswerScore:
     #: Trap fact ids that are copies of the answer. Reported, never counted as
     #: being fooled: quoting a copy is quoting the answer.
     cited_a_copy: tuple[str, ...] = ()
-    #: At least one claim cited a planted adversary *and* the answer in the
-    #: same breath. That is the model comparing them, which is what the
-    #: instruction set asks for when two passages disagree.
-    contrasted: bool = False
+    #: The answer cited a contradicting passage somewhere *and* also cited the
+    #: planted answer. A count, never a verdict: whether that helped or misled
+    #: is not visible in citations.
+    disagreeing: bool = False
 
     @property
     def ran(self) -> bool:
@@ -113,7 +113,7 @@ class AnswerSummary:
     grounded: int = 0
     on_target: int = 0
     trapped: int = 0
-    contrasted: int = 0
+    disagreeing: int = 0
     cited_a_copy: int = 0
     abstention_cases: int = 0
     abstained_correctly: int = 0
@@ -139,13 +139,16 @@ class AnswerSummary:
             + (f", {self.failed} failed to run" if self.failed else ""),
             f"  grounded    {self._share(self.grounded):>5}   every citation resolved",
             f"  on target   {self._share(self.on_target):>5}   a citation landed in a planted fact",
-            f"  trapped     {self._share(self.trapped):>5}   a claim cited an outdated "
-            f"passage as its answer",
+            f"  captured    {self._share(self.trapped):>5}   an outdated passage was all "
+            f"the reader got",
         ]
-        if self.contrasted:
+        if self.disagreeing:
+            # A count, never a rate. Whether citing a contradicting passage
+            # helped or misled is not visible in citations, and a percentage
+            # would imply it had been judged.
             lines.append(
-                f"  contrasted  {self._share(self.contrasted):>5}   a claim cited a "
-                f"disagreeing passage beside the answer, which is what was asked for"
+                f"  ({self.disagreeing} also cited a passage that contradicts the answer; "
+                f"whether that helped is not something citations can say)"
             )
         if self.cited_a_copy:
             # Reported and not counted above. A near-duplicate carries the
@@ -211,24 +214,19 @@ def answer_case(case: Case, provider: LLMProvider, *, candidate_limit: int = 50)
                 failure=str(error),
             )
 
-        # Per claim, not per answer. Citing the superseded passage *beside*
-        # the current one is a comparison; citing it *instead* is being fooled.
-        # An answer-level count cannot tell those apart, and the instruction
-        # set now asks for exactly the first -- so measured at the answer
-        # level, following the instruction reads as failing.
-        planted: set[str] = set()
-        tripped: set[str] = set()
-        copies: set[str] = set()
-        contrasted = False
-        for claim in asked.verification.claims:
-            located = [location for citation in claim.citations for location in citation.locations]
-            answers, adversaries, duplicates = _where_the_citations_landed(case, located)
-            planted.update(answers)
-            copies.update(duplicates)
-            if adversaries and answers:
-                contrasted = True
-            elif adversaries:
-                tripped.update(adversaries)
+        located = [
+            location
+            for claim in asked.verification.claims
+            for citation in claim.citations
+            for location in citation.locations
+        ]
+        answers, adversaries, duplicates = _where_the_citations_landed(case, located)
+        planted, copies = set(answers), set(duplicates)
+        # Captured only when the contradicting passage was *all* the reader
+        # got. When the answer is cited too, both are in front of them, and
+        # which one the prose leaned on is not something citations can say.
+        tripped = set(adversaries) if adversaries and not answers else set()
+        disagreeing = bool(adversaries and answers)
 
         return AnswerScore(
             case_id=case.case_id,
@@ -244,7 +242,7 @@ def answer_case(case: Case, provider: LLMProvider, *, candidate_limit: int = 50)
             and all(not claim.citations for claim in asked.verification.claims),
             trapped=tuple(sorted(tripped)),
             cited_a_copy=tuple(sorted(copies)),
-            contrasted=contrasted,
+            disagreeing=disagreeing,
         )
 
 
@@ -301,7 +299,7 @@ def summarise_answers(scores: Sequence[AnswerScore], *, model: str) -> AnswerSum
         summary.grounded += int(score.grounded)
         summary.on_target += int(score.on_target)
         summary.trapped += int(bool(score.trapped))
-        summary.contrasted += int(score.contrasted)
+        summary.disagreeing += int(score.disagreeing)
         summary.cited_a_copy += int(bool(score.cited_a_copy))
         if score.unreadable:
             # Counted, and then out of every rate. It is not an abstention and

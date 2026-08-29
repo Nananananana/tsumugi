@@ -174,18 +174,18 @@ class TestTheTrapMetric:
         if score.grounded:
             assert copy_id in score.cited_a_copy, "reported, and not as a failure"
 
-    def test_citing_the_adversary_beside_the_answer_is_contrast_not_capture(self) -> None:
-        # The instruction set asks a model to cite both when two passages
-        # disagree. Measured per *answer*, following that rule scored as
-        # trapped on every case -- the metric was punishing the behaviour it
-        # had just asked for.
+    def test_citing_the_adversary_beside_the_answer_is_not_capture(self) -> None:
+        # Both passages are in front of the reader. Which one the prose leaned
+        # on is not visible in citations -- "it weighs 2.4kg; it previously
+        # weighed 3.1kg" and "it weighs 3.1kg; a later note says 2.4kg" cite
+        # exactly the same two spans.
         case = _case_with("superseded")
         trap_id = next(id for id, trap in case.traps.items() if trap.kind == "superseded")
         both = (case.facts[trap_id].text, _planted_text(case))
         score = answer_case(case, Scripted(quotations=both))
         if score.grounded:
-            assert not score.trapped, "one claim citing both is a comparison"
-            assert score.contrasted
+            assert not score.trapped
+            assert score.disagreeing, "reported as a count, not judged"
 
     def test_citing_only_the_adversary_is_capture(self) -> None:
         case = _case_with("superseded")
@@ -193,7 +193,7 @@ class TestTheTrapMetric:
         score = answer_case(case, Scripted(quotations=(case.facts[trap_id].text,)))
         if score.grounded:
             assert trap_id in score.trapped
-            assert not score.contrasted
+            assert not score.disagreeing
 
     def test_a_summary_counts_a_trapped_case_once(self) -> None:
         # Two adversaries quoted in one answer is one fooled answer, not two.
@@ -218,19 +218,23 @@ class TestTheTrapMetric:
         assert summary.trapped == 0 and summary.cited_a_copy == 1
         assert "not being fooled" in summary.describe()
 
-    def test_contrast_is_reported_as_what_was_asked_for(self) -> None:
+    def test_a_disagreement_is_a_count_and_never_a_rate(self) -> None:
+        # A percentage would imply it had been judged. It has not: this metric
+        # was wrong three times before it stopped trying to have a verdict.
         scores = [
             AnswerScore(
                 case_id="a",
                 language="ja",
                 trap_kinds=("superseded",),
                 grounded=True,
-                contrasted=True,
+                disagreeing=True,
             )
         ]
         summary = summarise_answers(scores, model="m")
-        assert summary.trapped == 0 and summary.contrasted == 1
-        assert "what was asked for" in summary.describe()
+        assert summary.trapped == 0 and summary.disagreeing == 1
+        described = summary.describe()
+        assert "not something citations can say" in described
+        assert "disagreeing  " not in described, "a count, not a rate beside the others"
 
 
 class TestAModelThatIgnoresTheContract:

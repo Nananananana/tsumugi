@@ -300,26 +300,49 @@ named by model, and that is all it claims to be.
 
 | | |
 |---|---|
-| checkable | **8 of 10** — two answers were not in the requested shape |
+| checkable | **8 of 9** — one answer was not in the requested shape, one run failed |
 | grounded | **100%** — every citation in every checkable answer resolved |
 | on target | **100%** — every one cited a planted answer |
-| cited the superseded version too | **7 of 8** |
-| cited a verbatim copy | 5 — reported, never counted as being fooled |
+| captured | **0%** — no answer gave an outdated passage as all the reader got |
+| also cited a contradicting passage | **8** — a count, not a verdict; see below |
 
-### The one that matters
+### The number that would not hold still
 
-**Seven of eight answers cited the outdated figure alongside the correct one.**
-Both passages really are in the corpus, so grounding cannot catch it — the
-citation resolves, because the old version is genuinely there.
+The interesting part of this measurement is that the first three versions of it
+were wrong, in the same way each time.
 
-This is not a retrieval defect. tsumugi carries a superseded passage on
-purpose: [ADR 0008](adr/0008-redundancy-is-proposed.md) marks and never
-removes, and [ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md)
-records why — measured, the similarity ranges of *a correction* and *a passage
-about a different subject* overlap, so no threshold separates them and a
-library that picked would be guessing on the reader's behalf.
+Every held-out answer cites the outdated figure as well as the current one.
+That is real: tsumugi carries a superseded passage on purpose
+([ADR 0008](adr/0008-redundancy-is-proposed.md) marks and never removes, and
+[ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md) records the
+measurement behind refusing to choose — the similarity ranges of *a correction*
+and *a passage about a different subject* overlap, so no threshold separates
+them). Grounding cannot catch it either: the old version really is in the
+corpus, so its citation resolves.
 
-What it did show is two things the prompt was not saying:
+The question is whether that is a failure, and three attempts to answer it with
+a rate all produced **88%, 88%, 100% "fooled"** while the model was doing
+something defensible:
+
+1. counting `near_duplicate` citations — but a copy carries the answer's own
+   content, so quoting it *is* quoting the answer;
+2. counting per answer — but the instruction set asks a model to cite both when
+   passages disagree, so following it scored as failing;
+3. counting per claim — but a model that answers in one claim and adds the
+   history in a second has still shown the reader both.
+
+**Citations cannot say which reading a prose answer leaned on.** "It weighs
+2.4kg; it previously weighed 3.1kg" and "It weighs 3.1kg; a later note says
+2.4kg" cite exactly the same two spans. Telling them apart means grading the
+prose against an ideal answer, which
+[ADR 0013](adr/0013-label-the-evidence-not-the-ideal-answer.md) refused — and
+refusing it a fourth time is cheaper than a number that sounds like it knows.
+
+So the rate is now **captured**: the contradicting passage was *all* the reader
+got. That is unambiguous, and it is 0%. The rest is a count.
+
+Two things did change as a result, both of them prompt-side and both worth
+having:
 
 1. **The redundancy marking never reached the model.** `redundant_with:itm_001`
    was in the published JSON and not in the rendered prompt. Marking a consumer
