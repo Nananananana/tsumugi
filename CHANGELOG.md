@@ -9,6 +9,22 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — the mamori adapter, and ADR-0009 tested for real
+
+- `MamoriRedactor` satisfies the `Redactor` port over a `PrivacySession`.
+  Optional: `pip install tsumugi[siblings]`, and the suite skips its tests when
+  the sibling is absent. Nothing outside `infrastructure/adapters/` imports it,
+  and an architecture test asserts that.
+- **ADR-0009's property now runs against the real redactor**, not only against
+  a fake written to make the point: *privacy protection must not change a single
+  classification*. A fake can only show the argument is internally consistent.
+- tsumugi stores the scope identifier and never the mapping. Holding it would
+  put every real value back into an index that is already a complete plaintext
+  copy of a corpus, for no benefit.
+- A package is never redacted in place: protecting it would leave items whose
+  text no longer matched their `text_hash`, and the contract refuses to build
+  one of those. What goes to the model is protected; what stays here is not.
+
 ### Added — `forget`, and `ingest --rebuild`
 
 - **`tsumugi forget PATH`.** The index keeps the text it anchored, so deleting a

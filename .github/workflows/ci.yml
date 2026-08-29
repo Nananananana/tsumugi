@@ -79,6 +79,29 @@ jobs:
       - name: Check the evaluation fixtures
         run: python tools/generate_cases.py --out tests/cases --check-only
 
+  siblings:
+    name: integration with mamori
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install with the sibling adapters
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,siblings]"
+
+      # ADR-0009's restore-before-verify property, against the real redactor
+      # rather than a fake written to make the point. `continue-on-error`
+      # because a sibling's release should not turn this build red -- it should
+      # tell us, which is what the annotation does.
+      - name: The seam
+        run: python -m pytest tests/test_adapter_mamori.py -q
+        env:
+          PYTHONUTF8: "1"
+
   dependencies:
     name: the dependency count is zero
     runs-on: ubuntu-latest

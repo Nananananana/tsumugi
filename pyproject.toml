@@ -42,6 +42,14 @@ dev = [
     "jsonschema>=4",
 ]
 
+# The sibling projects, for the integration tests that need something real on
+# both sides of a seam. NOT a runtime dependency and not needed to develop:
+# `pytest` skips those tests when they are absent, and an architecture test
+# asserts nothing outside infrastructure/adapters/ imports them.
+siblings = [
+    "mamori>=0.14",
+]
+
 [project.urls]
 Homepage = "https://github.com/Nananananana/tsumugi"
 Repository = "https://github.com/Nananananana/tsumugi"

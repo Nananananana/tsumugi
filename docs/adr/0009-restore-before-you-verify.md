@@ -78,8 +78,12 @@ same way, and the core still runs with none.
 
 The property worth testing is stated exactly: *for a package verified through a
 redactor, the classification of every claim equals its classification without the
-redactor.* Privacy protection must not change what is supported. That test needs
-both libraries installed, and it is worth the setup.
+redactor.* Privacy protection must not change what is supported.
+
+**It is now tested against the real `mamori`**, not only against a fake written
+to make the point — `tests/test_adapter_mamori.py`, skipped when the sibling is
+not installed. A fake redactor can only show that the argument is internally
+consistent; the seam exists when something real is on both sides.
 
 ## What it costs
 

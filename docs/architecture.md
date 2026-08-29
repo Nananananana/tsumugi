@@ -416,8 +416,10 @@ does nothing is the worst available outcome. The index lives at
 | `test_ledger.py` | Opening, closing, and that no text reaches the file |
 | `test_mcp.py` | The transport, the read-only rule, and context→verify entirely over the protocol |
 | `test_evaluation.py` | The markup, the fixtures, the metrics, and a run end to end |
+| `test_freshness.py` | Whether the file a passage came from has changed |
+| `test_adapter_mamori.py` | ADR-0009 against the real redactor. Skipped when `mamori` is absent |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-678 tests, 92% line coverage. Every test runs with no network, no model and no
+690 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.
