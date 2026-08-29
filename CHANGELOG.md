@@ -9,6 +9,21 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — the kiseki adapter, and layers that survive the crossing
+
+- Reads kiseki's **published export**, never its database, and **imports
+  nothing**: the export is JSON with a documented shape. A test asserts no
+  import creeps in, because that would turn a file format into a dependency.
+- It surfaced a real collision. kiseki exports no evidence references by design,
+  and a `ContextItem` needs an anchor. Resolved the honest way round: **the
+  export is a document**, an interest is anchored into it, and the package
+  claims "the kiseki export of 2026-08-30 said this, here" — which is true and
+  checkable — rather than "your photographs say this", which would be neither.
+- **A producer declares its own layer**, in document metadata, and
+  `build_context` reads it. An interest arrives as an `interpretation` carrying
+  its confidence and is labelled as one in the rendered prompt; a note is a fact.
+  An unknown layer stops the build rather than laundering the passage.
+
 ### Added — the mamori adapter, and ADR-0009 tested for real
 
 - `MamoriRedactor` satisfies the `Redactor` port over a `PrivacySession`.

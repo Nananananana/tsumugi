@@ -386,6 +386,39 @@ model runs: the fixtures were authored once and committed, and an oracle checks
 every case before it ships, because a broken case fails a *correct*
 implementation.
 
+## The sibling adapters
+
+Both optional, both in `infrastructure/adapters/`, and an architecture test
+asserts nothing else imports either.
+
+**`mamori`** is a `Redactor`. ADR-0009's property — *privacy protection must
+not change a single classification* — now runs against the real session rather
+than a fake written to make the point. tsumugi holds the scope identifier and
+never the mapping.
+
+**`kiseki`** imports nothing. Its export is a published JSON contract, so
+reading it is reading JSON — coupling to a contract rather than a schema is the
+difference between an adapter and a reach-in, and a test asserts no import
+creeps in.
+
+That adapter turned up a real collision. `kiseki` exports **no evidence
+references** by design — no photographs, no coordinates, no identifiers — and a
+`ContextItem` needs an anchor. It resolves the honest way round: **the export
+is a document**, an interest is anchored into it, and the package claims *"the
+kiseki export of 2026-08-30 said this, here"*. True, checkable, traceable. Not
+"your photographs say this", which would be none of those.
+
+### A producer declares its own layer
+
+Document metadata carries `layer`, `producer`, `observed_at` and `confidence`,
+and `build_context` reads them. So `kiseki`'s export marks itself an
+interpretation, a note somebody wrote is a fact by default, and no layer above
+has to know which producers exist.
+
+An unknown layer **stops the build**. Laundering a passage into a fact because
+its label was unrecognised is the failure the whole distinction exists to
+prevent.
+
 ## Configuration
 
 ```text
@@ -418,8 +451,9 @@ does nothing is the worst available outcome. The index lives at
 | `test_evaluation.py` | The markup, the fixtures, the metrics, and a run end to end |
 | `test_freshness.py` | Whether the file a passage came from has changed |
 | `test_adapter_mamori.py` | ADR-0009 against the real redactor. Skipped when `mamori` is absent |
+| `test_adapter_kiseki.py` | Reading the export contract, and interpretations staying interpretations |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-690 tests, 92% line coverage. Every test runs with no network, no model and no
+706 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

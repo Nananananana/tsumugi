@@ -18,6 +18,7 @@ from typing import Final
 from ..domain.anchor import ResolutionStatus, resolve
 from ..domain.assembly import Candidate, fit_to_budget
 from ..domain.budget import Budget, Unit
+from ..domain.document import Document
 from ..domain.omission import OmissionRule
 from ..domain.package import (
     BudgetReport,
@@ -25,7 +26,7 @@ from ..domain.package import (
     PackageProvenance,
     corpus_state,
 )
-from ..domain.selection import ItemProvenance
+from ..domain.selection import ItemProvenance, Layer
 from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
 from ..ports.index import Index
@@ -143,7 +144,7 @@ def build_context(
                 source_path=result.source_path,
                 section=result.section,
                 signals=tuple(signals),
-                provenance=ItemProvenance(),
+                provenance=_provenance_of(document),
                 disqualified=disqualified,
             )
         )
@@ -197,6 +198,53 @@ def build_context(
         ),
         instructions=_INSTRUCTIONS,
         created_at=datetime.now(UTC).isoformat(),
+    )
+
+
+#: A document that declares itself an interpretation and states no confidence
+#: is carried at the floor rather than refused. The alternative is dropping the
+#: passage, and a reading nobody put a number on is still a reading.
+_DECLARED_WITHOUT_CONFIDENCE: Final = 0.5
+
+
+def _provenance_of(document: Document | None) -> ItemProvenance:
+    """What kind of statement a passage from this document is.
+
+    Read from the document's own metadata, so a producer says what it produced
+    and no layer above has to know which producers exist. `kiseki`'s export
+    marks itself an interpretation; a note somebody wrote is a fact by default.
+
+    The point of carrying it at all: a reading of somebody's photographs does
+    not become a fact by crossing a library boundary. Flattening the layers
+    would be laundering, and the rendered prompt labels what it is given.
+    """
+    if document is None:
+        return ItemProvenance()
+
+    metadata = document.metadata
+    declared = metadata.get("layer")
+    if not declared:
+        return ItemProvenance()
+    try:
+        layer = Layer(declared)
+    except ValueError:
+        # An unknown layer is not a reason to launder the passage into a fact.
+        # Fail closed: refuse the claim about what it is rather than quietly
+        # downgrade it.
+        raise ValueError(
+            f"{document.source_path} declares layer {declared!r}, which is not one of "
+            f"{', '.join(sorted(item.value for item in Layer))}"
+        ) from None
+
+    confidence: float | None = None
+    if layer is Layer.INTERPRETATION:
+        raw = metadata.get("confidence")
+        confidence = float(raw) if raw is not None else _DECLARED_WITHOUT_CONFIDENCE
+    return ItemProvenance(
+        layer=layer,
+        producer=metadata.get("producer") or "tsumugi.ingest/1",
+        observed_at=metadata.get("observed_at") or None,
+        confidence=confidence,
     )
 
 

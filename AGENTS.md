@@ -125,7 +125,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 690 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 706 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
   `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,
@@ -133,9 +133,16 @@ Taken from `kiseki` and `mamori`, which paid for them.
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** prompt templates, and the kiseki adapter. The mamori adapter
-  exists and ADR-0009 is tested against the real redactor
-  (`tests/test_adapter_mamori.py`, skipped when it is not installed). The plan is `docs/proposals/0002-what-building-it-taught.md`, which
+- **Not built:** prompt templates, and a standalone `budget_squeeze` /
+  `mixed_script` evaluation case.
+- Both sibling adapters exist. ADR-0009 is tested against the real `mamori`
+  (`tests/test_adapter_mamori.py`, skipped when it is absent). The `kiseki`
+  adapter **imports nothing** — the export is a published JSON contract, so
+  reading it is reading JSON, and a test asserts no import creeps in.
+- **A producer declares its own layer**, in document metadata. `build_context`
+  reads it, so no layer above has to know which producers exist, and an
+  unknown layer stops the build rather than laundering the passage into a
+  fact. The plan is `docs/proposals/0002-what-building-it-taught.md`, which
   revises 0001's roadmap from what building it cost.
 - **Redundancy is marked, never removed** (ADR-0008), and it does not decide
   which duplicate is right (ADR-0015). `omission correctness` went 0% -> 90%
