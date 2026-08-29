@@ -1,0 +1,74 @@
+[importlinter]
+include_external_packages = True
+root_packages =
+    tsumugi
+
+# The direction, asserted. The stdlib-only rule for the domain is a separate
+# check in tests/test_architecture.py, because import-linter cannot express
+# "everything except the standard library".
+[importlinter:contract:layers]
+name = Layer dependency direction
+type = layers
+layers =
+    tsumugi.interfaces
+    tsumugi.application
+    tsumugi.infrastructure
+    tsumugi.ports
+    tsumugi.domain
+exhaustive = false
+
+[importlinter:contract:domain-purity]
+name = The domain layer knows nothing below it
+type = forbidden
+source_modules =
+    tsumugi.domain
+forbidden_modules =
+    tsumugi.ports
+    tsumugi.application
+    tsumugi.infrastructure
+    tsumugi.interfaces
+
+# ADR-0001: the core opens no socket. A network import anywhere below the
+# interfaces layer is a defect, not a feature waiting to be configured.
+[importlinter:contract:no-network]
+name = Nothing in the core touches the network
+type = forbidden
+source_modules =
+    tsumugi.domain
+    tsumugi.ports
+    tsumugi.application
+    tsumugi.infrastructure
+forbidden_modules =
+    socket
+    ssl
+    http
+    urllib
+    asyncio
+
+# The core stands alone. ADR-0001, and the promise in the README that a user
+# who wants only a context builder gets one.
+[importlinter:contract:siblings-are-optional]
+name = Only the adapters may know about kiseki or mamori
+type = forbidden
+source_modules =
+    tsumugi.domain
+    tsumugi.ports
+    tsumugi.application
+    tsumugi.interfaces
+forbidden_modules =
+    kiseki
+    mamori
+
+# The domain does its own I/O nowhere. Reading a file is the filesystem
+# adapter's job; where the index lives is configuration's job.
+[importlinter:contract:domain-no-io]
+name = The domain layer does not touch the filesystem
+type = forbidden
+source_modules =
+    tsumugi.domain
+forbidden_modules =
+    pathlib
+    os
+    sqlite3
+    tomllib
+    argparse

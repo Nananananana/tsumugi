@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      # FTS5 is an optional SQLite compile-time feature and the whole search
+      # layer depends on it (ADR-0007). If a runner ships a build without it,
+      # the failure should name that rather than surfacing as forty confusing
+      # test failures.
+      - name: Check the SQLite build
+        run: python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.execute('CREATE VIRTUAL TABLE t USING fts5(x)'); print('fts5 ok', sqlite3.sqlite_version)"
+
+      - name: Test
+        run: python -m pytest --cov=tsumugi --cov-report=term-missing
+        env:
+          PYTHONUTF8: "1"
+
+  lint:
+    name: lint, types and layering
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Ruff
+        run: python -m ruff check . && python -m ruff format --check .
+
+      - name: Types
+        run: python -m mypy
+
+      # The layering is a gate, not a guideline. ADR-0001.
+      - name: Layering
+        run: lint-imports
+
+  dependencies:
+    name: the dependency count is zero
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # The README promises `pip install tsumugi` installs one thing. A promise
+      # in a README decays; this one is checked on every push. Installing
+      # without [dev] into a clean environment must pull in nothing at all.
+      - name: Install with no extras
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Assert nothing came with it
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          installed = {d.metadata["Name"].lower() for d in md.distributions()}
+          # pip and its own bootstrap packaging are part of the environment,
+          # not of tsumugi.
+          allowed = {"tsumugi", "pip", "setuptools", "wheel", "packaging"}
+          extra = sorted(installed - allowed)
+          assert not extra, f"tsumugi pulled in runtime dependencies: {extra}"
+          print("runtime dependencies:", len(extra))
+          PY

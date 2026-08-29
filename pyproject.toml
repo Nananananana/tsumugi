@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tsumugi"
+version = "0.1.0.dev0"
+description = "Local-first context infrastructure for generative AI. Select what bears on the question, keep the evidence attached, and say what was left out."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Nananananana" }]
+keywords = ["context", "rag", "evidence", "provenance", "llm", "local-first", "japanese"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: Japanese",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Indexing",
+    "Typing :: Typed",
+]
+
+# Zero. Not "few". See docs/adr/0001-the-domain-depends-on-nothing.md -- this
+# library reads a person's entire notes folder, and every runtime dependency is
+# code with unsupervised read access to it.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "hypothesis>=6.90",
+    "ruff>=0.16",
+    "mypy>=1.10",
+    "import-linter>=2",
+    "pre-commit",
+]
+
+[project.urls]
+Homepage = "https://github.com/Nananananana/tsumugi"
+Repository = "https://github.com/Nananananana/tsumugi"
+Issues = "https://github.com/Nananananana/tsumugi/issues"
+Changelog = "https://github.com/Nananananana/tsumugi/blob/main/CHANGELOG.md"
+
+[project.scripts]
+tsumugi = "tsumugi.interfaces.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tsumugi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "C4", "S", "RUF"]
+ignore = [
+    "S101",   # assert: this is a test suite convention
+    # Full-width and CJK characters are the subject matter, not a typo. Half of
+    # the indexing logic exists because FTS5's default tokenizer turns a whole
+    # Japanese sentence into one token, so both forms appear in code, docstrings
+    # and fixtures on purpose. See ADR-0007.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S108"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/tsumugi"]
+strict = true
+warn_unreachable = true
+
+[tool.coverage.run]
+source = ["src/tsumugi"]

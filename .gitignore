@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+.hypothesis/
+htmlcov/
+
+# An index is a complete plaintext copy of whatever corpus it was built from.
+# See docs/threat-model.md. One committed by accident publishes the notes.
+*.tsumugi.db
+*.tsumugi.db-*
+.tsumugi/
+index.db

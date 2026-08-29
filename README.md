@@ -1,0 +1,125 @@
+# tsumugi (紡ぎ)
+
+**Send a model the parts of your notes that bear on the question — with a record
+of where each part came from, and an account of what was left out.**
+
+Local-first. No network in the core. **Zero runtime dependencies.**
+
+---
+
+> ### Status: v0.1 in progress
+>
+> Reading a corpus, searching it and tracing a quotation back to its source all
+> work. Everything the design calls a **ContextPackage** — selection, budgets,
+> omissions, verification — does not exist yet.
+>
+> - **What the code does today** — [docs/architecture.md](docs/architecture.md)
+> - **What it is meant to become** — [docs/proposals/0001-the-design.md](docs/proposals/0001-the-design.md)
+> - **The decisions** — [docs/adr/](docs/adr/README.md)
+> - **The threat model** — [docs/threat-model.md](docs/threat-model.md)
+>
+> [docs/README.md](docs/README.md) explains which documents describe what exists
+> and which describe what is planned, and why the two are never mixed.
+
+---
+
+## The problem
+
+You have a folder of notes. When a language model could answer something from it,
+you have three bad options: send everything and pay for it while the answer gets
+diluted; paste three files by hand and bias every answer towards what you
+remembered; or hand the folder to a hosted service and lose both the privacy and
+the ability to check the result.
+
+## What works now
+
+```bash
+pip install -e .
+
+tsumugi ingest ~/notes
+tsumugi search "東京"
+tsumugi trace "テントは 2.4kg"
+tsumugi doctor
+```
+
+```console
+$ tsumugi ingest ~/notes
+index:  /home/you/.tsumugi/index.db
+corpus: /home/you/notes
+
+412 new, 0 revised, 0 unchanged, 7 skipped, 0 failed
+  refused  .config/.env  (looks like a credential store (.env))
+  6 more skipped; --show-skipped to list them
+```
+
+```console
+$ tsumugi trace "テントは 2.4kg"
+resolved  notes/mountain.md:7 (装備)
+
+$ tsumugi trace "テントは 3.9kg"
+unsupported: that text does not appear in this corpus.
+A quotation either resolves or it does not. There is no fuzzy match here.
+```
+
+Search works in Japanese, which is less obvious than it sounds. SQLite's default
+full-text tokenizer indexes an entire Japanese sentence as a single token, so a
+search returns nothing forever and raises nothing; `trigram` cannot match a
+two-character query at all, and two-character compounds — 東京, 会議, 開発, 方針 —
+are the backbone of the written language. Both were measured before anything was
+built, and the numbers are in
+[ADR 0007](docs/adr/0007-index-japanese-by-bigram.md).
+
+## The one thing to be clear about
+
+**A resolved quotation means the text exists where it was said to. It does not
+mean the claim built around it is true.**
+
+tsumugi does not eliminate hallucination and will never claim to. It makes the
+relationship between a generated sentence and the evidence behind it checkable,
+which is a smaller promise and a keepable one.
+
+## What it does not do
+
+It is **not a redactor** — it has no idea whether a document holds a secret, and
+it will put one in front of a model if the secret is relevant. It does **not
+encrypt its index**; that is your operating system's job. And it builds a single
+file that is as sensitive as your whole notes folder.
+[The threat model](docs/threat-model.md) says all of this in detail, and
+`tsumugi doctor` says it again against your own machine.
+
+## Zero dependencies, checked
+
+`pip install tsumugi` installs one thing. That is asserted on every push: CI
+installs the package without extras into a clean environment and fails if
+anything came with it.
+
+The domain layer imports nothing outside the standard library, and the whole
+core opens no socket. Both are `import-linter` contracts and an executable table
+in `tests/test_architecture.py` — not README claims.
+
+## Three projects
+
+tsumugi is the middle of three local-first libraries that share a constitution
+and share no code.
+
+| | | Answers |
+|---|---|---|
+| [kiseki](https://github.com/Nananananana/kiseki) | **Remember** | What happened, and what it suggests you care about |
+| **tsumugi** | **Connect** | What is worth sending, and where it came from |
+| [mamori](https://github.com/Nananananana/mamori) | **Protect** | Whether it is safe to send |
+
+**tsumugi's core does not import kiseki or mamori, and works with neither
+installed.** They will be optional adapters. That is a hard constraint checked by
+the build, not an aspiration — see [docs/concept.md](docs/concept.md).
+
+## Contributing
+
+`AGENTS.md` holds the rules and the current state. Before any commit:
+
+```bash
+uv run pytest -q && uv run mypy && uv run lint-imports && uv run ruff check --fix . && uv run ruff format .
+```
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).

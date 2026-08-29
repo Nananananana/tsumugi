@@ -1,0 +1,26 @@
+# Keep this fast. A hook that makes committing slow gets bypassed, and a
+# bypassed hook protects nothing. Type checking, tests and the layering gate
+# run in CI.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # An index is a complete plaintext copy of a corpus, and it is a single
+      # file that is easy to `git add` by accident. See docs/threat-model.md.
+      - id: check-added-large-files
+      - id: detect-private-key
