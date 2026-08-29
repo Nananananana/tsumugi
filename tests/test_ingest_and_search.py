@@ -9,14 +9,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tsumugi.application.ingest import ingest_paths
-from tsumugi.application.search import search
+from tsumugi.application.search import _content_terms, search
 from tsumugi.application.trace import trace_anchor, trace_quotation
 from tsumugi.domain.anchor import Anchor, ResolutionStatus
 from tsumugi.domain.span import Span
 from tsumugi.infrastructure.filesystem import IgnoreRules, walk
 from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.parsers import parser_for
+from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 
 
@@ -296,3 +299,95 @@ class TestTraceAnAnchor:
             # A one-line description that said only "stale" would leave a
             # reader to guess between "moved" and "gone".
             assert "--" in described, "the detail, not just the verdict"
+
+
+class TestAQuestionAskedInOtherWords:
+    """Confirmation is a phrase match, and a paraphrase shares no phrase.
+
+    Found by asking the demo corpus a question three ways. Only the wording
+    the document itself uses returned anything -- in the library's primary
+    language. The evaluation corpus could not see it, because every question
+    in it was generated from the subject and attribute the document uses.
+    """
+
+    def test_content_terms_drop_the_grammar(self) -> None:
+        # の and は are what change when the same question is asked
+        # differently, so they are exactly what must not be matched on.
+        assert _content_terms("テントの重量は") == ["テント", "重量"]
+        assert _content_terms("テントはどれくらい重い") == ["テント", "重"]
+
+    def test_it_is_script_runs_and_not_morphology(self) -> None:
+        # No dictionary, no word list. A run of one script is structure the
+        # string already has; a word list would need one per language.
+        assert _content_terms("有給休暇の付与日数は") == ["有給休暇", "付与日数"]
+        assert _content_terms("the retry policy") == ["the", "retry", "policy"]
+        assert _content_terms("3日で50%") == ["3", "日", "50"]
+
+    def test_punctuation_and_spaces_are_not_terms(self) -> None:
+        assert _content_terms("テントの重量は?") == ["テント", "重量"]
+        assert _content_terms("???") == []
+
+    @pytest.mark.parametrize(
+        "query",
+        ["テントの重さは?", "テントはどれくらい重い?", "テントの重量について"],
+    )
+    def test_a_paraphrase_finds_the_answer(self, tmp_path: Path, query: str) -> None:
+        root = tmp_path / "notes"
+        root.mkdir()
+        with (root / "gear.md").open("w", encoding="utf-8", newline="") as handle:
+            handle.write("# 装備\n\nテントの重量は2.4kg、二人用。\n")
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(root.rglob("*.md")),
+            root=root,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+        results, _ = search(query, store=store, index=index, limit=5)
+        assert results and not results[0].unconfirmed
+        connection.close()
+
+    def test_a_question_using_words_the_document_lacks_still_finds_nothing(
+        self, tmp_path: Path
+    ) -> None:
+        # The residual, and it is the honest one. "何キロ" is not in a document
+        # that says "2.4kg". Reaching it means accepting half-coverage, which
+        # the corpus measured at a 28.6% trap rate -- five times the ceiling.
+        root = tmp_path / "notes"
+        root.mkdir()
+        with (root / "gear.md").open("w", encoding="utf-8", newline="") as handle:
+            handle.write("# 装備\n\nテントの重量は2.4kg、二人用。\n")
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(root.rglob("*.md")),
+            root=root,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+        results, _ = search("テントは何キロ?", store=store, index=index, limit=5)
+        assert all(r.unconfirmed for r in results)
+        connection.close()
+
+    def test_coverage_is_a_fallback_and_never_a_replacement(self) -> None:
+        # It runs only where the phrase rule found nothing, which today means
+        # the candidate is rejected outright. So it can turn a rejection into a
+        # result and never the other way round -- which is what keeps
+        # ADR-0007's guarantee intact.
+        import inspect
+
+        from tsumugi.application import search as module
+
+        source = inspect.getsource(module.search)
+        assert "_confirm(document.content, needles) or _confirm_by_coverage" in source
+
+    def test_every_content_term_has_to_be_there(self) -> None:
+        # At 1.0 the rule reads plainly. Chosen rather than measured: the
+        # corpus cannot separate 0.8 from 1.0, and where evidence is absent
+        # this library fails closed.
+        from tsumugi.application.search import COVERAGE_THRESHOLD
+
+        assert COVERAGE_THRESHOLD == 1.0

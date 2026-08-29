@@ -179,6 +179,43 @@ packages were well-formed. It took a corpus that knew which document was right.
 The full account is
 [proposals/0002](proposals/0002-what-building-it-taught.md).
 
+### A question asked in other words: 0% to 100%
+
+Measured by asking one document three ways:
+
+```
+テントの重量は?          1 item      the phrase the document uses
+テントの重さは?          0 items     重量 -> 重さ
+テントはどれくらい重い?   0 items     the way a person asks
+```
+
+The index proposed the right document every time; confirmation rejected it,
+because it was a phrase match and a paraphrase shares no phrase. **In the
+library's primary language.**
+
+Seventy cases at 100% recall could not see it: every question in the corpus was
+generated from the subject and attribute its own document uses, so the corpus
+was measuring a questioner who had already read the answer. A `-paraphrase`
+case per genre now plants the real thing.
+
+The fix is content-term coverage
+([ADR 0018](adr/0018-confirm-a-paraphrase-by-coverage.md)), swept on train and
+confirmed held-out:
+
+| | before | after |
+|---|---|---|
+| evidence recall | 86.7% | **91.7%** |
+| evidence precision | 99.1% | 99.1% |
+| trap rate | 6.0% | 6.0% |
+
+Five points of recall for nothing measurable. The `ci` tier is 100% / 100% /
+5.0% either way, which is why it took a new case shape to find at all.
+
+**What it does not fix:** a question using words the document does not contain.
+`テントは何キロ?` against `2.4kg` still finds nothing, and reaching it needs
+half-coverage, which the corpus measured at a 28.6% trap rate — five times the
+ceiling. That is lexical retrieval's boundary, and crossing it wants embeddings.
+
 ### The residual 10%, named
 
 All three remaining failures confirm on a **stopword phrase**: "when is the

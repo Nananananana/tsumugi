@@ -305,6 +305,12 @@ def _bulk_document(genre: Genre, n: int) -> str:
     )
 
 
+#: Alternating, so that a threshold tuned on the train half can be reported on
+#: a held-out half. A trap kind that lives entirely in one split cannot tell
+#: you whether a number was fitted to the cases it came from.
+_PARAPHRASE_SPLIT = {True: "train", False: "held_out"}
+
+
 def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
     """The same question, asked the way a person asks it.
 
@@ -331,7 +337,7 @@ def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, 
         "must_include": ["answer"],
         "must_not_include": ["near-miss"],
         "traps": {"near-miss": {"kind": "lexical_near_miss"}},
-        "split": "held_out",
+        "split": _PARAPHRASE_SPLIT[GENRES.index(genre) % 2 == 0],
         "tier": "full",
     }
     return case_id, documents, manifest

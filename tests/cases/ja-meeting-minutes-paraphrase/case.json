@@ -13,7 +13,7 @@
     "near-miss"
   ],
   "question": "次の会議はいつ？",
-  "split": "held_out",
+  "split": "train",
   "tier": "full",
   "traps": {
     "near-miss": {

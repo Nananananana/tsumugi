@@ -92,6 +92,20 @@ stable.
   closed. `clean` now requires at least one claim, and `asserts_nothing`
   separates "nothing was checked" from "something failed", because they are
   different and neither is success.
+- **A question asked in any other words found nothing.** Confirmation was a
+  phrase match, and for a query written without spaces — most Japanese — the
+  whole query was one needle. `テントの重量は?` returned the answer;
+  `テントの重さは?` and `テントはどれくらい重い?` returned nothing, in the
+  library's primary language. The index proposed the right document every time.
+  Confirmation now falls back to **content-term coverage**: script runs, minus
+  the hiragana that changes when a question is reworded, and every remaining
+  term must appear ([ADR 0018](docs/adr/0018-confirm-a-paraphrase-by-coverage.md)).
+  Recall **86.7% → 91.7%**, precision and trap rate unchanged.
+- **Seventy cases at 100% recall could not see it**, because every question in
+  the corpus was generated from the subject and attribute its own document
+  uses — the corpus was measuring a questioner who had already read the answer.
+  A `-paraphrase` case per genre now plants the real thing, split across train
+  and held-out so a threshold tuned on one is reported on the other.
 - **A question mark meant nothing was ever confirmed.** For a query written
   without spaces — most Japanese — the whole string is one needle, and no
   document contains the `?`. So `tsumugi context "テントの重量は?"`, which is

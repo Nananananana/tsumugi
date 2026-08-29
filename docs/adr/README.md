@@ -31,6 +31,7 @@ later ADR supersedes it and says so.
 | [0015](0015-redundancy-does-not-decide-which-is-right.md) | Redundancy does not decide which duplicate is right |
 | [0016](0016-the-network-lives-in-one-place.md) | The network lives in one place |
 | [0017](0017-the-instruction-set-is-a-parameter.md) | The instruction set is a parameter, and the prompt is the package |
+| [0018](0018-confirm-a-paraphrase-by-coverage.md) | A paraphrase confirms by coverage, not by phrase |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

@@ -13,7 +13,7 @@
     "near-miss"
   ],
   "question": "サンプルは何度で保管する？",
-  "split": "held_out",
+  "split": "train",
   "tier": "full",
   "traps": {
     "near-miss": {

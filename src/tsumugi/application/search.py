@@ -15,6 +15,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Final
 
 from ..domain.anchor import Anchor
 from ..domain.document import Document, Section
@@ -77,6 +78,7 @@ def search(
     )
 
     needles = _needles(query)
+    terms = _content_terms(query)
     results: list[SearchResult] = []
 
     for hit in candidates:
@@ -86,7 +88,7 @@ def search(
             # `tsumugi doctor` is where drift gets reported.
             continue
 
-        spans = _confirm(document.content, needles)
+        spans = _confirm(document.content, needles) or _confirm_by_coverage(document.content, terms)
         if not spans:
             results.append(
                 SearchResult(
@@ -167,6 +169,123 @@ def _needles(query: str) -> list[str]:
         for start in range(len(words) - length + 1):
             runs.append(" ".join(words[start : start + length]))
     return list(dict.fromkeys(runs))
+
+
+#: How much of a question's content has to be present before a candidate
+#: confirms on coverage. At 1.0 the rule reads: **every content term of the
+#: question appears in the candidate.**
+#:
+#: Measured, and the measurement is the reason it sits here rather than lower.
+#: On the evaluation corpus every value from 0.8 to 1.0 scores identically --
+#: train recall 95.6% / precision 98.8% / traps 5.7%, held-out 80% / 100% /
+#: 6.7%, which is train and held-out agreeing rather than a number fitted to
+#: its own cases. Below 0.8 the trap rate climbs fast: 0.7 doubles it, 0.5
+#: takes it to 28.6% on train and 40% held-out.
+#:
+#: The corpus cannot separate 0.8 from 1.0, so this is chosen rather than
+#: measured, and it is chosen strict. Where evidence is absent this library
+#: fails closed. Lowering it wants a corpus with compound terms that are
+#: partially shared -- ``集合場所`` asked of a document that says ``集合`` --
+#: which this one does not have.
+COVERAGE_THRESHOLD: Final = 1.0
+
+#: Unicode blocks whose runs carry the question's content. Hiragana is left out
+#: on purpose: in Japanese it is particles and inflection, which is exactly the
+#: material that changes when the same question is asked differently.
+_CONTENT_SCRIPTS: Final = frozenset({"Han", "Katakana", "Latin", "Digit"})
+
+
+def _script_of(character: str) -> str:
+    """A coarse script class, from the code point.
+
+    Coarse deliberately. This is not a tokenizer and must not become one: the
+    only question is which characters carry content and which are grammar.
+    """
+    code = ord(character)
+    if 0x3040 <= code <= 0x309F:
+        return "Hiragana"
+    if 0x30A0 <= code <= 0x30FF or 0xFF66 <= code <= 0xFF9D:
+        return "Katakana"
+    if 0x3400 <= code <= 0x4DBF or 0x4E00 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF:
+        return "Han"
+    if character.isdigit():
+        return "Digit"
+    if character.isalpha():
+        return "Latin"
+    return "Other"
+
+
+def _content_terms(query: str) -> list[str]:
+    """The parts of a question that carry its subject, as script runs.
+
+    ``テントの重量は`` -> ``[テント, 重量]``. The ``の`` and ``は`` are dropped,
+    which is the point: they are what changes when somebody asks the same
+    thing in different words.
+
+    No morphology and no dictionary. A run is a run of one script, which is
+    structure the string already has -- and a rule that needed a word list
+    would need one per language and would not survive the next corpus.
+    """
+    folded = unicodedata.normalize("NFKC", query).casefold()
+    terms: list[str] = []
+    current, script = "", ""
+    for character in folded:
+        found = _script_of(character)
+        if found == script and found in _CONTENT_SCRIPTS:
+            current += character
+            continue
+        if current:
+            terms.append(current)
+        current = character if found in _CONTENT_SCRIPTS else ""
+        script = found
+    if current:
+        terms.append(current)
+    return terms
+
+
+def _longest_present(term: str, folded: str) -> tuple[int, str]:
+    """The longest substring of ``term`` that occurs in ``folded``.
+
+    Substrings rather than the whole term because a compound is a compound:
+    ``集合場所`` asked of a document that says ``集合`` should count what it
+    shares, not nothing. Two characters is the floor for a multi-character
+    term -- a single character of a compound is a coincidence.
+    """
+    floor = 1 if len(term) == 1 else 2
+    for length in range(len(term), floor - 1, -1):
+        for start in range(len(term) - length + 1):
+            piece = term[start : start + length]
+            at = folded.find(piece)
+            if at != -1:
+                return at, piece
+    return -1, ""
+
+
+def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
+    """Confirm when enough of the question's content is present.
+
+    **A fallback, never a replacement.** It runs only where the phrase rule
+    found nothing -- which today means the candidate is rejected outright -- so
+    it can turn a rejection into a result and never the other way round. That
+    is what keeps ADR-0007's guarantee intact: the index still over-generates
+    and confirmation still decides.
+    """
+    total = sum(len(term) for term in terms)
+    if not total:
+        return []
+
+    folded = unicodedata.normalize("NFKC", content).casefold()
+    matched, spans = 0, []
+    for term in terms:
+        at, piece = _longest_present(term, folded)
+        if at == -1:
+            continue
+        matched += len(piece)
+        spans.append(Span(min(at, len(content)), min(at + len(piece), len(content))))
+
+    if matched / total < COVERAGE_THRESHOLD:
+        return []
+    return sorted(spans, key=lambda span: span.start)
 
 
 def _trim_punctuation(text: str) -> str:

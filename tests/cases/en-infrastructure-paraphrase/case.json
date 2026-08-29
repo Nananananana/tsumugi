@@ -13,7 +13,7 @@
     "near-miss"
   ],
   "question": "how big is the staging cluster?",
-  "split": "held_out",
+  "split": "train",
   "tier": "full",
   "traps": {
     "near-miss": {
