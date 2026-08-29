@@ -3,7 +3,7 @@
 **Send a model the parts of your notes that bear on the question — with a record
 of where each part came from, and an account of what was left out.**
 
-Local-first. No network in the core. **Zero runtime dependencies.**
+Local-first. One named adapter may open a socket; nothing else can. **Zero runtime dependencies.**
 
 ---
 
@@ -58,6 +58,7 @@ tsumugi ingest ~/notes
 tsumugi search  "東京"
 tsumugi context "テントの重量は?" --budget tokens:4000 --why
 tsumugi verify  answer.json --package package.json
+tsumugi ask     "テントの重量は?"   # the loop closed: build, ask a local model, check
 tsumugi trace   "テントは 2.4kg"
 tsumugi ledger  --since 2026-08-01
 tsumugi mcp     # speak MCP on stdio, so an agent can use the corpus
@@ -194,15 +195,49 @@ file that is as sensitive as your whole notes folder.
 [The threat model](docs/threat-model.md) says all of this in detail, and
 `tsumugi doctor` says it again against your own machine.
 
+## A local model, if you want one
+
+Everything above runs with no model and no network. But the loop does not close
+without one — `verify` needs an answer, and an answer needs something that
+answers — so there is one adapter, for [ollama](https://ollama.com):
+
+```bash
+ollama pull qwen2.5:7b-instruct
+tsumugi ask "テントの重量は?"
+```
+
+```console
+sending to ollama/qwen2.5:7b-instruct at http://127.0.0.1:11434 (local)
+テントの重量は2.4kgです。
+
+--- 4f2a1c8b ---
+  supported    テントの重量は2.4kgです。
+  1 supported
+```
+
+The model is asked for text and never for a decision. It does not rank, does
+not choose what is sent, and does not resolve a citation — so the worst a
+hallucinating model can do is write a claim that verification then reports as
+`unsupported`, which is the system working rather than failing.
+
+It **refuses a host that is not this machine** unless `--allow-remote` says so
+in as many words. Your index holds a copy of your corpus; a mistyped URL should
+not be enough to post it somewhere. And it installs nothing: the adapter is
+`urllib` and `json`, like everything else here.
+
+[ADR-0016](docs/adr/0016-the-network-lives-in-one-place.md) records where the
+boundary is and what drawing it there cost.
+
 ## Zero dependencies, checked
 
 `pip install tsumugi` installs one thing. That is asserted on every push: CI
 installs the package without extras into a clean environment and fails if
 anything came with it.
 
-The domain layer imports nothing outside the standard library, and the whole
-core opens no socket. Both are `import-linter` contracts and an executable table
-in `tests/test_architecture.py` — not README claims.
+The domain layer imports nothing outside the standard library, and the network
+lives in one named file that nothing else may import. Both are `import-linter`
+contracts and an executable table in `tests/test_architecture.py` — not README
+claims.
 
 ## Measured, not asserted
 

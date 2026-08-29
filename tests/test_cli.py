@@ -462,3 +462,47 @@ class TestTheEnvironment:
         from tsumugi.config import default_index_path
 
         assert corpus not in default_index_path().parents
+
+
+class TestAsk:
+    """The one command that sends anything. Tested for what it refuses.
+
+    What it does when a model *is* there belongs in ``test_ask.py``, against a
+    fake provider and a loopback server -- a CLI test that needed ollama
+    running would be a test that is skipped on every machine that matters.
+    """
+
+    def test_it_refuses_a_host_that_is_not_this_machine(self, corpus: Path) -> None:
+        # Before the index is opened and before anything is built, so a
+        # mistyped URL costs nothing and reveals nothing.
+        assert main(["ingest", str(corpus)]) == 0
+        assert main(["ask", "テント", "--url", "http://example.com:11434"]) == 2
+
+    def test_the_refusal_says_what_to_do_about_it(
+        self, corpus: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        main(["ingest", str(corpus)])
+        main(["ask", "テント", "--url", "http://example.com:11434"])
+        combined = capsys.readouterr()
+        message = combined.err + combined.out
+        assert "somebody else" in message
+        assert "--allow-remote" in message
+
+    def test_it_says_where_it_is_sending_before_it_sends(
+        self, corpus: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Nothing is listening, so this fails -- but the notice has to have
+        # been printed first. A person who did not mean to reach a remote host
+        # should find out while they can still stop it.
+        main(["ingest", str(corpus)])
+        main(["ask", "テント", "--url", "http://127.0.0.1:1"])
+        assert "sending to ollama/" in capsys.readouterr().err
+
+    def test_no_other_command_constructs_a_provider(self) -> None:
+        # `ask` is the only outbound path, and the way that stops being true
+        # is somebody adding a provider to a command that used to be local.
+        root = Path(__file__).resolve().parent.parent
+        source = (root / "src" / "tsumugi" / "interfaces" / "cli" / "main.py").read_text(
+            encoding="utf-8"
+        )
+        assert source.count("OllamaProvider(") == 1

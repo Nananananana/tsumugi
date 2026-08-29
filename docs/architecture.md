@@ -55,9 +55,9 @@ interfaces ──> application ──> domain
 |---|---|---|
 | `domain/` | `Span`, `ContentHash`, `Document`/`Section`/`Block`, `Anchor` and resolution, normalization, `Budget`, `Omission`, `ContextItem`, `ContextPackage`, budget fitting, quotation matching, `Claim` | **stdlib only** |
 | `errors.py` | Every exception the library raises | nothing |
-| `ports/` | `Parser`, `Tokenizer`, `DocumentStore`, `Index`, `CostModel` protocols | `domain`, `errors` |
+| `ports/` | `Parser`, `Tokenizer`, `DocumentStore`, `Index`, `CostModel`, `Redactor`, `LedgerStore`, `FreshnessCheck`, `LLMProvider` protocols | `domain`, `errors` |
 | `infrastructure/` | Parsers and their registry, the filesystem walk, SQLite store, FTS5 index, bigram tokenizer, cost models | `domain`, `ports`, `errors` |
-| `application/` | `ingest_paths`, `search`, `build_context`, `verify_answer`, `trace_quotation` | `domain`, `ports`, `errors` |
+| `application/` | `ingest_paths`, `search`, `build_context`, `verify_answer`, `trace_quotation`, `forget_documents`, `ask` | `domain`, `ports`, `errors` |
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
 | `interfaces/cli/` | Argument parsing, output. A composition root | everything above |
 | `evaluation/` | The labelled corpus, its loader, the six metrics, the runner | everything above |
@@ -74,7 +74,7 @@ Five contracts hold in CI:
 |---|---|
 | Layer dependency direction | The arrows above, and only those |
 | The domain knows nothing below it | `domain/` imports no other layer |
-| Nothing in the core touches the network | No `socket`, `ssl`, `http`, `urllib`, `asyncio` outside `interfaces/` |
+| Nothing but the adapters touches the network | No `socket`, `ssl`, `http`, `urllib`, `asyncio` outside `interfaces/` and the adapters named in `NETWORKED_ADAPTERS` (ADR-0016) |
 | Only the adapters may know about a sibling | `kiseki` and `mamori` may be imported only from `infrastructure/adapters/` |
 | The domain does not touch the filesystem | No `pathlib`, `os`, `sqlite3`, `argparse` in `domain/` |
 
@@ -425,6 +425,36 @@ has to know which producers exist.
 An unknown layer **stops the build**. Laundering a passage into a fact because
 its label was unrecognised is the failure the whole distinction exists to
 prevent.
+
+## Closing the loop
+
+Everything above runs with no model and no network. But `verify_answer` takes
+an answer, and until there was somewhere to get one, the one step where a
+mistake is expensive — deciding where the text goes — was the one step
+tsumugi had nothing to say about.
+
+`ports/llm.py` is an `LLMProvider`: a prompt in, text out, nothing else. It is
+asked for text and never for a decision, which keeps a model outside every
+judgement the library makes. `infrastructure/adapters/ollama.py` implements it
+over `urllib`, and `application/ask.py` composes the pieces that already
+existed:
+
+```text
+build -> (protect) -> send -> (restore) -> verify -> record
+```
+
+The brackets are the reason the use case exists rather than a paragraph of
+documentation. Protection applies to the rendered text and never to the
+package — redact the package and its items stop matching their own hashes.
+Restoration happens before verification — skip it and every honest citation
+reports as unsupported ([ADR 0009](adr/0009-restore-before-you-verify.md)).
+Both failures are silent, and an ordering is a cheaper place to encode them
+than a warning nobody reads.
+
+**`infrastructure/adapters/` is the only package that may import a socket**,
+and the only file in it that does is named in `NETWORKED_ADAPTERS`
+([ADR 0016](adr/0016-the-network-lives-in-one-place.md)). The test checks the
+allow-list in both directions, so a name that outlives its adapter fails too.
 
 ## Configuration
 

@@ -18,6 +18,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from ... import __version__
+from ...application.ask import ask
 from ...application.build_context import build_context
 from ...application.forgetting import forget_documents
 from ...application.ingest import ingest_paths
@@ -31,6 +32,7 @@ from ...errors import ConfigurationError, TsumugiError
 from ...evaluation.dataset import load_cases
 from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
+from ...infrastructure.adapters.ollama import DEFAULT_MODEL, DEFAULT_URL, OllamaProvider
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.freshness import FilesystemFreshness, remembered_roots
@@ -113,6 +115,39 @@ def build_parser() -> argparse.ArgumentParser:
         "--why", action="store_true", help="print what was left out, and under which rule"
     )
     context.set_defaults(run=_context)
+
+    question = commands.add_parser(
+        "ask",
+        help="build a package, send it to a local model, and check what comes back",
+        description=(
+            "The only command that sends anything anywhere. It refuses a non-local "
+            "endpoint unless --allow-remote says otherwise, because this index holds "
+            "a copy of your corpus. Requires a running ollama; everything else in "
+            "tsumugi works with no model and no network."
+        ),
+    )
+    question.add_argument("query")
+    question.add_argument(
+        "--budget",
+        default="tokens:4000",
+        metavar="UNIT:N",
+        help="tokens:4000, characters:20000 or bytes:65536 (default: tokens:4000)",
+    )
+    question.add_argument("--model", default=DEFAULT_MODEL, help=f"(default: {DEFAULT_MODEL})")
+    question.add_argument("--url", default=DEFAULT_URL, help=f"(default: {DEFAULT_URL})")
+    question.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="send to a host that is not this machine. Says what it means.",
+    )
+    question.add_argument("--min-score", type=float, default=0.0, help="relevance floor")
+    question.add_argument(
+        "--corpus", type=Path, metavar="PATH", help="where the corpus lives now, if it has moved"
+    )
+    question.add_argument(
+        "--show-prompt", action="store_true", help="print exactly what was sent, first"
+    )
+    question.set_defaults(run=_ask)
 
     trace = commands.add_parser("trace", help="find where a quotation came from")
     trace.add_argument("quotation")
@@ -387,6 +422,52 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         print(f"{len(package.omissions)} candidates were left out; --why to see them")
 
     return 0 if package.items else 1
+
+
+def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    try:
+        budget = Budget.parse(args.budget)
+    except ValueError as error:
+        raise ConfigurationError(str(error)) from error
+
+    provider = OllamaProvider(model=args.model, url=args.url, allow_remote=args.allow_remote)
+    connection = _connect(config.resolved_index_path(), create=False)
+    store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+
+    # Said before anything is sent, not after. A person who did not mean to
+    # reach a remote host should find that out while they can still stop it.
+    print(f"sending to {provider.name} at {provider.endpoint.describe()}", file=sys.stderr)
+
+    asked = ask(
+        args.query,
+        store=store,
+        index=index,
+        cost_model=_cost_model(budget.unit),
+        budget=budget,
+        provider=provider,
+        ledger=SqliteLedger(connection),
+        candidate_limit=config.candidate_limit,
+        minimum_score=args.min_score,
+        version=__version__,
+        freshness=(FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)),
+    )
+
+    if args.show_prompt:
+        print(asked.prompt)
+        print()
+
+    print(asked.answer_text() or asked.answer)
+    print()
+    print(f"--- {asked.package.package_id.short()} ---")
+    for claim in asked.verification.claims:
+        print(f"  {claim.support.value:<12} {claim.text}")
+    print(f"  {asked.verification.summary()}")
+    # Deliberately not phrased as a pass. A supported claim means the quotation
+    # was where the model said it was, which is a smaller thing than true.
+    if not asked.trustworthy:
+        print("  not every claim is supported by the context it was given.")
+
+    return 0 if asked.trustworthy else 1
 
 
 def _trace(args: argparse.Namespace, config: TsumugiConfig) -> int:

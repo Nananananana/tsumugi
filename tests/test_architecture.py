@@ -52,11 +52,16 @@ ALLOWED: dict[str, frozenset[str]] = {
 #: loudly.
 STDLIB_ONLY = frozenset({"domain"})
 
-#: Nothing below the interfaces layer opens a socket. ADR-0001, and the first
-#: line of the threat model.
+#: Nothing opens a socket except the interfaces layer and the adapters.
+#: ADR-0001 and ADR-0016, and the first line of the threat model.
 FORBIDDEN_ANYWHERE_IN_CORE = frozenset(
     {"socket", "ssl", "http", "asyncio", "urllib", "ftplib", "smtplib", "telnetlib"}
 )
+
+#: The adapters that are allowed to reach the network, by name. An allow-list
+#: rather than a rule about the package, so that adding one is a decision
+#: somebody makes on purpose (ADR-0016).
+NETWORKED_ADAPTERS = frozenset({"ollama.py"})
 
 #: The core stands alone. The siblings are optional adapters and the test suite
 #: runs with neither installed.
@@ -69,6 +74,12 @@ def _layer_of(module: Path) -> str:
     if len(parts) == 1:
         return "public" if parts[0] == "__init__.py" else parts[0].removesuffix(".py")
     return parts[0]
+
+
+def _is_adapter(module: Path) -> bool:
+    """Inside ``infrastructure/adapters/``, where the outside world is allowed."""
+    parts = module.relative_to(SRC).parts
+    return len(parts) > 2 and parts[0] == "infrastructure" and parts[1] == "adapters"
 
 
 def _modules() -> list[Path]:
@@ -142,25 +153,47 @@ def test_the_domain_imports_only_the_standard_library(module: Path) -> None:
 def test_nothing_in_the_core_opens_a_socket(module: Path) -> None:
     if _layer_of(module) == "interfaces":
         pytest.skip("the interfaces layer is the only place a server may live")
+    if _is_adapter(module) and module.name in NETWORKED_ADAPTERS:
+        pytest.skip("named in NETWORKED_ADAPTERS; see the test below")
 
     for name, line in sorted(_imported_roots(module)):
         root = name.split(".")[0]
         assert root not in FORBIDDEN_ANYWHERE_IN_CORE, (
-            f"{module.relative_to(SRC)}:{line} imports {name!r}. The core has no network "
-            f"in it, and that is a guarantee rather than a default."
+            f"{module.relative_to(SRC)}:{line} imports {name!r}. Everything but the "
+            f"interfaces layer and the adapters named in NETWORKED_ADAPTERS works with "
+            f"no network at all, and that is a guarantee rather than a default."
         )
+
+
+def test_the_adapters_that_reach_the_network_are_the_ones_named() -> None:
+    """The allow-list is exhaustive in both directions.
+
+    A new networked adapter fails the test above until it is named here, and a
+    name left behind after its adapter stopped needing a socket fails this one.
+    ADR-0016: the carve-out has to be argued for, so it has to be visible.
+    """
+    reaching = {
+        module.name
+        for module in ALL_MODULES
+        if _is_adapter(module)
+        and any(
+            name.split(".")[0] in FORBIDDEN_ANYWHERE_IN_CORE for name, _ in _imported_roots(module)
+        )
+    }
+    assert reaching == NETWORKED_ADAPTERS, (
+        f"the adapters reaching the network are {sorted(reaching)}, and "
+        f"NETWORKED_ADAPTERS says {sorted(NETWORKED_ADAPTERS)}. One of the two is out "
+        f"of date. See docs/adr/0016-the-network-lives-in-one-place.md"
+    )
 
 
 @pytest.mark.parametrize("module", ALL_MODULES, ids=lambda m: str(m.relative_to(SRC)))
 def test_only_the_adapters_may_know_about_a_sibling_project(module: Path) -> None:
-    parts = module.relative_to(SRC).parts
-    in_adapters = len(parts) > 2 and parts[0] == "infrastructure" and parts[1] == "adapters"
-
     for name, line in sorted(_imported_roots(module)):
         root = name.split(".")[0]
         if root not in SIBLINGS:
             continue
-        assert in_adapters, (
+        assert _is_adapter(module), (
             f"{module.relative_to(SRC)}:{line} imports {name!r} outside "
             f"infrastructure/adapters/. tsumugi works with neither sibling installed, "
             f"and that is checked rather than promised."

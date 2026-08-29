@@ -12,7 +12,7 @@ the way it is lives in `docs/adr/`, and what might happen next lives in
 
 A local-first Python library that turns a folder of documents into context a
 language model can use, keeping the evidence attached. Zero runtime dependencies.
-No network in the core.
+No network anywhere but `infrastructure/adapters/`, and only in a file named in `NETWORKED_ADAPTERS`.
 
 The constitution, to be enforced by construction rather than by promise:
 

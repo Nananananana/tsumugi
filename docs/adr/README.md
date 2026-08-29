@@ -29,6 +29,7 @@ later ADR supersedes it and says so.
 | [0013](0013-label-the-evidence-not-the-ideal-answer.md) | Label the evidence, not the ideal answer |
 | [0014](0014-the-index-does-not-live-beside-the-corpus.md) | The index does not live beside the corpus |
 | [0015](0015-redundancy-does-not-decide-which-is-right.md) | Redundancy does not decide which duplicate is right |
+| [0016](0016-the-network-lives-in-one-place.md) | The network lives in one place |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

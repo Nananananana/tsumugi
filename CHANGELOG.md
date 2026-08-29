@@ -9,6 +9,41 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — the loop closed, and one place the network may live
+
+- **`tsumugi ask`** and `application/ask.py`. Everything in it already worked
+  separately; what this adds is the order — build, protect, send, restore,
+  verify, record. Two of those brackets are the ones people get wrong, both
+  silently: protect the rendered text and never the package, or items stop
+  matching their own hashes; restore before you verify, or every honest
+  citation reports as unsupported (ADR-0009). An ordering is a cheaper place
+  to encode that than a paragraph nobody reads.
+- **`LLMProvider` port and an ollama adapter**, on `urllib` and `json`. Zero
+  runtime dependencies still holds, and CI still installs without extras.
+- **The provider is asked for text and never for a decision.** It does not
+  rank, does not choose what is sent, and does not resolve a citation, so the
+  worst a hallucinating model can do inside tsumugi is produce a claim that
+  verification reports as `unsupported` — the system working, not failing. A
+  test asserts the package built with a provider is byte-identical to the one
+  built without.
+- **A non-local endpoint is refused unless `--allow-remote` says so.** This
+  index holds a copy of your corpus and a mistyped URL should not be enough to
+  post it somewhere. Tested against a real loopback server rather than a
+  patched `urlopen`, including `localhost.example.com` — the hostname that
+  reads local and is not.
+- **ADR-0016 and a narrowed contract.** `infrastructure/adapters/` is now the
+  only package permitted to import `socket`, `ssl`, `http`, `urllib` or
+  `asyncio`, and the one file in it that does is named in `NETWORKED_ADAPTERS`.
+  The check runs in both directions: an unnamed network import fails, and so
+  does a name left behind after its adapter stopped needing one.
+
+### Changed
+
+- **The threat model's flattest sentence lost its full stop.** It said the core
+  opens no socket; it now says the core opens no socket and one named adapter
+  does, only when configured. Both were true; only the second one still is.
+  Clauses are where trust leaks, so the claim table names the file.
+
 ### Added — the last two trap kinds, and seventy cases
 
 - `budget_squeeze` and `mixed_script` join the five already planted, so **all

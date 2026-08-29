@@ -18,6 +18,7 @@ from .cost import CostModel
 from .freshness import FreshnessCheck
 from .index import Index, IndexHit
 from .ledger import LedgerStore
+from .llm import Endpoint, LLMProvider
 from .parser import ParsedDocument, Parser
 from .redactor import Redactor
 from .store import DocumentStore
@@ -26,9 +27,11 @@ from .tokenizer import Tokenizer
 __all__ = [
     "CostModel",
     "DocumentStore",
+    "Endpoint",
     "FreshnessCheck",
     "Index",
     "IndexHit",
+    "LLMProvider",
     "LedgerStore",
     "ParsedDocument",
     "Parser",

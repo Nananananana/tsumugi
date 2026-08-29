@@ -31,13 +31,24 @@ an argument for saying it out loud in the README and for the defaults below.
 
 ## What tsumugi protects
 
-**Your text does not leave the machine on its own.** The core has no network code
-and no runtime dependencies, so there is no supply chain that could add one
-quietly. Ingest, index, search, select and verify all run locally.
+**Your text does not leave the machine on its own.** Ingest, index, search,
+select and verify all run locally, with no network code anywhere near them and
+no runtime dependencies -- so there is no supply chain that could add one
+quietly.
 
-**Nothing is sent without a caller sending it.** tsumugi builds a package. It does
-not have an outbound path. If text reaches an external service, a caller put it
-there with an LLM adapter it chose and configured.
+There is exactly one exception and it is named. `infrastructure/adapters/` is
+the only package permitted to import a socket, `ollama.py` is the only file in
+it that does, and `tsumugi ask` is the only command that calls it
+([ADR-0016](adr/0016-the-network-lives-in-one-place.md)). An import-graph test
+holds all three, in both directions: a network import outside that file fails
+the build, and so does the allow-list naming a file that no longer needs one.
+
+**Nothing is sent unless you asked for it to be sent, to a host that is yours.**
+Nine of the ten commands have no outbound path at all. The tenth prints where
+it is about to send before it sends, and refuses a host that is not this
+machine unless `--allow-remote` says so in as many words. That default is the
+one that matters: this index holds a copy of your corpus, and a mistyped URL
+should not be enough to post it somewhere.
 
 **A package says what it contains.** Before anything is sent, `items[]` and
 `omissions[]` are inspectable. This is the only privacy control tsumugi provides
@@ -136,7 +147,8 @@ defect in this document.
 
 | Claim | Held by |
 |---|---|
-| The core opens no socket | An import-graph test forbidding `socket`, `http`, `urllib` in core |
+| Only one named adapter opens a socket | An import-graph test forbidding `socket`, `http`, `urllib` everywhere but `infrastructure/adapters/ollama.py`, plus a test that the allow-list is exhaustive |
+| A non-local endpoint is refused unless asked for | Tests against a real loopback server, including hostnames that read local and are not |
 | The domain imports only the standard library | `tests/test_architecture.py` |
 | No document text is written to a log or a traceback | A test that greps logs and reprs for fixture values |
 | A package's omissions account for every considered candidate | A property test over generated corpora |

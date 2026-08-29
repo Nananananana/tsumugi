@@ -30,16 +30,24 @@ forbidden_modules =
     tsumugi.interfaces
     tsumugi.evaluation
 
-# ADR-0001: the core opens no socket. A network import anywhere below the
-# interfaces layer is a defect, not a feature waiting to be configured.
+# ADR-0001 and ADR-0016: the network lives in exactly one place,
+# infrastructure/adapters/, and nothing else may reach it. Listing the
+# infrastructure packages one by one rather than excluding adapters is
+# deliberate -- a new one has to be added here, which is the same maintenance
+# obligation as the layer table and the same reason for it.
 [importlinter:contract:no-network]
-name = Nothing in the core touches the network
+name = Nothing but the adapters touches the network
 type = forbidden
 source_modules =
     tsumugi.domain
     tsumugi.ports
     tsumugi.application
-    tsumugi.infrastructure
+    tsumugi.infrastructure.cost
+    tsumugi.infrastructure.filesystem
+    tsumugi.infrastructure.freshness
+    tsumugi.infrastructure.index
+    tsumugi.infrastructure.parsers
+    tsumugi.infrastructure.storage
     tsumugi.evaluation
 forbidden_modules =
     socket
