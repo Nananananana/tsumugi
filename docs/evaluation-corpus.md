@@ -191,6 +191,35 @@ objective one.
 
 ---
 
+## The shape the corpus could not see
+
+Every question in this corpus was generated from the **subject and attribute
+the document uses**. So every question shared a contiguous phrase with its own
+answer — and confirmation is a phrase match ([ADR 0007](adr/0007-index-japanese-by-bigram.md)).
+
+Seventy cases at 100% recall could not see that a question worded any other way
+finds *nothing*:
+
+```
+テントの重量は?          1 item      the phrase the document uses
+テントの重さは?          0 items     重量 -> 重さ
+テントはどれくらい重い?   0 items     the way a person asks
+```
+
+The index proposes the right document every time. Confirmation rejects it,
+because no substring of the question appears in the text.
+
+A `-paraphrase` case per genre now plants exactly that: the documents are
+unchanged and only the wording of the question moves, which is what makes it
+measure the confirmation stage rather than the ranker. They are `full` tier and
+`held_out`, so CI stays green on the `ci` tier while the number is visible to
+anyone who runs the whole corpus — reported rather than gated, on the same
+terms as the unanswerable-question residual below.
+
+**8 of 10 fail today.** That number is the point of adding them.
+
+---
+
 ## The half that now runs, opt-in
 
 `tsumugi eval` printed one sentence from the day the corpus existed:

@@ -51,6 +51,12 @@ class Genre:
     superseded_answer: str
     heading: str
     question: str
+    #: The same question asked the way a person asks it, sharing no contiguous
+    #: phrase with the document. This is the shape the corpus had none of:
+    #: every question in it was built from the subject and attribute the
+    #: document uses, so every one confirmed by exact phrase and the corpus
+    #: could not see that nothing else does.
+    paraphrase: str = ""
 
 
 GENRES: tuple[Genre, ...] = (
@@ -64,6 +70,7 @@ GENRES: tuple[Genre, ...] = (
         "3.1kg、二人用",
         "装備",
         "テントの重量は",
+        paraphrase="テントはどれくらい重い",
     ),
     Genre(
         "employment-rules",
@@ -75,6 +82,7 @@ GENRES: tuple[Genre, ...] = (
         "初年度は8日、以降1日ずつ加算",
         "休暇",
         "有給休暇の付与日数は",
+        paraphrase="有給は何日もらえる",
     ),
     Genre(
         "research-notes",
@@ -86,6 +94,7 @@ GENRES: tuple[Genre, ...] = (
         "マイナス20度で凍結保存",
         "保存条件",
         "サンプルの保存温度は",
+        paraphrase="サンプルは何度で保管する",
     ),
     Genre(
         "recipes",
@@ -97,6 +106,7 @@ GENRES: tuple[Genre, ...] = (
         "冷蔵庫で3時間",
         "手順",
         "生地の寝かせ時間は",
+        paraphrase="生地はどのくらい休ませる",
     ),
     Genre(
         "meeting-minutes",
@@ -108,6 +118,7 @@ GENRES: tuple[Genre, ...] = (
         "来月の第一金曜日",
         "決定事項",
         "次回の会議の開催日は",
+        paraphrase="次の会議はいつ",
     ),
     Genre(
         "gardening",
@@ -119,6 +130,7 @@ GENRES: tuple[Genre, ...] = (
         "3月下旬から4月上旬",
         "作業予定",
         "球根の植え付け時期は",
+        paraphrase="球根はいつ植える",
     ),
     Genre(
         "infrastructure",
@@ -130,6 +142,7 @@ GENRES: tuple[Genre, ...] = (
         "four nodes in one zone",
         "Capacity",
         "how many nodes does the staging cluster have",
+        paraphrase="how big is the staging cluster",
     ),
     Genre(
         "legal-memo",
@@ -141,6 +154,7 @@ GENRES: tuple[Genre, ...] = (
         "thirty days in writing",
         "Termination",
         "how long is the notice period",
+        paraphrase="how much warning must be given",
     ),
     Genre(
         "travel",
@@ -152,6 +166,7 @@ GENRES: tuple[Genre, ...] = (
         "07:15 from the north quay",
         "Schedule",
         "when is the first ferry departure",
+        paraphrase="what time does the earliest boat leave",
     ),
     Genre(
         "code-review",
@@ -163,6 +178,7 @@ GENRES: tuple[Genre, ...] = (
         "linear, capped at ten seconds",
         "Behaviour",
         "what backoff does the retry policy use",
+        paraphrase="how does the retry policy wait between attempts",
     ),
 )
 
@@ -287,6 +303,38 @@ def _bulk_document(genre: Genre, n: int) -> str:
         f"Background on how {genre.subject} has been handled before.\n"
         f"{_FILLER[genre.language] * 3}"
     )
+
+
+def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
+    """The same question, asked the way a person asks it.
+
+    Every other case in this corpus was generated from the subject and
+    attribute the document uses, so every question shared a contiguous phrase
+    with its answer -- and confirmation is a phrase match. Seventy cases at
+    100% recall could not see that a Japanese question phrased any other way
+    finds nothing at all.
+
+    The documents are unchanged. Only the wording of the question moves, which
+    is what makes this measure the confirmation stage rather than the ranker.
+    """
+    case_id = f"{genre.language}-{genre.key}-paraphrase"
+    documents = {
+        "current.md": _answer_document(genre, "answer"),
+        "neighbour.md": _near_miss_document(genre, "near-miss"),
+    }
+    manifest: dict[str, object] = {
+        "case_id": case_id,
+        "genre": genre.key,
+        "language": genre.language,
+        "question": genre.paraphrase + _QUESTION_MARK.get(genre.language, "?"),
+        "budget": {"unit": "characters", "limit": 1200},
+        "must_include": ["answer"],
+        "must_not_include": ["near-miss"],
+        "traps": {"near-miss": {"kind": "lexical_near_miss"}},
+        "split": "held_out",
+        "tier": "full",
+    }
+    return case_id, documents, manifest
 
 
 def build_absent_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
@@ -605,6 +653,7 @@ def main(argv: list[str] | None = None) -> int:
         built.append(build_stale_case(genre))
         built.append(build_squeezed_out_case(genre))
         built.append(build_mixed_script_case(genre))
+        built.append(build_paraphrase_case(genre))
 
     for case_id, documents, manifest in built:
         write_case(args.out, case_id, documents, manifest)
