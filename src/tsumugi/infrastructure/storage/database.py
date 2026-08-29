@@ -19,7 +19,7 @@ from ...errors import StorageError
 
 __all__ = ["SCHEMA_VERSION", "connect", "empty", "requires_fts5"]
 
-SCHEMA_VERSION: Final = 1
+SCHEMA_VERSION: Final = 2
 
 _MIGRATIONS: dict[int, str] = {
     1: """
@@ -49,6 +49,13 @@ _MIGRATIONS: dict[int, str] = {
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+    """,
+    2: """
+    -- Where each document was read from, so staleness can be checked without
+    -- the caller having to remember and re-supply the corpus root. Nullable:
+    -- documents ingested under schema 1 predate it, and a NULL root simply
+    -- means "cannot check", which is the honest answer rather than an error.
+    ALTER TABLE documents ADD COLUMN corpus_root TEXT;
     """,
 }
 

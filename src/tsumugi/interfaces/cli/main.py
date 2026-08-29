@@ -33,7 +33,7 @@ from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
-from ...infrastructure.freshness import FilesystemFreshness, NeverStale
+from ...infrastructure.freshness import FilesystemFreshness, remembered_roots
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
 from ...infrastructure.storage.database import SCHEMA_VERSION, connect, empty
@@ -103,9 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "the folder the index was built from. Given it, passages from files that "
-            "have changed since they were indexed are reported as stale rather than "
-            "offered as current"
+            "where the corpus lives now, if it has moved. The index remembers where "
+            "each document was read from, so staleness is checked without this"
         ),
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
@@ -339,7 +338,10 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         candidate_limit=config.candidate_limit,
         minimum_score=args.min_score,
         version=__version__,
-        freshness=FilesystemFreshness(args.corpus) if args.corpus else NeverStale(),
+        # On by default. A check the caller has to remember to turn on is a
+        # check that is off, and offering a passage from an edited file as
+        # current is the thing ADR-0010 exists to prevent.
+        freshness=(FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)),
     )
 
     SqliteLedger(connection).open(package)
@@ -613,8 +615,33 @@ def _doctor(args: argparse.Namespace, config: TsumugiConfig) -> int:
     print(f"documents:  {store.count()}")
     print(f"indexed:    {index.count()}")
 
-    stale = [d for d in store.all_current() if len(store.versions(d.document_id)) > 1]
-    print(f"revised:    {len(stale)} documents have more than one version")
+    revised = [d for d in store.all_current() if len(store.versions(d.document_id)) > 1]
+    print(f"revised:    {len(revised)} documents have more than one version")
+
+    # Now that the index remembers its corpus, drift is checkable rather than
+    # only mentionable.
+    checker = remembered_roots(store)
+    unrecorded = [d for d in store.all_current() if store.corpus_root_of(d.document_id) is None]
+    drifted = [
+        d
+        for d in store.all_current()
+        if store.corpus_root_of(d.document_id) is not None and not checker.is_current(d)
+    ]
+    print(f"drifted:    {len(drifted)} files have changed since they were indexed")
+    for document in drifted[:5]:
+        print(f"            {document.source_path}")
+    if len(drifted) > 5:
+        print(f"            ...and {len(drifted) - 5} more")
+    if unrecorded:
+        # "Cannot check" is a different answer from "unchanged", and saying so
+        # is the difference between a report and a reassurance.
+        print(
+            f"unchecked:  {len(unrecorded)} documents predate schema 2 and do not "
+            f"record where they came from"
+        )
+
+    for root in store.corpus_roots():
+        print(f"corpus:     {root}")
 
     print()
     print("formats:")

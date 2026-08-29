@@ -162,7 +162,10 @@ mysterious.
 One SQLite file, holding both the documents and the search index: one thing to
 back up, one thing to delete, one thing to keep out of a synced folder.
 
-Schema version 1, migrated explicitly. Opening an index written by a newer
+Schema version 2, migrated explicitly. Version 2 records the corpus root
+each document was read from, so freshness needs no flag — a check the caller
+has to remember to turn on is a check that is off, and documents from before
+it answer "cannot check" rather than "unchanged". Opening an index written by a newer
 tsumugi is refused rather than attempted.
 
 **Versions are append-only.** Ingesting an edited file adds a revision and moves
@@ -455,5 +458,5 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-706 tests, 92% line coverage. Every test runs with no network, no model and no
+725 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

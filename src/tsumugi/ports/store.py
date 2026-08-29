@@ -25,12 +25,16 @@ __all__ = ["DocumentStore"]
 class DocumentStore(Protocol):
     """Documents, addressed by identity and by revision."""
 
-    def put(self, document: Document) -> bool:
-        """Store a revision.
+    def put(self, document: Document, *, corpus_root: str | None = None) -> bool:
+        """Store a revision, and where it was read from.
 
         Returns ``True`` when this revision is new, ``False`` when it was
         already held -- which is how an ingest run reports what changed without
         a second pass.
+
+        ``corpus_root`` is remembered so that staleness can be checked later
+        without the caller having to supply the folder again. ``None`` means
+        the store cannot say, which is different from "unchanged".
         """
         ...
 
@@ -63,6 +67,10 @@ class DocumentStore(Protocol):
         Must leave nothing recoverable -- see the test that vacuums and then
         greps the database file.
         """
+        ...
+
+    def corpus_root_of(self, document_id: DocumentId) -> str | None:
+        """Where a document was read from, or ``None`` if unrecorded."""
         ...
 
     def count(self) -> int:

@@ -68,6 +68,13 @@ it is the feature — but it means the index will find the sensitive note about 
 colleague that you had, in practice, forgotten. The set of things tsumugi can put
 in front of a model is the set of things you ever wrote down.
 
+**The index records where your corpus lives.** Since schema 2 it stores the
+absolute path each document was read from, so that staleness can be checked
+without the caller supplying the folder again — a check nobody remembers to
+turn on is a check that is off. The path usually contains a username and a
+directory layout. It is a small addition to a file that already holds the
+documents themselves, and it is stated here rather than discovered.
+
 **A ledger is a record of your questions.** It holds no document text, but a list
 of what you asked and when is itself revealing. It can be disabled and it can be
 deleted.

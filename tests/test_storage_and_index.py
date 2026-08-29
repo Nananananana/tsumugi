@@ -235,6 +235,25 @@ class TestTheDatabase:
         with pytest.raises(StorageError, match="newer version"):
             connect(path)
 
+    def test_a_schema_1_index_migrates_and_keeps_its_documents(self, tmp_path: Path) -> None:
+        # Explicit migrations, and the older documents survive them -- they
+        # simply have no recorded corpus root, which reads as "cannot check"
+        # rather than "unchanged".
+        path = tmp_path / "old.db"
+        connection = connect(path)
+        store = SqliteDocumentStore(connection)
+        store.put(build_document("a.md", JAPANESE))
+        connection.execute("PRAGMA user_version = 1")
+        connection.execute("ALTER TABLE documents DROP COLUMN corpus_root")
+        connection.commit()
+        connection.close()
+
+        migrated = SqliteDocumentStore(connect(path))
+        held = migrated.by_path("a.md")
+        assert held is not None
+        assert held.content == JAPANESE
+        assert migrated.corpus_root_of(held.document_id) is None
+
     def test_migrating_twice_is_a_no_op(self, tmp_path: Path) -> None:
         path = tmp_path / "twice.db"
         connect(path).close()

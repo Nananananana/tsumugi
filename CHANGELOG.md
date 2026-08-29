@@ -9,6 +9,21 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Changed — staleness is checked by default
+
+- **Schema 2: the index records where each document was read from.** Freshness
+  therefore needs no `--corpus` flag. A check the caller has to remember to turn
+  on is a check that is off, and ADR-0010's whole point is that a passage from
+  an edited file must not be offered as current.
+- `tsumugi doctor` reports drifted files by name, and says separately how many
+  documents predate schema 2 and so **cannot** be checked — which is a different
+  answer from "unchanged", and saying so is the difference between a report and
+  a reassurance.
+- `--corpus` remains, for a corpus that has moved.
+- Noted in the threat model: the index now stores an absolute path, which
+  usually contains a username. Small beside the documents it already holds, and
+  written down rather than discovered.
+
 ### Added — the kiseki adapter, and layers that survive the crossing
 
 - Reads kiseki's **published export**, never its database, and **imports

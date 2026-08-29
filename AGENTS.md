@@ -125,7 +125,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 706 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 725 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
   `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,
@@ -148,6 +148,9 @@ Taken from `kiseki` and `mamori`, which paid for them.
   which duplicate is right (ADR-0015). `omission correctness` went 0% -> 90%
   when it was built -- that number asked for the feature, and building it also
   showed the corpus's expectation had been wrong.
+- Schema 2: the index records the corpus root each document came from, so
+  staleness is checked without a flag. A check the caller has to remember to
+  turn on is a check that is off.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three

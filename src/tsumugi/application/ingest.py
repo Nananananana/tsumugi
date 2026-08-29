@@ -113,7 +113,7 @@ def ingest_paths(
         )
 
         had_before = store.current_version(document.document_id)
-        is_new = store.put(document)
+        is_new = store.put(document, corpus_root=str(root.resolve()))
         entry = Ingested(
             source_path=relative,
             document_id=document.document_id,

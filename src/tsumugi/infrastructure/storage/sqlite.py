@@ -29,7 +29,7 @@ class SqliteDocumentStore:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
-    def put(self, document: Document) -> bool:
+    def put(self, document: Document, *, corpus_root: str | None = None) -> bool:
         document.verify()
         version = str(document.version)
 
@@ -47,8 +47,8 @@ class SqliteDocumentStore:
             )
             self._connection.execute(
                 "INSERT INTO documents (document_id, version, source_path, media_type, "
-                "content, structure, metadata, ingested_at, is_current) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                "content, structure, metadata, ingested_at, is_current, corpus_root) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
                 (
                     document.document_id,
                     version,
@@ -58,6 +58,7 @@ class SqliteDocumentStore:
                     json.dumps(_structure(document), ensure_ascii=False),
                     json.dumps(dict(document.metadata), ensure_ascii=False),
                     datetime.now(UTC).isoformat(),
+                    corpus_root,
                 ),
             )
         return True
@@ -121,6 +122,27 @@ class SqliteDocumentStore:
         self._connection.execute("VACUUM")
         self._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         return removed
+
+    def corpus_root_of(self, document_id: DocumentId) -> str | None:
+        """Where this document was read from, if the index remembers.
+
+        ``None`` for anything ingested before schema 2, which means "cannot
+        check" rather than "unchanged" -- the difference matters, and the
+        freshness check is told which it is.
+        """
+        row = self._connection.execute(
+            "SELECT corpus_root FROM documents WHERE document_id = ? AND is_current = 1",
+            (document_id,),
+        ).fetchone()
+        return str(row["corpus_root"]) if row is not None and row["corpus_root"] else None
+
+    def corpus_roots(self) -> list[str]:
+        """Every root this index was built from, in a stable order."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT corpus_root FROM documents "
+            "WHERE corpus_root IS NOT NULL ORDER BY corpus_root"
+        ).fetchall()
+        return [str(row["corpus_root"]) for row in rows]
 
     def count(self) -> int:
         row = self._connection.execute(

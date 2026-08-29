@@ -17,7 +17,11 @@ from tsumugi.domain.budget import Budget
 from tsumugi.domain.omission import OmissionRule
 from tsumugi.infrastructure.cost.heuristic import CharacterCost
 from tsumugi.infrastructure.filesystem import walk
-from tsumugi.infrastructure.freshness import FilesystemFreshness, NeverStale
+from tsumugi.infrastructure.freshness import (
+    FilesystemFreshness,
+    NeverStale,
+    remembered_roots,
+)
 from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.parsers import parser_for
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
@@ -171,3 +175,51 @@ class TestThroughAPackage:
         )
         assert "filesystem@1" in " ".join(checked.provenance.providers)
         assert "unchecked" in " ".join(unchecked.provenance.providers)
+
+
+class TestTheIndexRemembersItsCorpus:
+    """So that staleness is checked without a flag.
+
+    A check the caller has to remember to turn on is a check that is off, and
+    offering a passage from an edited file as current is exactly what ADR-0010
+    exists to prevent.
+    """
+
+    def _ingested(self, tmp_path: Path, connection: object) -> tuple[Path, object]:
+        root = tmp_path / "corpus"
+        root.mkdir()
+        (root / "a.md").write_text(TEXT, encoding="utf-8", newline="")
+        store = SqliteDocumentStore(connection)  # type: ignore[arg-type]
+        index = FtsIndex(connection)  # type: ignore[arg-type]
+        found = walk(root)
+        ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
+        return root, store
+
+    def test_ingest_records_where_a_document_came_from(
+        self, tmp_path: Path, connection: object
+    ) -> None:
+        root, store = self._ingested(tmp_path, connection)
+        document = next(iter(store.all_current()))  # type: ignore[attr-defined]
+        assert store.corpus_root_of(document.document_id) == str(root.resolve())  # type: ignore[attr-defined]
+
+    def test_and_the_index_can_list_its_roots(self, tmp_path: Path, connection: object) -> None:
+        root, store = self._ingested(tmp_path, connection)
+        assert store.corpus_roots() == [str(root.resolve())]  # type: ignore[attr-defined]
+
+    def test_a_check_built_from_the_index_needs_no_root(
+        self, tmp_path: Path, connection: object
+    ) -> None:
+        root, store = self._ingested(tmp_path, connection)
+        check = remembered_roots(store)  # type: ignore[arg-type]
+        document = next(iter(store.all_current()))  # type: ignore[attr-defined]
+        assert check.is_current(document)
+
+        (root / "a.md").write_text("# 装備\n\n書き直し。\n", encoding="utf-8", newline="")
+        assert not remembered_roots(store).is_current(document)  # type: ignore[arg-type]
+
+    def test_a_document_with_no_recorded_root_cannot_be_checked(self, tmp_path: Path) -> None:
+        # "Cannot check" is answered as current, because reporting stale would
+        # be a claim nothing supports. Documents ingested under schema 1 are in
+        # this position for good.
+        check = FilesystemFreshness(roots={})
+        assert check.is_current(build_document("gone.md", TEXT))
