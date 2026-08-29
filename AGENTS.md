@@ -128,7 +128,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - 741 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
-  `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,
+  `trace`, `forget`, `ledger`, `mcp`, `eval`, `demo`, `doctor`. Domain (span,
   hash, document, anchor, normalization, budget, omission, selection, package,
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the

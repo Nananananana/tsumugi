@@ -29,8 +29,12 @@ adapters.
                           └────────────────────┘
 ```
 
-Ten commands: `ingest`, `search`, `context`, `verify`, `trace`, `forget`,
-`ledger`, `mcp`, `eval`, `doctor`.
+Eleven commands: `ingest`, `search`, `context`, `verify`, `trace`, `forget`,
+`ledger`, `mcp`, `eval`, `demo`, `doctor`.
+
+`tsumugi demo` runs the whole pipeline in a throwaway directory against a small
+rigged corpus — no model, no network, and it never opens the configured index,
+which is a test rather than an intention.
 
 `context` is the one the library is for. It retrieves, confirms, ranks, fits to
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
@@ -455,8 +459,9 @@ does nothing is the worst available outcome. The index lives at
 | `test_freshness.py` | Whether the file a passage came from has changed |
 | `test_adapter_mamori.py` | ADR-0009 against the real redactor. Skipped when `mamori` is absent |
 | `test_adapter_kiseki.py` | Reading the export contract, and interpretations staying interpretations |
+| `test_demo_and_examples.py` | The demo and the example run, and touch nothing of the reader's |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-726 tests, 92% line coverage. Every test runs with no network, no model and no
+741 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.
