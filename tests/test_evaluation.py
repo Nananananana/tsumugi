@@ -219,9 +219,12 @@ class TestScoring:
     def test_omission_correctness_asks_whether_the_reason_was_right(self) -> None:
         # The metric that separates "the budget is too small" from "the ranker
         # is broken". Same outcome, two diagnoses.
-        case = load_case(CASES / "ja-mountaineering-00")
-        document_key = case.fact_document["superseded"]
-        fact = case.facts["superseded"]
+        # The `duplicate` trap, not `superseded`: a verbatim copy is what
+        # `redundant_candidate` means, and a superseded version is not
+        # detectable by character overlap (ADR-0015).
+        case = load_case(CASES / "ja-mountaineering-01")
+        document_key = case.fact_document["duplicate"]
+        fact = case.facts["duplicate"]
 
         def package_with(rule: OmissionRule) -> ContextPackage:
             return ContextPackage(
@@ -240,9 +243,9 @@ class TestScoring:
                 provenance=PackageProvenance(tsumugi_version="test"),
             )
 
-        expected = case.traps["superseded"].expect_omission_rule
+        expected = case.traps["duplicate"].expect_omission_rule
         assert expected is not None
-        assert score_case(case, package_with(expected)).explained == ("superseded",)
+        assert score_case(case, package_with(expected)).explained == ("duplicate",)
 
         wrong = OmissionRule.BELOW_THRESHOLD
         assert wrong is not expected
@@ -251,7 +254,9 @@ class TestScoring:
 
     def test_a_package_over_its_budget_is_not_clean(self) -> None:
         case = load_case(CASES / "ja-mountaineering-01")
-        assert case.budget.limit == 300
+        # Scaled to the content rather than a constant: a fixed character
+        # budget squeezes English and not Japanese.
+        assert case.budget.limit < 100
         document_key = case.fact_document["answer"]
         content = case.documents[document_key]
         document = build_document(document_key, content)

@@ -1,6 +1,6 @@
 {
   "budget": {
-    "limit": 300,
+    "limit": 146,
     "unit": "characters"
   },
   "case_id": "en-travel-01",
@@ -16,11 +16,14 @@
   "split": "train",
   "tier": "full",
   "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
     "near-miss": {
       "kind": "lexical_near_miss"
     },
     "superseded": {
-      "expect_omission_rule": "redundant_candidate",
       "kind": "superseded"
     }
   }

@@ -162,11 +162,23 @@ class TestContext:
         assert ids[0] == ids[1]
 
     def _crowd(self, corpus: Path) -> None:
-        """Enough competing documents that a budget can actually bind."""
-        for n in range(6):
+        """Enough competing documents that a budget can actually bind.
+
+        Genuinely distinct from each other: near-identical documents are
+        marked ``redundant_candidate`` instead, which is correct behaviour and
+        not what this test is about. Only the query word is shared.
+        """
+        notes = [
+            "テントの設営は風上から。ペグは45度に打ち込み、張り綱を先に固定する。",
+            "テントの前室には炊事道具をまとめる。結露を避けるため換気口は常に開ける。",
+            "テントのポールは継ぎ目を確認してから伸ばす。砂が入ると曲がりやすい。",
+            "テントの底面には薄い敷物を追加した。冷えと摩耗の両方に効いている。",
+            "テントの色は視認性より落ち着きを優先した。写真映りは二の次でよい。",
+            "テントの収納は畳まず押し込む方式に変えた。生地の折り目が減った。",
+        ]
+        for n, note in enumerate(notes):
             (corpus / "notes" / f"gear-{n}.md").write_text(
-                f"# 装備 {n}\n\nテントの候補 {n} について。重量と設営のしやすさを比較する。\n",
-                encoding="utf-8",
+                f"# 記録 {n}\n\n{note}\n", encoding="utf-8"
             )
 
     def test_a_tight_budget_reports_what_it_dropped(

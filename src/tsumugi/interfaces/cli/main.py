@@ -454,7 +454,9 @@ def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
     else:
         print(
             f"floors held: recall >= {FLOORS.evidence_recall:.0%}, "
-            f"traps <= {FLOORS.trap_rate:.0%}, budget and reproducibility exact"
+            f"traps <= {FLOORS.trap_rate:.0%}, "
+            f"reasons >= {FLOORS.omission_correctness:.0%}, "
+            f"budget and reproducibility exact"
         )
 
     print()

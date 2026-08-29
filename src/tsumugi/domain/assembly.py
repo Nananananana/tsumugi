@@ -23,10 +23,17 @@ from typing import Final
 from .anchor import Anchor
 from .budget import Budget
 from .omission import Omission, OmissionRule
+from .redundancy import DEFAULT_THRESHOLD, mark_duplicates
 from .selection import ContextItem, ItemProvenance, SelectionTrace
 from .span import Span
 
-__all__ = ["CORPUS_WIDE", "Candidate", "Fitted", "fit_to_budget"]
+__all__ = ["CORPUS_WIDE", "REDUNDANT_SIGNAL", "Candidate", "Fitted", "fit_to_budget"]
+
+#: Carried on an included item that duplicates one already chosen. A duplicate
+#: that fits is still sent -- redundancy lowers priority and never vetoes
+#: (ADR-0008) -- but the reader is told, because two copies of one idea read as
+#: two sources.
+REDUNDANT_SIGNAL: Final = "redundant_with"
 
 #: Stands in for "the corpus itself" on an omission that points at no document.
 #: Only ``truncated_by_cap`` uses it: a cap is a statement about what was never
@@ -77,6 +84,7 @@ def fit_to_budget(
     cost_of: Callable[[str], int],
     minimum_score: float = 0.0,
     truncated_at: int | None = None,
+    redundancy_threshold: float = DEFAULT_THRESHOLD,
 ) -> Fitted:
     """Choose what fits, and say what did not.
 
@@ -88,6 +96,13 @@ def fit_to_budget(
     Candidates are taken best-first. A candidate that does not fit does **not**
     stop the fill: a later, smaller one may still fit, and stopping at the first
     overflow would silently prefer long passages over short relevant ones.
+
+    Near-duplicates are **marked, never vetoed** (ADR-0008). A copy of something
+    already chosen goes to the back of the queue; if the budget still admits it
+    the copy is sent, carrying a ``redundant_with:...`` signal so the reader
+    knows two items are one idea. Only when the budget refuses it does it become
+    an omission -- and then under ``redundant_candidate``, because "this repeats
+    itm_001" is a better answer to *why* than "there was no room".
     """
     ordered = sorted(
         candidates,
@@ -96,18 +111,45 @@ def fit_to_budget(
         key=lambda c: (-c.score, c.source_path, c.anchor.document_id, c.anchor.span.start),
     )
 
+    # Ranked order decides which member of a duplicate cluster survives.
+    # Redundancy says two passages are alike; it has no way to know which is
+    # right, and does not guess (ADR-0015).
+    duplicates = mark_duplicates([c.text for c in ordered], threshold=redundancy_threshold)
+
     items: list[ContextItem] = []
     omissions: list[Omission] = []
+    item_id_at: dict[int, str] = {}
     spent = 0
     rank = 0
 
-    for candidate in ordered:
+    def place(position: int, candidate: Candidate, cost: int, extra: tuple[str, ...] = ()) -> None:
+        nonlocal spent, rank
+        rank += 1
+        spent += cost
+        item_id = f"itm_{rank:03d}"
+        item_id_at[position] = item_id
+        items.append(
+            ContextItem(
+                item_id=item_id,
+                text=candidate.text,
+                anchor=candidate.anchor,
+                source_path=candidate.source_path,
+                section=candidate.section,
+                provenance=candidate.provenance,
+                selection=SelectionTrace(
+                    rank=rank, score=candidate.score, signals=(*candidate.signals, *extra)
+                ),
+                cost=cost,
+            )
+        )
+
+    def consider(position: int, candidate: Candidate, extra: tuple[str, ...] = ()) -> None:
         cost = cost_of(candidate.text)
 
         if candidate.disqualified is not None:
             rule, reason = candidate.disqualified
             omissions.append(_omission(candidate, rule, reason, cost))
-            continue
+            return
 
         if candidate.score < minimum_score:
             omissions.append(
@@ -118,9 +160,23 @@ def fit_to_budget(
                     cost,
                 )
             )
-            continue
+            return
 
         if spent + cost > budget.limit:
+            duplicate = duplicates.get(position)
+            if duplicate is not None:
+                head, found = duplicate
+                omissions.append(
+                    _omission(
+                        candidate,
+                        OmissionRule.REDUNDANT_CANDIDATE,
+                        f"{found.describe()} with {item_id_at.get(head, 'an earlier candidate')}, "
+                        f"and the remaining {budget.remaining(spent)} "
+                        f"{budget.unit.value} would not hold it",
+                        cost,
+                    )
+                )
+                return
             omissions.append(
                 _omission(
                     candidate,
@@ -131,24 +187,20 @@ def fit_to_budget(
                     cost,
                 )
             )
-            continue
+            return
 
-        rank += 1
-        spent += cost
-        items.append(
-            ContextItem(
-                item_id=f"itm_{rank:03d}",
-                text=candidate.text,
-                anchor=candidate.anchor,
-                source_path=candidate.source_path,
-                section=candidate.section,
-                provenance=candidate.provenance,
-                selection=SelectionTrace(
-                    rank=rank, score=candidate.score, signals=candidate.signals
-                ),
-                cost=cost,
-            )
-        )
+        place(position, candidate, cost, extra)
+
+    # Originals first, copies afterwards: a duplicate loses priority, which is
+    # the whole of "lowers priority, does not veto".
+    for position, candidate in enumerate(ordered):
+        if position not in duplicates:
+            consider(position, candidate)
+
+    for position in sorted(duplicates):
+        head, found = duplicates[position]
+        marker = f"{REDUNDANT_SIGNAL}:{item_id_at.get(head, 'a candidate that was not sent')}"
+        consider(position, ordered[position], extra=(marker, found.describe()))
 
     if truncated_at is not None and truncated_at > 0:
         # No anchor, because there is nothing to point at -- that is the whole

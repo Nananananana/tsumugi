@@ -182,6 +182,13 @@ _FILLER = {
 }
 
 
+def _answer_sentence(genre: Genre) -> str:
+    """The sentence the answer document states, without its markup."""
+    if genre.language == "ja":
+        return f"{genre.subject}の{genre.attribute}は{genre.answer}"
+    return f"The {genre.attribute} of {genre.subject} is {genre.answer}"
+
+
 def _answer_document(genre: Genre, fact_id: str) -> str:
     return (
         f"---\ntitle: {genre.heading}\n---\n\n"
@@ -237,6 +244,21 @@ def _near_miss_document(genre: Genre, fact_id: str) -> str:
     return f"# {genre.heading}\n\n{body}\n{_FILLER[genre.language]}"
 
 
+def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
+    """A verbatim copy of the answer, in another file.
+
+    The trap `redundant_candidate` actually means. It replaces the expectation
+    that a *superseded* document would be caught as a duplicate, which
+    measurement showed is not detectable by character overlap and is not what
+    the rule means (ADR-0015).
+    """
+    if genre.language == "ja":
+        head = f"# {genre.heading}（控え）\n\n過去の記録から転記。\n\n"
+    else:
+        head = f"# {genre.heading} (copy)\n\nTranscribed from an earlier record.\n\n"
+    return f"{head}{{{{F:{fact_id}}}}}{answer_text}{{{{/F}}}}\n\n{_FILLER[genre.language]}"
+
+
 def _bulk_document(genre: Genre, n: int) -> str:
     """Competition, so that a budget can actually bind."""
     if genre.language == "ja":
@@ -257,25 +279,48 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
     case_id = f"{genre.language}-{genre.key}-{variant:02d}"
     answer, superseded, near_miss = "answer", "superseded", "near-miss"
 
+    copy = "duplicate"
+    answer_text = _answer_sentence(genre)
+
     documents = {
         "current.md": _answer_document(genre, answer),
         "older.md": _superseded_document(genre, superseded),
         "neighbour.md": _near_miss_document(genre, near_miss),
+        "copy.md": _duplicate_document(genre, copy, answer_text),
     }
 
+    # A verbatim copy is what `redundant_candidate` means, and it is
+    # detectable: 1.000 containment against a 0.75 threshold. But an
+    # *omission* is only expected where the budget actually binds -- with room
+    # for both, a marked duplicate is still sent, which is the whole of
+    # "lowers priority, does not veto" (ADR-0008). Expecting an omission on a
+    # loose budget would be asserting the opposite of the decision.
+    squeezed = variant == 1
     traps: dict[str, object] = {
-        # Superseded and near-duplicate content is *marked*, never silently
-        # deleted (ADR-0008), so the rule to expect is redundant_candidate.
-        superseded: {"kind": "superseded", "expect_omission_rule": "redundant_candidate"},
+        copy: (
+            {"kind": "near_duplicate", "expect_omission_rule": "redundant_candidate"}
+            if squeezed
+            else {"kind": "near_duplicate"}
+        ),
+        # A superseded version is NOT detectable by character overlap, and
+        # expecting it under redundant_candidate was wrong (ADR-0015). It stays
+        # as a planted adversary with no expected rule: it must simply not
+        # displace the current answer.
+        superseded: {"kind": "superseded"},
         near_miss: {"kind": "lexical_near_miss"},
     }
 
     # Variant 1 squeezes the budget: the required fact has to survive
-    # competition, and everything dropped has to say budget_exhausted.
-    if variant == 1:
+    # competition, and everything dropped has to name the right rule.
+    if squeezed:
         for n in range(4):
             documents[f"appendix-{n}.md"] = _bulk_document(genre, n)
-        budget = {"unit": "characters", "limit": 300}
+        # Scaled to the content, not a constant. A Japanese answer is about
+        # sixteen characters and an English one about sixty-six, so a fixed
+        # character budget squeezes one language and not the other -- and a
+        # "budget squeeze" case that does not squeeze measures nothing.
+        # 2.4x leaves room for roughly two items and refuses a third.
+        budget = {"unit": "characters", "limit": int(len(answer_text) * 2.4)}
     else:
         budget = {"unit": "characters", "limit": 1200}
 

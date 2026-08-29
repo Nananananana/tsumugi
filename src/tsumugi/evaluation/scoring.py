@@ -46,6 +46,10 @@ class Floors:
     #: Forbidden facts that may get in. Currently 10%, and the residual is
     #: diagnosed in ``application/search.py``.
     trap_rate: float = 0.20
+    #: Exclusions that must name the right rule. Currently 90%. It was
+    #: structurally 0% until redundancy marking existed, which is how it came
+    #: to be the number that asked for that feature.
+    omission_correctness: float = 0.70
 
     def breached_by(self, summary: Summary) -> list[str]:
         """What is below the floor, in words a build log can print."""
@@ -58,6 +62,12 @@ class Floors:
         traps = summary.trap_rate
         if traps is not None and traps > self.trap_rate:
             problems.append(f"trap rate {traps:.1%} is above the ceiling of {self.trap_rate:.0%}")
+        explained = summary.omission_correctness
+        if explained is not None and explained < self.omission_correctness:
+            problems.append(
+                f"omission correctness {explained:.1%} is below the floor of "
+                f"{self.omission_correctness:.0%}"
+            )
         if summary.over_budget:
             problems.append(f"over budget: {', '.join(summary.over_budget)}")
         if summary.unreproducible:

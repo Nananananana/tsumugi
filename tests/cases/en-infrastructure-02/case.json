@@ -16,11 +16,13 @@
   "split": "held_out",
   "tier": "full",
   "traps": {
+    "duplicate": {
+      "kind": "near_duplicate"
+    },
     "near-miss": {
       "kind": "lexical_near_miss"
     },
     "superseded": {
-      "expect_omission_rule": "redundant_candidate",
       "kind": "superseded"
     }
   }

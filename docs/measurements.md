@@ -106,9 +106,9 @@ tsumugi eval --tier ci  # the fast tier CI runs
 | | train (20) | held out (10) | all (30) |
 |---|---|---|---|
 | Evidence recall | 100% | 100% | **100%** |
-| Evidence precision | 83.7% | 100% | 88.6% |
+| Evidence precision | — | — | **98.8%** |
 | Lexical-near-miss trap rate | 10.0% | 10.0% | **10.0%** |
-| Omission correctness | 0% | 0% | **0%** |
+| Omission correctness | — | — | **90.0%** |
 | Budget adherence | exact | exact | exact |
 | Reproducibility | exact | exact | exact |
 
@@ -144,15 +144,45 @@ stage does not — or a stopword list, which is a vocabulary list per language a
 does not generalise. Chasing it on thirty synthetic cases would be fitting the
 ranker to the fixtures.
 
-### Omission correctness is 0%, and that is not a bug
+### Omission correctness: 0% → 90%, and what the 0% bought
 
-The metric asks whether the *reason given* for an exclusion was right. Every
-case expects a superseded document to be reported under `redundant_candidate`,
-and nothing reports that, because redundancy marking
-([ADR 0008](adr/0008-redundancy-is-proposed.md)) **is not built**.
+The metric asks whether the *reason given* for an exclusion was right, and it
+read **0%** on its first run. It was the first number in this project that
+asked for a feature rather than permitting one, and it asked for redundancy
+marking ([ADR 0008](adr/0008-redundancy-is-proposed.md)).
 
-It is the first number in this project that asks for a feature rather than
-permitting one, and it arrived on the metric's first run.
+Building it moved the number to **90%** — and along the way showed that the
+corpus's expectation had been wrong. It asserted that a *superseded* document
+should be reported under `redundant_candidate`, and measurement says that is
+not detectable and not what the rule means
+([ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md)). The trap
+is now a verbatim copy, which is what `redundant_candidate` does mean.
+
+The remaining 10% is one case where the copy fitted the budget and was
+correctly *sent*, carrying a `redundant_with:` signal rather than becoming an
+omission. That is ADR-0008's rule working: redundancy lowers priority and never
+vetoes.
+
+### Near-duplicate detection: what containment separates
+
+| | containment |
+|---|---|
+| verbatim copy | 1.000 |
+| copy inside a longer document | 1.000 |
+| copy, one clause changed | 0.889 |
+| copy, reflowed to a new width | 0.873 |
+| *— the threshold, 0.75, sits here —* | |
+| same subject, corrected value | 0.417 |
+| different subject, same shape | 0.167 |
+| same topic, rewritten | 0.000 |
+| unrelated | 0.000 |
+
+Copies separate from everything else by 0.456. **Corrections do not separate
+from unrelated statements**, which is why a superseded version is out of scope
+rather than an unmet expectation — and why redundancy marks rather than
+deletes. Whether a correction *looks* like a copy turns out to depend on how
+much of the passage it changed, not on it being a correction: the same
+correction scores 0.42 in a sentence and 0.77 in a paragraph.
 
 ### Floors, not targets
 

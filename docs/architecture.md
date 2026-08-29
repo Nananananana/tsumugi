@@ -6,8 +6,9 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 
 What is **planned** and not built is in
 [proposals/0002-what-building-it-taught.md](proposals/0002-what-building-it-taught.md),
-which revises 0001's roadmap from what building it cost: redundancy marking
-first, then more cases, then templates and the sibling adapters.
+which revises 0001's roadmap from what building it cost. Redundancy marking is
+now done; next are more evaluation cases, then templates and the sibling
+adapters.
 
 ## What exists
 
@@ -92,6 +93,7 @@ tokenizer is a *proposer*; replacing any of them cannot change an answer below.
 | Whether a package is well-formed enough to exist | `domain/package.py` |
 | That every candidate leaves as an item or an omission | `domain/assembly.py` |
 | Whether a quotation is really in the text that was sent | `domain/matching.py` |
+| Whether two passages are near-duplicates | `domain/redundancy.py` |
 | Whether a claim is supported, unsupported, uncited or unverifiable | `domain/claim.py` |
 
 ## Key types
@@ -416,5 +418,5 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-561 tests, 94% line coverage. Every test runs with no network, no model and no
+599 tests, 93% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

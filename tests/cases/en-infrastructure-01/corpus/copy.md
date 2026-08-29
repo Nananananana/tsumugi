@@ -1,0 +1,9 @@
+# Capacity (copy)
+
+Transcribed from an earlier record.
+
+{{F:duplicate}}The node count of the staging cluster is six nodes across two zones{{/F}}
+
+This entry was reviewed at the last stocktake.
+Ownership rotates, and is checked once at handover.
+The longer history is kept in a separate record.

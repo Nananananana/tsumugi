@@ -30,7 +30,17 @@ from tsumugi.domain.span import Span
 
 from .helpers import build_document
 
-DOCUMENT = build_document("notes/budget.md", "予算の単位は呼び出し側で明示する。" * 12)
+# Deliberately non-repeating. An earlier version of this fixture was one
+# sentence repeated twelve times, which made every pair of spans a genuine
+# 100% duplicate and quietly turned the budget tests into redundancy tests.
+DOCUMENT = build_document(
+    "notes/budget.md",
+    "予算の単位は呼び出し側で明示する。トークンは推定であり誤差を申告する。"
+    "文字数とバイト数は正確に数える。索引は候補を出し、確認が結果を決める。"
+    "証拠は原文の位置と一致し、編集後は古いものとして報告する。"
+    "落としたものには規則と理由がつく。台帳は本文を持たない。"
+    "契約は文書であって型ではない。エージェントには読み取り専用の口を開ける。",
+)
 ERROR = {"p50": 0.05, "p95": 0.18, "against": "cl100k_base", "dataset": "x"}
 
 
@@ -324,7 +334,7 @@ class TestFittingToBudget:
 
     def test_what_does_not_fit_becomes_an_omission_with_the_budget_rule(self) -> None:
         fitted = fit_to_budget(
-            [self._candidate(0, 10, 0.9), self._candidate(20, 60, 0.8)],
+            [self._candidate(0, 10, 0.9), self._candidate(60, 100, 0.8)],
             budget=Budget.characters(15),
             cost_of=len,
         )

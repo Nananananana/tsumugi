@@ -28,6 +28,7 @@ later ADR supersedes it and says so.
 | [0012](0012-an-agent-facing-surface.md) | An agent-facing surface, on the standard library |
 | [0013](0013-label-the-evidence-not-the-ideal-answer.md) | Label the evidence, not the ideal answer |
 | [0014](0014-the-index-does-not-live-beside-the-corpus.md) | The index does not live beside the corpus |
+| [0015](0015-redundancy-does-not-decide-which-is-right.md) | Redundancy does not decide which duplicate is right |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

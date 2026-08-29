@@ -196,10 +196,19 @@ class TestContext:
     def test_omissions_travel_with_it(self, corpus: Path, tmp_path: Path) -> None:
         # An agent that cannot see the edge of a selection has the same problem
         # as a person who cannot.
-        for n in range(6):
+        # Genuinely distinct: near-identical documents are marked
+        # redundant_candidate instead, which is not what this test is about.
+        notes = [
+            "テントの設営は風上から。ペグは45度に打ち込み、張り綱を先に固定する。",
+            "テントの前室には炊事道具をまとめる。結露を避けるため換気口は常に開ける。",
+            "テントのポールは継ぎ目を確認してから伸ばす。砂が入ると曲がりやすい。",
+            "テントの底面には薄い敷物を追加した。冷えと摩耗の両方に効いている。",
+            "テントの色は視認性より落ち着きを優先した。写真映りは二の次でよい。",
+            "テントの収納は畳まず押し込む方式に変えた。生地の折り目が減った。",
+        ]
+        for n, note in enumerate(notes):
             (corpus / "notes" / f"gear-{n}.md").write_text(
-                f"# 装備 {n}\n\nテントの候補 {n} を比較する。重量と設営のしやすさ。\n",
-                encoding="utf-8",
+                f"# 記録 {n}\n\n{note}\n", encoding="utf-8"
             )
         path = tmp_path / "crowded.db"
         main(["--index", str(path), "ingest", str(corpus)])

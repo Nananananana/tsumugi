@@ -125,7 +125,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 561 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 599 tests, 93% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
   `mcp`, `eval`, `doctor`. Domain (span,
@@ -133,13 +133,12 @@ Taken from `kiseki` and `mamori`, which paid for them.
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** redundancy marking, prompt templates, and both sibling
-  adapters. The plan is `docs/proposals/0002-what-building-it-taught.md`, which
+- **Not built:** prompt templates and both sibling adapters. The plan is `docs/proposals/0002-what-building-it-taught.md`, which
   revises 0001's roadmap from what building it cost.
-- **Redundancy marking is next, and a measurement asks for it.** `omission
-  correctness` is 0% because every case expects a superseded document under
-  `redundant_candidate` and nothing reports that (ADR-0008 is unbuilt). It is
-  the first number here that asks for a feature rather than permitting one.
+- **Redundancy is marked, never removed** (ADR-0008), and it does not decide
+  which duplicate is right (ADR-0015). `omission correctness` went 0% -> 90%
+  when it was built -- that number asked for the feature, and building it also
+  showed the corpus's expectation had been wrong.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three

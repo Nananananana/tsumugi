@@ -9,6 +9,31 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — redundancy, marked and never removed
+
+- **Near-duplicate detection** (ADR-0008), on character shingles and set
+  containment. Deterministic, model-free, and it **marks**: a copy that fits the
+  budget is still sent, carrying a `redundant_with:itm_001` signal so a reader
+  knows two items are one idea. Only when the budget refuses it does it become
+  an omission — and then under `redundant_candidate`, because "this repeats
+  itm_001" is a better answer to *why* than "there was no room".
+- The threshold, 0.75, sits in a **measured** gap: copies score 0.873–1.000 and
+  everything else scores at most 0.417.
+- **ADR-0015 amends ADR-0008's tie-break, which was wrong.** Preferring the
+  earliest-dated source would systematically prefer the version that was
+  corrected. The ranker's order decides who survives; redundancy says two
+  passages are alike and has no way to know which is right.
+- And the detector's limit is written down rather than discovered later: it
+  cannot tell a corrected value from a different subject, because what
+  distinguishes those is meaning. Whether a correction even *looks* like a copy
+  depends on how much of the passage it changed — 0.42 in a sentence, 0.77 in a
+  paragraph. A detector whose behaviour on a category depends on an unrelated
+  variable must not be allowed to delete.
+- `omission correctness` went **0% → 90%**, which is what asked for this work.
+  Building it also showed the corpus's expectation had been wrong: it asserted a
+  *superseded* document should be caught as a duplicate. The trap is now a
+  verbatim copy, which is what the rule means.
+
 ### Added — a corpus that measures the selection
 
 - **`tsumugi eval`.** Thirty labelled cases across ten genres, Japanese and
@@ -42,6 +67,7 @@ stable.
   held-out agreeing. The residual is diagnosed in `application/search.py` and
   deliberately left alone.
 - A line-ending bug in the harness itself: materialising a case wrote `
+
 `
   under Windows while the spans were computed over `
 `, so every offset was
