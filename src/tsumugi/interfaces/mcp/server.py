@@ -323,32 +323,12 @@ class McpServer:
         connection = self._open()
         SqliteLedger(connection).close(report)
 
+        # The report's own serialisation, not a third hand-written copy. This
+        # one had already drifted: it omitted `unverifiable_because`, so an
+        # agent was told a claim was unverifiable and not why -- which is the
+        # distinction ADR-0009 exists to preserve.
         return {
-            "counts": report.counts,
-            "claims": [
-                {
-                    "text": claim.text,
-                    "support": claim.support.value,
-                    "citations": [
-                        {
-                            "quotation": citation.quotation,
-                            "resolved": citation.resolved,
-                            "locations": [
-                                {
-                                    "item_id": location.item_id,
-                                    "source_path": location.source_path,
-                                    "section": location.section,
-                                    "start": location.anchor.span.start,
-                                    "end": location.anchor.span.end,
-                                }
-                                for location in citation.locations
-                            ],
-                        }
-                        for citation in claim.citations
-                    ],
-                }
-                for claim in report.claims
-            ],
+            **report.to_dict(),
             "note": (
                 "A supported claim means the quoted text is where it was said to be. "
                 "It does not mean the claim is true."

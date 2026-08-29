@@ -359,3 +359,40 @@ class TestFailingSafely:
             message = json.loads(line)
             assert message["jsonrpc"] == "2.0"
             assert "result" in message or "error" in message
+
+
+class TestOneReportShape:
+    """The MCP `verify` tool emits the report's own serialisation.
+
+    It used to build its own dict, and it had already drifted: no
+    `package_id`, and no `unverifiable_because` -- so an agent was told a
+    claim was unverifiable and not why, which is exactly the distinction
+    ADR-0009 exists to preserve. Three hand-written copies of one shape is
+    three chances to disagree about whether an answer was checked.
+    """
+
+    def test_it_carries_the_reason_a_claim_could_not_be_checked(self) -> None:
+        from tsumugi.domain.claim import Claim, VerificationReport
+
+        report = VerificationReport.of(
+            [Claim(text="a claim", unverifiable_because="no restorer for scope-1")]
+        )
+        document = report.to_dict()
+        assert document["claims"][0]["unverifiable_because"] == "no restorer for scope-1"
+
+    def test_a_citation_states_whether_it_resolved(self) -> None:
+        # Derivable from `locations`, and stated anyway: a consumer deciding
+        # whether to trust a sentence should not infer it from a list length.
+        from tsumugi.domain.claim import Citation, Claim, VerificationReport
+
+        report = VerificationReport.of([Claim(text="c", citations=(Citation("nope"),))])
+        assert report.to_dict()["claims"][0]["citations"][0]["resolved"] is False
+
+    def test_the_mcp_handler_does_not_rebuild_the_shape(self) -> None:
+        import inspect
+
+        from tsumugi.interfaces.mcp import server
+
+        source = inspect.getsource(server.McpServer._verify)
+        assert "report.to_dict()" in source
+        assert '"support": claim.support.value' not in source

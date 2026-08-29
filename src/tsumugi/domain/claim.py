@@ -183,6 +183,11 @@ class VerificationReport:
                     "citations": [
                         {
                             "quotation": citation.quotation,
+                            # Derivable from ``locations``, and stated anyway.
+                            # A consumer reading this to decide whether to
+                            # trust a sentence should not have to infer the
+                            # answer from the length of a list.
+                            "resolved": citation.resolved,
                             "locations": [
                                 {
                                     "item_id": location.item_id,
