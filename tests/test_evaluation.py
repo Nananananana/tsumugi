@@ -21,6 +21,7 @@ from tsumugi.domain.selection import ContextItem
 from tsumugi.domain.span import Span
 from tsumugi.evaluation import load_case, load_cases, run_case, score_case, strip_markup, summarise
 from tsumugi.evaluation.dataset import Case
+from tsumugi.evaluation.scoring import FLOORS, Summary
 
 from .helpers import build_document
 
@@ -367,3 +368,72 @@ class TestOneRuleForWhichDocument:
 
     def test_an_unknown_document_is_none_rather_than_a_guess(self) -> None:
         assert self._case().document_for("nothing/like/it.md") is None
+
+
+class TestTheGateItself:
+    """`breached_by` is what makes every quality claim enforceable.
+
+    It had no tests. A gate that never fires and a gate that always passes
+    look identical from a green build, and this one is the only thing standing
+    between "the trap rate is 7.5%" and a sentence in a README.
+    """
+
+    def _summary(self, **fields: object) -> Summary:
+        # A summary that is comfortably inside every floor, so each test moves
+        # exactly one number and the failure names exactly one cause.
+        base: dict[str, object] = {
+            "cases": 10,
+            "found": 100,
+            "required": 100,
+            "sprung": 0,
+            "forbidden": 100,
+            "explained": 100,
+            "accounted": 100,
+        }
+        base.update(fields)
+        return Summary(**base)  # type: ignore[arg-type]
+
+    def test_a_healthy_summary_breaches_nothing(self) -> None:
+        assert FLOORS.breached_by(self._summary()) == []
+
+    def test_recall_below_the_floor_is_named(self) -> None:
+        problems = FLOORS.breached_by(self._summary(found=50))
+        assert len(problems) == 1
+        assert "evidence recall" in problems[0] and "50.0%" in problems[0]
+
+    def test_the_trap_rate_is_a_ceiling_not_a_floor(self) -> None:
+        # The one that reads backwards, and would be easy to write the wrong
+        # way round: more traps sprung is worse.
+        assert FLOORS.breached_by(self._summary(sprung=1)) == []
+        problems = FLOORS.breached_by(self._summary(sprung=99))
+        assert len(problems) == 1 and "trap rate" in problems[0]
+
+    def test_omission_correctness_below_the_floor_is_named(self) -> None:
+        problems = FLOORS.breached_by(self._summary(explained=10))
+        assert len(problems) == 1 and "omission correctness" in problems[0]
+
+    def test_budget_and_reproducibility_are_exact_rather_than_rates(self) -> None:
+        # No threshold on either. A package that exceeds its budget or does
+        # not rebuild identically is a defect at any frequency (ADR-0003).
+        assert FLOORS.breached_by(self._summary(over_budget=("case-1",)))
+        assert FLOORS.breached_by(self._summary(unreproducible=("case-2",)))
+
+    def test_an_empty_run_breaches_nothing_rather_than_dividing_by_zero(self) -> None:
+        # Reporting "0% recall" for a run with no cases would be a build
+        # failure caused by a filter that matched nothing.
+        assert FLOORS.breached_by(Summary()) == []
+
+    def test_every_breach_is_reported_not_only_the_first(self) -> None:
+        problems = FLOORS.breached_by(
+            self._summary(found=0, sprung=100, explained=0, unreproducible=("c",))
+        )
+        assert len(problems) == 4
+
+    def test_the_floors_are_looser_than_the_current_scores(self) -> None:
+        # AGENTS.md: floors, not targets. A gate set at today's number makes
+        # every honest experiment a build failure. This asserts the *policy*,
+        # not the scores -- if someone tightens a floor to today's value, this
+        # is where it is noticed.
+        assert FLOORS.evidence_recall <= 0.95
+        assert FLOORS.trap_rate >= 0.20
+        assert FLOORS.omission_correctness <= 0.70
