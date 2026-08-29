@@ -214,6 +214,15 @@ class TestTheOrderOfProtection:
         assert "[[WHO]]" in asked.prompt
         assert "呼び出し側" not in asked.prompt
 
+    def test_redaction_replaces_and_never_adds(self, corpus: Any) -> None:
+        # The prompt is still the package: values are substituted, nothing is
+        # appended. A protected prompt that carried an extra paragraph would
+        # put the package back out of step with what was sent, which is the
+        # thing ADR-0017 was written to stop.
+        redactor = ShoutingRedactor()
+        asked = _ask(corpus, redactor=redactor)
+        assert asked.prompt == redactor.protect(asked.package.render())
+
     def test_the_package_records_who_protected_it(self, corpus: Any) -> None:
         asked = _ask(corpus, redactor=ShoutingRedactor())
         protection = asked.package.provenance.protection

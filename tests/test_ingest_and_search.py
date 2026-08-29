@@ -9,16 +9,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from tsumugi.application.ingest import ingest_paths
-from tsumugi.application.search import _needles, search
-from tsumugi.application.trace import trace_quotation
-from tsumugi.domain.anchor import ResolutionStatus
+from tsumugi.application.search import search
+from tsumugi.application.trace import trace_anchor, trace_quotation
+from tsumugi.domain.anchor import Anchor, ResolutionStatus
+from tsumugi.domain.span import Span
 from tsumugi.infrastructure.filesystem import IgnoreRules, walk
 from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.parsers import parser_for
-from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 
 
@@ -210,72 +208,91 @@ class TestTrace:
         trace = trace_quotation("The unit is explicit", store)[0]
         assert trace.line == 3
 
+    def test_it_stops_at_the_limit_rather_than_returning_the_corpus(
+        self, corpus: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        # A quotation common enough to be everywhere would otherwise walk the
+        # whole store. The cap is a cap, not a ranking: the first N found.
+        for n in range(4):
+            (corpus / "notes" / f"copy-{n}.md").write_text(
+                "# コピー\n\nテントは 2.4kg。\n", encoding="utf-8"
+            )
+        _ingest(corpus, store, index)
+        assert len(trace_quotation("テントは 2.4kg", store, limit=2)) == 2
 
-class TestAQuestionIsTypedAsAQuestion:
-    """A trailing `?` used to mean nothing was ever confirmed.
 
-    Found by running `examples/ask.py`: the package came back with zero items
-    and two omissions, both `below_threshold`, on a corpus that plainly held
-    the answer. For a spaceless query the whole string is one needle, and no
-    document contains the question mark -- so `tsumugi context "テントの重量は?"`,
-    which is the example in the README, returned nothing at all.
+class TestTraceAnAnchor:
+    """`trace_anchor` is what turns "the file changed" into a stale answer.
 
-    The evaluation corpus had seventy cases and not one question mark in any
-    of them.
+    A package holds anchors, not quotations, so this is the path taken when
+    somebody asks where an *item* came from after the corpus moved on.
     """
 
-    @pytest.mark.parametrize(
-        "query",
-        [
-            "テントの重量は?",
-            "テントの重量は？",
-            "テントの重量は。",
-            "「テントの重量は」",
-            "テントの重量は!",
-        ],
-    )
-    def test_japanese_punctuation_does_not_prevent_confirmation(self, query: str) -> None:
-        assert _needles(query) == ["テントの重量は"]
+    def test_it_resolves_against_the_version_it_was_taken_from(
+        self, corpus: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        _ingest(corpus, store, index)
+        anchor = trace_quotation("テントは 2.4kg", store)[0].resolution.anchor
+        traced = trace_anchor(anchor, store)
+        assert traced is not None
+        assert traced.status is ResolutionStatus.RESOLVED
+        assert traced.source_path == "notes/mountain.md"
+        assert traced.current_version == "", "nothing has changed, so nothing to report"
 
-    def test_english_punctuation_is_trimmed_per_word(self) -> None:
-        # Every run is built from trimmed words, so the longest one -- the
-        # whole phrase -- is a phrase the document can actually contain.
-        needles = _needles("what backoff does the retry policy use?")
-        assert needles[0] == "what backoff does the retry policy use"
+    def test_an_edited_document_is_stale_and_says_so(
+        self, corpus: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        # The whole reason for the fallback. Returning nothing here would turn
+        # "this passage was true in the version I read" into "I have never
+        # heard of it" (ADR-0010).
+        _ingest(corpus, store, index)
+        anchor = trace_quotation("テントは 2.4kg", store)[0].resolution.anchor
 
-    def test_internal_punctuation_is_kept(self) -> None:
-        # A needle is still a phrase, and these are single words with
-        # punctuation inside them rather than words with punctuation attached.
-        assert _needles("config.yaml") == ["config.yaml"]
-        assert "don't" in _needles("what don't we support")[0]
-
-    def test_a_query_of_nothing_but_punctuation_finds_nothing(self) -> None:
-        # Rather than becoming the empty needle, which every document
-        # contains -- a fail-open that would put the whole corpus in a package.
-        assert _needles("???") == ["???"] or _needles("???") == []
-        assert "" not in _needles("???")
-
-    def test_the_question_mark_survives_the_whole_pipeline(self, tmp_path: Path) -> None:
-        root = tmp_path / "notes"
-        root.mkdir()
-        with (root / "gear.md").open("w", encoding="utf-8", newline="") as handle:
-            handle.write("# 装備\n\nテントの重量は2.4kg、二人用。\n")
-
-        connection = connect(tmp_path / "index.db")
-        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
-        ingest_paths(
-            sorted(root.rglob("*.md")),
-            root=root,
-            store=store,
-            index=index,
-            parser_for=parser_for,
+        (corpus / "notes" / "mountain.md").write_text(
+            "# 装備\n\n前置きが増えた。\nテントは 2.4kg。\n", encoding="utf-8"
         )
+        _ingest(corpus, store, index)
 
-        bare, _ = search("テントの重量は", store=store, index=index, limit=10)
-        asked, _ = search("テントの重量は?", store=store, index=index, limit=10)
-        assert bare, "the corpus holds the answer"
-        # The same result, not merely a non-empty one: a question mark is not
-        # a search term and must not change what is found.
-        assert [r.anchor.span for r in asked] == [r.anchor.span for r in bare]
-        assert all(not r.unconfirmed for r in asked)
-        connection.close()
+        traced = trace_anchor(anchor, store)
+        assert traced is not None
+        assert traced.current_version, "and it names the version that superseded it"
+        assert traced.current_version != str(anchor.version)
+
+    def test_an_unknown_document_is_none_rather_than_a_guess(
+        self, store: SqliteDocumentStore
+    ) -> None:
+        from tsumugi.domain.hashing import ContentHash
+
+        anchor = Anchor(
+            document_id="doc_nothing",
+            span=Span(0, 4),
+            text_hash=ContentHash.of("text"),
+            version=ContentHash.of("text"),
+        )
+        assert trace_anchor(anchor, store) is None
+
+    def test_an_anchor_from_a_version_the_store_lost_falls_back(
+        self, corpus: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        # The fallback exists for a store that no longer holds the revision an
+        # anchor was taken from -- after a rebuild, or a forget. Returning
+        # nothing would turn "this passage was true in a version I no longer
+        # have" into "I have never heard of it", and the second is a lie.
+        _ingest(corpus, store, index)
+        found = trace_quotation("テントは 2.4kg", store)[0].resolution.anchor
+        from tsumugi.domain.hashing import ContentHash
+
+        never_stored = Anchor(
+            document_id=found.document_id,
+            span=found.span,
+            text_hash=found.text_hash,
+            version=ContentHash.of("a revision this store never saw"),
+        )
+        traced = trace_anchor(never_stored, store)
+        assert traced is not None, "the document is still known, only that revision is not"
+        described = traced.describe()
+        assert traced.status.value in described
+        if traced.status is not ResolutionStatus.RESOLVED:
+            # A one-line description that said only "stale" would leave a
+            # reader to guess between "moved" and "gone".
+            assert "--" in described, "the detail, not just the verdict"

@@ -5,12 +5,13 @@ the order is the design:
 
     build → (protect) → send → (restore) → verify → record
 
-**The prompt is the package, exactly.** ``asked.prompt`` is
-``asked.package.render()`` and a test says so. It was not always: for a while
-this appended an output contract to the rendered text, which meant the package
--- the thing the ledger records, `--json` publishes, and a reader is invited to
-inspect before anything is sent -- described slightly less than what went. The
-instruction set is a parameter now instead ([instructions.py](instructions.py)).
+**The prompt is the package.** ``asked.prompt`` is ``asked.package.render()``,
+and with a redactor it is that text with values replaced -- nothing is ever
+added. It was not always: for a while this appended an output contract on the
+way out, which meant the package -- the thing the ledger records, `--json`
+publishes, and a reader is invited to inspect before anything is sent --
+described slightly less than what went. The instruction set is a parameter now
+instead ([instructions.py](instructions.py)).
 
 Two of those brackets are the ones that go wrong when somebody wires this up
 themselves. Protection has to happen on the rendered text and never on the
