@@ -93,17 +93,74 @@ The remaining cost in the re-ingest path is reading and hashing every file. If
 that ever becomes the bottleneck, the cheap fix is a size-and-mtime pre-check
 before the read — worth remembering, not worth writing now.
 
-## Search quality, as far as this measures it
+## Retrieval, against the labelled corpus
 
-Twelve queries, mixed Japanese and English. On corpus A one query returned
-nothing; on B, two. Both are correct answers — those repositories do not discuss
-those topics — but a count of empty results is **not a quality measurement**, and
-nothing here should be read as one.
+Thirty cases, ten genres, Japanese and English, each with a planted answer and
+planted adversaries. Reproduce with:
 
-Retrieval quality gets measured properly against the labelled corpus in
-[docs/evaluation-corpus.md](evaluation-corpus.md), which is not built. Until it
-is, the only claims this project makes about retrieval are the six hit counts in
-[ADR 0007](adr/0007-index-japanese-by-bigram.md).
+```bash
+tsumugi eval            # everything
+tsumugi eval --tier ci  # the fast tier CI runs
+```
+
+| | train (20) | held out (10) | all (30) |
+|---|---|---|---|
+| Evidence recall | 100% | 100% | **100%** |
+| Evidence precision | 83.7% | 100% | 88.6% |
+| Lexical-near-miss trap rate | 10.0% | 10.0% | **10.0%** |
+| Omission correctness | 0% | 0% | **0%** |
+| Budget adherence | exact | exact | exact |
+| Reproducibility | exact | exact | exact |
+
+**Train and held-out agree**, which is what says the trap rate is not fitted to
+the cases it was measured on.
+
+### What the first run found
+
+The corpus was built at v0.2 and found a defect four commits old on its first
+run:
+
+| | |
+|---|---|
+| First run | trap rate **96.7%** |
+| Keeping unconfirmed candidates out of packages | 36.7% |
+| Requiring a phrase rather than a token to confirm | **10.0%** |
+
+Unconfirmed candidates were entering packages as items covering the head of
+their document, which contradicts
+[ADR 0007](adr/0007-index-japanese-by-bigram.md) in its own words. Nothing else
+caught it: the unit tests passed, the CLI output looked reasonable, and the
+packages were well-formed. It took a corpus that knew which document was right.
+
+The full account is
+[proposals/0002](proposals/0002-what-building-it-taught.md).
+
+### The residual 10%, named
+
+All three remaining failures confirm on a **stopword phrase**: "when is the
+first ferry departure" matches a document about a shuttle bus on *the first*.
+Fixing it needs term rarity — which the index has as bm25 and the confirmation
+stage does not — or a stopword list, which is a vocabulary list per language and
+does not generalise. Chasing it on thirty synthetic cases would be fitting the
+ranker to the fixtures.
+
+### Omission correctness is 0%, and that is not a bug
+
+The metric asks whether the *reason given* for an exclusion was right. Every
+case expects a superseded document to be reported under `redundant_candidate`,
+and nothing reports that, because redundancy marking
+([ADR 0008](adr/0008-redundancy-is-proposed.md)) **is not built**.
+
+It is the first number in this project that asks for a feature rather than
+permitting one, and it arrived on the metric's first run.
+
+### Floors, not targets
+
+CI checks `evidence recall >= 95%` and `trap rate <= 20%`, with budget adherence
+and reproducibility exact because they are invariants. The floors are
+deliberately looser than the current numbers: a gate set at today's score makes
+every improvement a new floor and every honest experiment a build failure, and
+tuning to reach a threshold is the failure `mamori`'s ADR-0023 records.
 
 ## The token estimator's error
 
@@ -163,5 +220,14 @@ above says nothing about Korean text.
   that tokenizes differently. Naming it is honest rather than sufficient.
 - **One machine, one SSD, one SQLite build.** Timings on spinning disk, on a
   network drive, or on a SQLite compiled differently will differ.
-- **Not tracked over time yet.** There is no regression gate on any of this. When
-  one exists it will be in CI, and this file will say so.
+- **Not a measure of whether an answer is correct.** Retrieval finding the right
+  passage says nothing about what a model then does with it, and no number here
+  is about that.
+- **Thirty cases is a tenth of what
+  [evaluation-corpus.md](evaluation-corpus.md) describes**, and only two of its
+  seven trap kinds are planted. `near_duplicate`, `absent_answer`,
+  `mixed_script` and `stale_anchor` have no cases yet — and they are the
+  interesting ones.
+- **The index and cost numbers above are not gated.** Retrieval is: CI runs the
+  `ci` tier and fails below its floors. Index size and ingest speed are re-run
+  by hand.

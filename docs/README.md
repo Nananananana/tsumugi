@@ -53,10 +53,14 @@ validates against the published schema. Verification, the ledger, the MCP
 server and both sibling adapters do not exist yet.
 
 [`architecture.md`](architecture.md) describes what the code does today and is
-kept honest by `tests/test_architecture.py`. The larger design — packages,
-budgets, selection, the ledger, the adapters — is in
-[`proposals/0001-the-design.md`](proposals/0001-the-design.md) and is **not
-evidence that any of it exists**.
+kept honest by `tests/test_architecture.py`.
+
+Two proposals, and the order matters:
+[`0001-the-design.md`](proposals/0001-the-design.md) is the design as it was
+written before any code existed, and it stays that way.
+[`0002-what-building-it-taught.md`](proposals/0002-what-building-it-taught.md)
+revises its roadmap from what building actually cost and what the evaluation
+corpus found. Neither is evidence that anything exists.
 
 `architecture.md` was deliberately not written until there was an architecture to
 describe. An ADR before the code is legitimate, because it records a decision

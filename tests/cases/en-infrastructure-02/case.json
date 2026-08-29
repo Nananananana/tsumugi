@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-infrastructure-02",
+  "genre": "infrastructure",
+  "language": "en",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "how many nodes does the staging cluster have",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

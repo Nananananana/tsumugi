@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-legal-memo-02",
+  "genre": "legal-memo",
+  "language": "en",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "how long is the notice period",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

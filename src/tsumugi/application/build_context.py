@@ -83,12 +83,29 @@ def build_context(
         if not result.unconfirmed:
             signals.append(SIGNAL_CONFIRMED)
 
-        # A stale anchor is not dropped: it is carried with its reason, so the
-        # package can say the evidence was true in the version it was indexed
-        # from (ADR-0010).
-        disqualified = None
+        # The index over-generates on purpose and confirmation is what turns a
+        # candidate into a result (ADR-0007). A candidate the index proposed and
+        # confirmation could not support has no established relevance, so it
+        # does not go into a package -- it is reported.
+        #
+        # Found by the evaluation corpus: before this, an unconfirmed candidate
+        # became an item covering the head of its document, which dragged whole
+        # unrelated documents into packages. The lexical-near-miss trap sprang
+        # on 29 of 30 cases. `search` still shows these, marked, because
+        # searching is exploratory and a package is not.
+        disqualified: tuple[OmissionRule, str] | None = None
+        if result.unconfirmed:
+            disqualified = (
+                OmissionRule.BELOW_THRESHOLD,
+                "the index proposed this document, and no exact occurrence of the "
+                "query was confirmed in it; retrieval over-generates by design and "
+                "an unconfirmed candidate has no established relevance",
+            )
+        # A stale anchor is not dropped either: it is carried with its reason,
+        # so the package can say the evidence was true in the version it was
+        # indexed from (ADR-0010).
         document = store.get(result.anchor.document_id)
-        if document is not None:
+        if disqualified is None and document is not None:
             status = resolve(result.anchor, document).status
             if status is ResolutionStatus.STALE:
                 disqualified = (

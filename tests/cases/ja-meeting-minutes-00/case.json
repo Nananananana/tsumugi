@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-meeting-minutes-00",
+  "genre": "meeting-minutes",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "次回の会議の開催日は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

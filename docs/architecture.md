@@ -5,8 +5,9 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 [docs/README.md](README.md).*
 
 What is **planned** and not built is in
-[proposals/0001-the-design.md](proposals/0001-the-design.md): prompt templates,
-redundancy marking, the evaluation corpus, and both sibling adapters.
+[proposals/0002-what-building-it-taught.md](proposals/0002-what-building-it-taught.md),
+which revises 0001's roadmap from what building it cost: redundancy marking
+first, then more cases, then templates and the sibling adapters.
 
 ## What exists
 
@@ -27,8 +28,8 @@ redundancy marking, the evaluation corpus, and both sibling adapters.
                           └────────────────────┘
 ```
 
-Eight commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
-`mcp`, `doctor`.
+Nine commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
+`mcp`, `eval`, `doctor`.
 
 `context` is the one the library is for. It retrieves, confirms, ranks, fits to
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
@@ -54,6 +55,7 @@ interfaces ──> application ──> domain
 | `application/` | `ingest_paths`, `search`, `build_context`, `verify_answer`, `trace_quotation` | `domain`, `ports`, `errors` |
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
 | `interfaces/cli/` | Argument parsing, output. A composition root | everything above |
+| `evaluation/` | The labelled corpus, its loader, the six metrics, the runner | everything above |
 | `interfaces/mcp/` | JSON-RPC on stdio, four read-only tools. The other composition root | everything above |
 
 **This table is executable.** `tests/test_architecture.py` parses every module
@@ -358,6 +360,29 @@ it cannot attribute.
 Document text goes out to the caller. Nothing coming back is executed, fetched
 or written.
 
+## Measuring the selection
+
+`tsumugi eval` scores the selection against thirty labelled cases: a small
+generated corpus per case, a question, the fact that answers it, and planted
+adversaries. **The corpus is labelled; the ideal output is not** — there is no
+single correct structured prompt, so scoring distance to one measures
+conformity ([ADR 0013](adr/0013-label-the-evidence-not-the-ideal-answer.md)).
+
+Facts carry their labels inline and the loader computes the offsets:
+
+```markdown
+{{F:tent-weight}}テントの重量は2.4kg、二人用{{/F}}。
+```
+
+Six metrics, all arithmetic over anchors. The current numbers, and what they do
+not say, are in [measurements.md](measurements.md).
+
+CI runs the `ci` tier and checks **floors** — recall ≥ 95%, trap rate ≤ 20%,
+budget and reproducibility exact — deliberately looser than today's scores. No
+model runs: the fixtures were authored once and committed, and an oracle checks
+every case before it ships, because a broken case fails a *correct*
+implementation.
+
 ## Configuration
 
 ```text
@@ -387,8 +412,9 @@ does nothing is the worst available outcome. The index lives at
 | `test_verification.py` | The four outcomes, the matching tolerance, and that redaction never changes a verdict |
 | `test_ledger.py` | Opening, closing, and that no text reaches the file |
 | `test_mcp.py` | The transport, the read-only rule, and context→verify entirely over the protocol |
+| `test_evaluation.py` | The markup, the fixtures, the metrics, and a run end to end |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-532 tests, 94% line coverage. Every test runs with no network, no model and no
+561 tests, 94% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

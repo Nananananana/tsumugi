@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-recipes-00",
+  "genre": "recipes",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "生地の寝かせ時間は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

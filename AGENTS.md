@@ -100,6 +100,16 @@ Taken from `kiseki` and `mamori`, which paid for them.
   measurement, run it, record the script and the environment, and cite it.
   ADR-0007 is the pattern: a table of hit counts, a probe script, a named SQLite
   version.
+- **State the residual.** Every measurement ships with what it does *not* say:
+  the estimator names its tokenizer, the index measurement names its corpus as
+  source code rather than notes, the trap rate names the three cases it misses
+  and why.
+- **Anything that changes selection is gated on `tsumugi eval`.** The corpus
+  found a four-commit-old defect on its first run that unit tests, the CLI
+  output and well-formed packages all missed. Run it before and after.
+- **Floors, not targets.** The eval gate is deliberately looser than the current
+  scores. A gate set at today's number makes every honest experiment a build
+  failure, and tuning to reach a threshold is what mamori's ADR-0023 records.
 - **Every discarding path carries its reason to the end.** A filter returns a
   shorter list *and* an account. This is invasive to retrofit, so it is done from
   the first filter.
@@ -115,16 +125,21 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 532 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 561 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
-  `mcp`, `doctor`. Domain (span,
+  `mcp`, `eval`, `doctor`. Domain (span,
   hash, document, anchor, normalization, budget, omission, selection, package,
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** prompt templates, redundancy marking, the evaluation corpus,
-  and both sibling adapters.
+- **Not built:** redundancy marking, prompt templates, and both sibling
+  adapters. The plan is `docs/proposals/0002-what-building-it-taught.md`, which
+  revises 0001's roadmap from what building it cost.
+- **Redundancy marking is next, and a measurement asks for it.** `omission
+  correctness` is 0% because every case expects a superseded document under
+  `redundant_candidate` and nothing reports that (ADR-0008 is unbuilt). It is
+  the first number here that asks for a feature rather than permitting one.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three

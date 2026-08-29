@@ -9,6 +9,44 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — a corpus that measures the selection
+
+- **`tsumugi eval`.** Thirty labelled cases across ten genres, Japanese and
+  English: a small generated corpus per case, a question, the fact that answers
+  it, and planted adversaries. Facts carry their labels inline and the loader
+  computes the offsets, so nobody counts characters by hand. **The corpus is
+  labelled; the ideal output is not** (ADR-0013).
+- Six metrics, all arithmetic over anchors. CI runs the fast tier and checks
+  floors — deliberately looser than today's scores, because a gate set at the
+  current number makes every honest experiment a build failure.
+- `tools/generate_cases.py` generates the fixtures deterministically and an
+  **oracle rejects any case that is broken before it ships**: a bad case fails a
+  *correct* implementation, which is the expensive kind of failure. The oracle
+  also runs in CI over what is committed.
+
+### Fixed — found by that corpus, on its first run
+
+- **Unconfirmed candidates were entering packages.** When the index proposed a
+  document and confirmation found no occurrence of the query in it, the result
+  was included anyway as an item covering the head of that document — dragging a
+  whole unrelated document into the package. That contradicts ADR-0007 in its
+  own words. Now an omission under `below_threshold`, with a reason. Four
+  commits old; unit tests, CLI output and package validity all missed it.
+- **Confirmation was weaker in English than in Japanese.** A Japanese query has
+  no spaces, so the whole query is one needle; an English query was split into
+  words, and a document sharing the word *nodes* with "how many nodes does the
+  staging cluster have" confirmed. Needles for a space-separated query are now
+  contiguous runs of two or more words: a phrase is evidence a document is about
+  the query, a token is evidence it is written in the same language.
+- Together: near-miss trap rate 96.7% → 36.7% → **10.0%**, with train and
+  held-out agreeing. The residual is diagnosed in `application/search.py` and
+  deliberately left alone.
+- A line-ending bug in the harness itself: materialising a case wrote `
+`
+  under Windows while the spans were computed over `
+`, so every offset was
+  wrong and it looked like a retrieval failure.
+
 ### Added — an agent-facing surface, and the freeze
 
 - **`tsumugi mcp`.** A read-only MCP server: JSON-RPC 2.0 over stdio,

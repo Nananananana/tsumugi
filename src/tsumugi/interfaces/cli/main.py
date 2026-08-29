@@ -26,6 +26,9 @@ from ...config import TsumugiConfig
 from ...domain.budget import Budget, Unit
 from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
+from ...evaluation.dataset import load_cases
+from ...evaluation.runner import run_cases
+from ...evaluation.scoring import FLOORS, summarise
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.index.fts import FtsIndex
@@ -117,6 +120,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     mcp.set_defaults(run=_mcp)
+
+    evaluate = commands.add_parser("eval", help="score the selection against the labelled corpus")
+    evaluate.add_argument(
+        "--cases", type=Path, default=Path("tests/cases"), help="where the cases live"
+    )
+    evaluate.add_argument("--tier", choices=("ci", "full"), help="narrow to one tier")
+    evaluate.add_argument(
+        "--split",
+        choices=("train", "held_out"),
+        help="held_out cases are not read while tuning; scoring them separately is "
+        "what says whether a number is fitted to the cases it came from",
+    )
+    evaluate.add_argument(
+        "--failures", action="store_true", help="name every case that is not clean"
+    )
+    evaluate.set_defaults(run=_eval)
 
     doctor = commands.add_parser("doctor", help="what this index holds, and what it is")
     doctor.set_defaults(run=_doctor)
@@ -396,6 +415,54 @@ def _mcp(args: argparse.Namespace, config: TsumugiConfig) -> int:
     # else; a stray line corrupts the stream and the client sees a parse error
     # it cannot attribute.
     return serve(config)
+
+
+def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    if not args.cases.is_dir():
+        raise ConfigurationError(
+            f"no cases at {args.cases}. Generate them with "
+            f"`python tools/generate_cases.py --out {args.cases}`."
+        )
+
+    cases = load_cases(args.cases, tier=args.tier, split=args.split)
+    if not cases:
+        raise ConfigurationError("no cases matched those filters")
+
+    # Uses its own throwaway index per case, not the caller's corpus.
+    scores = run_cases(cases, candidate_limit=config.candidate_limit)
+    summary = summarise(scores)
+    print(summary.describe())
+
+    if args.failures:
+        print()
+        for score in scores:
+            if score.clean:
+                continue
+            print(f"  {score.case_id}")
+            if score.missed:
+                print(f"    missing:  {', '.join(score.missed)}")
+            if score.sprung:
+                print(f"    trapped:  {', '.join(score.sprung)}")
+            for fact_id, actual in score.misexplained:
+                print(f"    {fact_id}: dropped under {actual}, not the expected rule")
+
+    breached = FLOORS.breached_by(summary)
+    print()
+    if breached:
+        for problem in breached:
+            print(f"BELOW FLOOR: {problem}")
+    else:
+        print(
+            f"floors held: recall >= {FLOORS.evidence_recall:.0%}, "
+            f"traps <= {FLOORS.trap_rate:.0%}, budget and reproducibility exact"
+        )
+
+    print()
+    print("The corpus is generated and tidier than anything anyone writes.")
+    print("Nothing here measures whether an answer built from a package is correct.")
+    # Floors, not perfection. A gate set at today's score makes every honest
+    # experiment a build failure and turns tuning into threshold-chasing.
+    return 1 if breached else 0
 
 
 def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:

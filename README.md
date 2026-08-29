@@ -11,8 +11,9 @@ Local-first. No network in the core. **Zero runtime dependencies.**
 >
 > Reading a corpus, searching it, building a **ContextPackage** under a budget,
 > checking a model's citations against it, recording what was sent and what was
-> used, and serving all of it to an agent over MCP all work. Prompt templates,
-> the evaluation corpus and both sibling adapters do not exist yet.
+> used, serving all of it to an agent over MCP, and scoring the selection
+> against a labelled corpus all work. Redundancy marking, prompt templates and
+> both sibling adapters do not exist yet.
 >
 > The ContextPackage contract is **frozen at version 1**.
 >
@@ -46,6 +47,7 @@ tsumugi verify  answer.json --package package.json
 tsumugi trace   "テントは 2.4kg"
 tsumugi ledger  --since 2026-08-01
 tsumugi mcp     # speak MCP on stdio, so an agent can use the corpus
+tsumugi eval    # score the selection against a labelled corpus
 tsumugi doctor
 ```
 
@@ -187,6 +189,28 @@ anything came with it.
 The domain layer imports nothing outside the standard library, and the whole
 core opens no socket. Both are `import-linter` contracts and an executable table
 in `tests/test_architecture.py` — not README claims.
+
+## Measured, not asserted
+
+Every number this project states is measured, ships with the script that
+produced it, and says what it does **not** say. They are in
+[docs/measurements.md](docs/measurements.md).
+
+`tsumugi eval` scores selection against thirty labelled cases — a small corpus
+per case with a planted answer and planted adversaries. On its first run it
+found a defect four commits old that unit tests, plausible CLI output and
+well-formed packages had all missed: **unconfirmed candidates were entering
+packages**, dragging whole unrelated documents in. The near-miss trap rate went
+96.7% → 10.0% across two fixes, and train and held-out agree, so the number is
+not fitted to the cases it came from.
+
+One metric reads **0%**, and that is the most useful number here. *Omission
+correctness* asks whether the reason given for dropping a candidate was right;
+every case expects a superseded document under `redundant_candidate`, and
+nothing reports that because redundancy marking is not built. It is the first
+number in this project that asks for a feature rather than permitting one — and
+that is what decides what gets built next
+([docs/proposals/0002](docs/proposals/0002-what-building-it-taught.md)).
 
 ## Three projects
 

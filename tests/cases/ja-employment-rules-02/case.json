@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-employment-rules-02",
+  "genre": "employment-rules",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "有給休暇の付与日数は",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

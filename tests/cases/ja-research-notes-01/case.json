@@ -1,0 +1,27 @@
+{
+  "budget": {
+    "limit": 300,
+    "unit": "characters"
+  },
+  "case_id": "ja-research-notes-01",
+  "genre": "research-notes",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "サンプルの保存温度は",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "superseded"
+    }
+  }
+}

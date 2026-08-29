@@ -11,6 +11,7 @@ name = Layer dependency direction
 type = layers
 layers =
     tsumugi.interfaces
+    tsumugi.evaluation
     tsumugi.application
     tsumugi.infrastructure
     tsumugi.ports
@@ -27,6 +28,7 @@ forbidden_modules =
     tsumugi.application
     tsumugi.infrastructure
     tsumugi.interfaces
+    tsumugi.evaluation
 
 # ADR-0001: the core opens no socket. A network import anywhere below the
 # interfaces layer is a defect, not a feature waiting to be configured.
@@ -38,6 +40,7 @@ source_modules =
     tsumugi.ports
     tsumugi.application
     tsumugi.infrastructure
+    tsumugi.evaluation
 forbidden_modules =
     socket
     ssl

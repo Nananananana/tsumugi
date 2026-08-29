@@ -119,15 +119,45 @@ def search(
 
 
 def _needles(query: str) -> list[str]:
-    """The strings whose presence confirms a candidate.
+    """The strings whose presence confirms a candidate, longest first.
 
-    Whitespace-separated words, plus the whole query. Normalized and
-    case-folded so that a full-width or differently-cased occurrence still
-    confirms -- the same normalization the index used.
+    For a query written without spaces -- most Japanese -- the whole query is
+    one needle, and confirmation is a phrase match.
+
+    For a space-separated query it is every contiguous run of **two or more**
+    words, longest first. Single words are needles only when the query is a
+    single word.
+
+    That floor is the point. A document sharing one common word with a question
+    is not thereby about it: "how many nodes does the staging cluster have"
+    matched "The node count of the build farm" on the word *nodes* alone, which
+    let a document about something else into a package. A phrase is evidence
+    that a document is about the query; a token is evidence that it is written
+    in the same language.
+
+    Measured, not guessed. On the evaluation corpus the lexical-near-miss trap
+    rate went 96.7% -> 36.7% (keeping unconfirmed candidates out of packages)
+    -> 10.0% (this change), and train and held-out agree at 10%, so it is not
+    fitted to the cases it was measured on.
+
+    **The residual 10% is diagnosed, not mysterious**, and is left alone. All
+    three remaining failures confirm on a stopword phrase: "when is the first
+    ferry departure" matches a document about a shuttle bus on *the first*.
+    Fixing that needs term rarity -- which the index has, as bm25, and this
+    stage does not -- or a stopword list, which is a vocabulary list per
+    language and does not generalise. Chasing it on thirty synthetic cases
+    would be fitting the ranker to the fixtures.
     """
     folded = unicodedata.normalize("NFKC", query).casefold()
-    parts = [p for p in folded.split() if p]
-    return list(dict.fromkeys([folded, *parts])) if len(parts) > 1 else parts or [folded]
+    words = [w for w in folded.split() if w]
+    if len(words) <= 1:
+        return [folded] if folded else []
+
+    runs: list[str] = []
+    for length in range(len(words), 1, -1):
+        for start in range(len(words) - length + 1):
+            runs.append(" ".join(words[start : start + length]))
+    return list(dict.fromkeys(runs))
 
 
 def _confirm(content: str, needles: Sequence[str]) -> list[Span]:

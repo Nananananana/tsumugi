@@ -44,6 +44,13 @@ jobs:
         env:
           PYTHONUTF8: "1"
 
+      # The labelled corpus, on the fast tier. It measures selection against
+      # cases with known answers; the numbers are in docs/measurements.md.
+      - name: Evaluate
+        run: python -m tsumugi.interfaces.cli.main eval --tier ci
+        env:
+          PYTHONUTF8: "1"
+
   lint:
     name: lint, types and layering
     runs-on: ubuntu-latest
@@ -66,6 +73,11 @@ jobs:
       # The layering is a gate, not a guideline. ADR-0001.
       - name: Layering
         run: lint-imports
+
+      # A generated case that is broken fails a *correct* implementation, so
+      # the oracle runs on every push rather than only when cases are written.
+      - name: Check the evaluation fixtures
+        run: python tools/generate_cases.py --out tests/cases --check-only
 
   dependencies:
     name: the dependency count is zero
