@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from ..domain.omission import OmissionRule
 from ..domain.package import ContextPackage
 from ..domain.selection import ContextItem
 from .dataset import Case
@@ -299,8 +300,23 @@ def summarise(scores: Sequence[CaseScore]) -> Summary:
 
 
 def _covered_facts(case: Case, package: ContextPackage) -> set[str]:
-    """Facts whose planted span is inside some item of the package."""
+    """Facts the package actually delivered, by span or by verbatim text.
+
+    The second clause exists because a ``near_duplicate`` case plants the
+    answer twice, in two files, character for character. When the budget binds,
+    the copy can outrank the original and the original is then dropped as
+    ``redundant_candidate`` -- and the reader has the fact, from a real
+    document, with a valid anchor. Scoring that as *missing* would measure
+    which of two identical passages won a tie.
+
+    Exact text only. No containment, no normalisation: a superseded version
+    differs in the value and a near-miss in the subject, so neither can be
+    satisfied this way.
+    """
     covered: set[str] = set()
+    for fact_id, fact in case.facts.items():
+        if any(fact.text in item.text for item in package.items):
+            covered.add(fact_id)
     for item in package.items:
         document = case.document_for(item.source_path)
         if document is None:
@@ -332,12 +348,48 @@ def _expected_rule(case: Case, fact_id: str) -> str | None:
 
 
 def _rule_that_dropped(case: Case, package: ContextPackage, fact_id: str) -> str | None:
-    """The rule of the omission covering this fact, if any."""
+    """The rule of the omission covering this fact, if any.
+
+    A twin satisfies it. Where a case plants the same sentence in two files --
+    which is what a ``near_duplicate`` case *is* -- the redundancy rule fires
+    on whichever of the pair ranks lower, and which one that is depends on
+    document length, heading repetition and other things that have nothing to
+    do with the rule being tested. ADR-0015 is explicit that redundancy does
+    not decide which duplicate is right, so a case that insisted on one of them
+    would be asserting an outcome the design refuses to promise.
+
+    Requiring the *pair* to be reported keeps the test and keeps it honest.
+
+    An included item that carries ``redundant_with`` satisfies it too, and that
+    is ADR-0008 rather than leniency: **redundancy is marked, never removed.**
+    A duplicate that fits is sent, marked; a duplicate that does not fit is
+    reported under ``redundant_candidate``. Both are the rule firing, and a
+    case that accepted only the second was testing the budget, not the rule.
+    """
     fact = case.facts[fact_id]
     document = case.fact_document[fact_id]
-    for omission in package.omissions:
-        if case.document_for(omission.source_path) != document:
+    twins = {
+        other_id
+        for other_id, other in case.facts.items()
+        if other.text == fact.text and other_id != fact_id
+    }
+    wanted = {document} | {case.fact_document[twin] for twin in twins}
+
+    for item in package.items:
+        source = case.document_for(item.source_path)
+        if source not in wanted or item.selection is None:
             continue
-        if omission.span.overlaps(fact.span):
+        if any(signal.startswith("redundant_with:") for signal in item.selection.signals):
+            return OmissionRule.REDUNDANT_CANDIDATE.value
+
+    for omission in package.omissions:
+        source = case.document_for(omission.source_path)
+        if source not in wanted:
+            continue
+        if source == document and omission.span.overlaps(fact.span):
             return omission.rule.value
+        if source != document:
+            twin = next(t for t in twins if case.fact_document[t] == source)
+            if omission.span.overlaps(case.facts[twin].span):
+                return omission.rule.value
     return None

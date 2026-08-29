@@ -1,3 +1,7 @@
+---
+title: Termination
+---
+
 # Termination
 
 {{F:near-miss}}The length of the cure period is thirty days in writing{{/F}}.

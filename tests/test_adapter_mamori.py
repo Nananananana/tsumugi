@@ -351,6 +351,9 @@ class TestTheWholeLoopThroughProtection:
         assert protection is not None
         assert protection.scope == redactor.scope
         serialised = asked.package.to_json()
-        assert "田中太郎" in serialised, "the package holds the real text; it is never redacted"
-        assert "tanaka@example.com" in serialised
+        # An item is the sentence around the match, so the address in the next
+        # sentence may or may not be carried. The name is in the same sentence
+        # as the fact, and it is the point: the package holds the real text and
+        # is never redacted.
+        assert "田中太郎" in serialised
         connection.close()  # type: ignore[attr-defined]

@@ -1,3 +1,7 @@
+---
+title: Behaviour
+---
+
 # Behaviour
 
 {{F:near-miss}}The backoff of the rate limiter is linear, capped at ten seconds{{/F}}.

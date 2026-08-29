@@ -205,59 +205,141 @@ def _answer_sentence(genre: Genre) -> str:
     return f"The {genre.attribute} of {genre.subject} is {genre.answer}"
 
 
-def _answer_document(genre: Genre, fact_id: str) -> str:
-    return (
-        f"---\ntitle: {genre.heading}\n---\n\n"
-        f"# {genre.heading}\n\n"
-        f"{{{{F:{fact_id}}}}}{genre.subject}の{genre.attribute}は{genre.answer}"
-        f"{{{{/F}}}}。\n\n"
-        f"{_FILLER[genre.language]}"
-        if genre.language == "ja"
-        else (
-            f"---\ntitle: {genre.heading}\n---\n\n"
-            f"# {genre.heading}\n\n"
-            f"{{{{F:{fact_id}}}}}The {genre.attribute} of {genre.subject} is "
-            f"{genre.answer}{{{{/F}}}}.\n\n"
-            f"{_FILLER[genre.language]}"
-        )
+#: The shapes a document can take. Every document in this corpus used to be
+#: front matter, one heading, one sentence, one filler block -- so a ranker
+#: could have keyed on "the fact is the first sentence after an H1", scored
+#: 100% recall, and learned nothing that survives a real notes folder.
+#:
+#: Borrowed in spirit from `mamori`, whose evaluation data is split by the
+#: *kind* of text as well as by language: fragments, documents, conversations
+#: and tool payloads stress different things, and one set measures one of them.
+SHAPES: tuple[str, ...] = (
+    "article",
+    "bare",
+    "buried",
+    "table",
+    "bullets",
+    "nested",
+    "log",
+    "trailing",
+)
+
+_TABLE_HEAD = {
+    "ja": "| 項目 | 内容 |\n|---|---|\n",
+    "en": "| Field | Value |\n|---|---|\n",
+    "zh": "| 项目 | 内容 |\n|---|---|\n",
+    "ko": "| 항목 | 내용 |\n|---|---|\n",
+}
+_SUBHEADS = {
+    "ja": ("詳細", "現状"),
+    "en": ("Detail", "Current"),
+    "zh": ("详细", "现状"),
+    "ko": ("상세", "현황"),
+}
+_LOG_LINES = {
+    "ja": ("10:02 佐藤: 前回の分は片付いた。", "10:05 田中: "),
+    "en": ("10:02 sam: the previous batch is cleared.", "10:05 alex: "),
+    "zh": ("10:02 张: 上一批已经处理完。", "10:05 李: "),
+    "ko": ("10:02 김: 지난 건은 정리했다.", "10:05 박: "),
+}
+
+
+def _shaped(shape: str, *, heading: str, sentence: str, language: str) -> str:
+    """One marked sentence, placed the way that shape places it.
+
+    ``sentence`` already carries its markup and its full stop. Nothing here
+    touches it: a shape is what *surrounds* a fact, so where the fact sits
+    cannot change what its span covers.
+    """
+    filler = _FILLER[language]
+    if shape == "article":
+        return f"---\ntitle: {heading}\n---\n\n# {heading}\n\n{sentence}\n\n{filler}"
+    if shape == "bare":
+        # No front matter, no heading. A note somebody typed into a file.
+        return f"{sentence}\n{filler}"
+    if shape == "buried":
+        # Mid-paragraph, no blank line on either side. Nothing marks it out.
+        lead, rest = filler.split("\n", 1)
+        return f"# {heading}\n\n{lead}{sentence}{rest}"
+    if shape == "table":
+        return f"# {heading}\n\n{_TABLE_HEAD[language]}| {heading} | {sentence} |\n\n{filler}"
+    if shape == "bullets":
+        lines = [line for line in filler.split("\n") if line]
+        head = "\n".join(f"- {line}" for line in lines[:1])
+        tail = "\n".join(f"- {line}" for line in lines[1:])
+        return f"# {heading}\n\n{head}\n- {sentence}\n{tail}\n"
+    if shape == "nested":
+        first, second = _SUBHEADS[language]
+        return f"# {heading}\n\n## {first}\n\n{filler}\n### {second}\n\n{sentence}\n"
+    if shape == "log":
+        before, speaker = _LOG_LINES[language]
+        return f"# {heading}\n\n{before}\n{speaker}{sentence}\n{filler}"
+    if shape == "trailing":
+        # The last line, with no trailing newline. The very end of a file is
+        # where an off-by-one in offset arithmetic lives.
+        return f"# {heading}\n\n{filler}\n{sentence}"
+    raise ValueError(f"unknown shape {shape!r}")
+
+
+def _shape_for(genre: Genre, variant: int, role: str) -> str:
+    """Which shape a document takes, deterministically.
+
+    Keyed on the role as well as the variant, so an answer and its adversaries
+    never share a shape in one case. Otherwise "the fact is in the
+    differently-shaped document" becomes a signal, and the corpus would be
+    measuring that instead of retrieval.
+    """
+    offset = {"answer": 0, "superseded": 3, "near-miss": 5, "duplicate": 6}.get(role, 1)
+    return SHAPES[(GENRES.index(genre) + variant * 2 + offset) % len(SHAPES)]
+
+
+def _sentence(genre: Genre, fact_id: str, subject: str, value: str) -> str:
+    """One marked claim, in the genre's language. The unit every shape places."""
+    if genre.language in {"ja", "zh"}:
+        return f"{{{{F:{fact_id}}}}}{subject}の{genre.attribute}は{value}{{{{/F}}}}。"
+    if genre.language == "ko":
+        return f"{{{{F:{fact_id}}}}}{subject}의 {genre.attribute}은 {value}{{{{/F}}}}."
+    return f"{{{{F:{fact_id}}}}}The {genre.attribute} of {subject} is {value}{{{{/F}}}}."
+
+
+def _answer_document(genre: Genre, fact_id: str, variant: int = 0) -> str:
+    return _shaped(
+        _shape_for(genre, variant, "answer"),
+        heading=genre.heading,
+        sentence=_sentence(genre, fact_id, genre.subject, genre.answer),
+        language=genre.language,
     )
 
 
-def _superseded_document(genre: Genre, fact_id: str) -> str:
-    """94% identical to the answer. The differing sentence is the correction.
+def _superseded_document(genre: Genre, fact_id: str, variant: int = 0) -> str:
+    """Nearly identical to the answer. The differing value is the correction.
 
     The trap most worth getting right and the easiest to get wrong: two
     passages that are nearly identical are usually nearly identical *because*
     the difference is a correction.
     """
-    if genre.language == "ja":
-        body = (
-            f"{{{{F:{fact_id}}}}}{genre.subject}の{genre.attribute}は"
-            f"{genre.superseded_answer}{{{{/F}}}}。\n\n"
-            "※この記録は古い。改訂版を参照すること。\n"
-        )
-    else:
-        body = (
-            f"{{{{F:{fact_id}}}}}The {genre.attribute} of {genre.subject} is "
-            f"{genre.superseded_answer}{{{{/F}}}}.\n\n"
-            "NOTE: this record is out of date; see the revision.\n"
-        )
-    return f"# {genre.heading}\n\n{body}\n{_FILLER[genre.language]}"
+    note = {
+        "ja": "※この記録は古い。改訂版を参照すること。",
+        "zh": "※此记录已过期，请参阅修订版。",
+        "ko": "※이 기록은 오래되었다. 개정판을 참조할 것.",
+    }.get(genre.language, "NOTE: this record is out of date; see the revision.")
+    body = _shaped(
+        _shape_for(genre, variant, "superseded"),
+        heading=genre.heading,
+        sentence=_sentence(genre, fact_id, genre.subject, genre.superseded_answer),
+        language=genre.language,
+    )
+    return f"{body}\n{note}\n"
 
 
-def _near_miss_document(genre: Genre, fact_id: str) -> str:
+def _near_miss_document(genre: Genre, fact_id: str, variant: int = 0) -> str:
     """Same vocabulary, different subject. The confirmation stage's exam."""
-    if genre.language == "ja":
-        body = (
-            f"{{{{F:{fact_id}}}}}{genre.neighbour}の{genre.attribute}は"
-            f"{genre.superseded_answer}{{{{/F}}}}。\n"
-        )
-    else:
-        body = (
-            f"{{{{F:{fact_id}}}}}The {genre.attribute} of {genre.neighbour} is "
-            f"{genre.superseded_answer}{{{{/F}}}}.\n"
-        )
-    return f"# {genre.heading}\n\n{body}\n{_FILLER[genre.language]}"
+    return _shaped(
+        _shape_for(genre, variant, "near-miss"),
+        heading=genre.heading,
+        sentence=_sentence(genre, fact_id, genre.neighbour, genre.superseded_answer),
+        language=genre.language,
+    )
 
 
 def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
@@ -325,8 +407,8 @@ def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, 
     """
     case_id = f"{genre.language}-{genre.key}-paraphrase"
     documents = {
-        "current.md": _answer_document(genre, "answer"),
-        "neighbour.md": _near_miss_document(genre, "near-miss"),
+        "current.md": _answer_document(genre, "answer", 4),
+        "neighbour.md": _near_miss_document(genre, "near-miss", 4),
     }
     manifest: dict[str, object] = {
         "case_id": case_id,
@@ -353,8 +435,8 @@ def build_absent_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, obje
     """
     case_id = f"{genre.language}-{genre.key}-absent"
     documents = {
-        "current.md": _answer_document(genre, "answer"),
-        "neighbour.md": _near_miss_document(genre, "near-miss"),
+        "current.md": _answer_document(genre, "answer", 5),
+        "neighbour.md": _near_miss_document(genre, "near-miss", 5),
     }
     manifest: dict[str, object] = {
         "case_id": case_id,
@@ -380,8 +462,8 @@ def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, objec
     """
     case_id = f"{genre.language}-{genre.key}-stale"
     documents = {
-        "current.md": _answer_document(genre, "answer"),
-        "drifting.md": _superseded_document(genre, "drifted"),
+        "current.md": _answer_document(genre, "answer", 6),
+        "drifting.md": _superseded_document(genre, "drifted", 6),
     }
     if genre.language == "ja":
         edited = (
@@ -419,8 +501,8 @@ def build_squeezed_out_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
     """
     case_id = f"{genre.language}-{genre.key}-squeezed"
     documents = {
-        "current.md": _answer_document(genre, "answer"),
-        "neighbour.md": _near_miss_document(genre, "near-miss"),
+        "current.md": _answer_document(genre, "answer", 7),
+        "neighbour.md": _near_miss_document(genre, "near-miss", 7),
     }
     manifest: dict[str, object] = {
         "case_id": case_id,
@@ -471,7 +553,7 @@ def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
     )
     documents = {
         "mixed.md": body,
-        "neighbour.md": _near_miss_document(genre, "near-miss"),
+        "neighbour.md": _near_miss_document(genre, "near-miss", 3),
     }
     manifest: dict[str, object] = {
         "case_id": case_id,
@@ -512,9 +594,9 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
     answer_text = _answer_sentence(genre)
 
     documents = {
-        "current.md": _answer_document(genre, answer),
-        "older.md": _superseded_document(genre, superseded),
-        "neighbour.md": _near_miss_document(genre, near_miss),
+        "current.md": _answer_document(genre, answer, variant),
+        "older.md": _superseded_document(genre, superseded, variant),
+        "neighbour.md": _near_miss_document(genre, near_miss, variant),
         "copy.md": _duplicate_document(genre, copy, answer_text),
     }
 
@@ -548,8 +630,19 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
         # sixteen characters and an English one about sixty-six, so a fixed
         # character budget squeezes one language and not the other -- and a
         # "budget squeeze" case that does not squeeze measures nothing.
-        # 2.4x leaves room for roughly two items and refuses a third.
-        budget = {"unit": "characters", "limit": int(len(answer_text) * 2.4)}
+        #
+        # 3.4x: room for three of the four competing passages, and not the
+        # fourth. It was 2.4x, which fit two -- and that turned out to be
+        # asking tsumugi to rank the current answer above the superseded one,
+        # which ADR-0015 measured and refuses to do. The case passed anyway,
+        # for a reason that had nothing to do with its subject: every answer
+        # document carried front matter repeating its heading, so it won on
+        # bm25. Varying document shape removed the crutch and the case failed,
+        # which is the corpus catching an ill-posed case rather than a defect.
+        #
+        # The intent survives: one candidate is still squeezed out and still
+        # has to be reported by name, which is what ADR-0005 is about.
+        budget = {"unit": "characters", "limit": int(len(answer_text) * 3.4)}
     else:
         budget = {"unit": "characters", "limit": 1200}
 

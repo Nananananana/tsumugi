@@ -1,9 +1,8 @@
 # Behaviour
 
-{{F:superseded}}The backoff of the retry policy is linear, capped at ten seconds{{/F}}.
+- This entry was reviewed at the last stocktake.
+- {{F:superseded}}The backoff of the retry policy is linear, capped at ten seconds{{/F}}.
+- Ownership rotates, and is checked once at handover.
+- The longer history is kept in a separate record.
 
 NOTE: this record is out of date; see the revision.
-
-This entry was reviewed at the last stocktake.
-Ownership rotates, and is checked once at handover.
-The longer history is kept in a separate record.

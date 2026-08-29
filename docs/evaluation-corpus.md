@@ -191,6 +191,60 @@ objective one.
 
 ---
 
+## Eight document shapes, because one shape measures one shape
+
+Every document in this corpus used to be the same thing: front matter, one
+heading, one sentence carrying the fact, one filler block. A ranker could have
+been keying on *"the fact is the first sentence after an H1"*, scored 100%
+recall, and learned nothing that survives a real notes folder.
+
+So a document now takes one of eight shapes, chosen deterministically from the
+genre, the variant and the document's **role** — the answer and its adversaries
+never share a shape in one case, or "the fact is in the differently-shaped
+document" would become a signal and the corpus would be measuring that.
+
+| shape | what it stresses |
+|---|---|
+| `article` | the original: front matter, H1, fact, filler |
+| `bare` | no front matter, no heading — a note somebody typed |
+| `buried` | mid-paragraph, no blank line either side |
+| `table` | the fact as a markdown table row |
+| `bullets` | one bullet among several |
+| `nested` | H1 → H2 → H3, fact under the deepest |
+| `log` | a timestamped speaker line |
+| `trailing` | the last line, and no trailing newline |
+
+Borrowed in spirit from `mamori`, whose evaluation data is split by the *kind*
+of text as well as by language — fragments, documents, conversations, tool
+payloads — because those stress different things and one set measures one of
+them.
+
+**Turning it on cost four points of recall and thirteen of omission
+correctness on the first run**, and every one of them was worth reading:
+
+1. **`_widen` stopped at a line break** while its own docstring said "sentence
+   boundary". On one-sentence-per-line fixtures those are the same thing. A
+   fact planted mid-paragraph produced an item three times too big, which lost
+   a tight budget and took the case with it. Fixed in the library.
+2. **A squeeze case was ill-posed.** Its budget fit two of four passages, which
+   asked tsumugi to rank the current answer above the superseded one — the
+   thing [ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md)
+   measured and refuses to do. It passed anyway, because every answer document
+   carried front matter repeating its heading and won on bm25. **The corpus was
+   rewarding a structural artefact.**
+3. **Two scoring rules named one of two identical passages.** Where a case
+   plants the same sentence twice, which copy survives a tie depends on
+   document length and heading repetition. Recall now accepts the fact
+   delivered by either, and the redundancy expectation accepts the rule firing
+   either way — as an omission when the budget binds, or as a `redundant_with`
+   mark when it does not. Both are ADR-0008; a case that accepted only the
+   first was testing the budget rather than the rule.
+
+After all three: recall unchanged at 91.7%, trap rate **6.0% → 4.0%**, omission
+correctness **96.7% → 100%** — with eight times the structural variety.
+
+---
+
 ## The shape the corpus could not see
 
 Every question in this corpus was generated from the **subject and attribute

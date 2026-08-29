@@ -1,10 +1,8 @@
----
-title: Behaviour
----
-
 # Behaviour
 
-{{F:answer}}The backoff of the retry policy is exponential, capped at thirty seconds{{/F}}.
+| Field | Value |
+|---|---|
+| Behaviour | {{F:answer}}The backoff of the retry policy is exponential, capped at thirty seconds{{/F}}. |
 
 This entry was reviewed at the last stocktake.
 Ownership rotates, and is checked once at handover.

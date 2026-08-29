@@ -321,20 +321,64 @@ def _confirm(content: str, needles: Sequence[str]) -> list[Span]:
     return found
 
 
-def _widen(content: str, span: Span, context: int) -> Span:
-    """Grow a match outwards to a sentence-ish boundary.
+#: Characters that end a sentence outright. CJK punctuation is unambiguous:
+#: nothing else uses these, so no lookahead is needed.
+_HARD_STOPS: Final = "。．！？!?"
 
-    A bare match is unreadable and unusable as context. Widening stops at a
-    line break where there is one nearby, and at a character count otherwise.
+#: A full stop ends a sentence in Latin script only when something follows it
+#: that is not more sentence. ``2.4kg`` and ``e.g.`` are not sentence ends, and
+#: a rule that thought they were would cut an item in half.
+_SOFT_STOP: Final = "."
+
+
+def _sentence_start(content: str, floor: int, at: int) -> int:
+    """The start of the sentence containing ``at``, no earlier than ``floor``."""
+    for index in range(at - 1, floor - 1, -1):
+        character = content[index]
+        if character in _HARD_STOPS:
+            return index + 1
+        if character == _SOFT_STOP and index + 1 < len(content) and content[index + 1].isspace():
+            return index + 1
+    return floor
+
+
+def _sentence_end(content: str, at: int, ceiling: int) -> int:
+    """The end of the sentence containing ``at``, no later than ``ceiling``."""
+    for index in range(at, ceiling):
+        character = content[index]
+        if character in _HARD_STOPS:
+            return index + 1
+        if character == _SOFT_STOP and (index + 1 >= len(content) or content[index + 1].isspace()):
+            return index + 1
+    return ceiling
+
+
+def _widen(content: str, span: Span, context: int) -> Span:
+    """Grow a match outwards to a sentence boundary.
+
+    A bare match is unreadable and unusable as context, so an item carries the
+    sentence around it. The boundary is whichever comes first: a line break, a
+    sentence terminator, or the context limit.
+
+    **It used to stop only at a line break**, while this docstring already said
+    "sentence-ish". On a corpus where every fact sits on its own line the two
+    are the same, which is why nobody noticed -- until the evaluation corpus
+    started planting facts mid-paragraph and an item that should have cost
+    seventeen characters cost sixty, lost a tight budget, and took a case with
+    it. Prose is the normal case for a notes folder; one sentence per line is
+    the fixture.
     """
-    start = max(0, span.start - context)
-    end = min(len(content), span.end + context)
-    line_start = content.rfind("\n", start, span.start)
-    if line_start != -1:
-        start = line_start + 1
-    line_end = content.find("\n", span.end, end)
-    if line_end != -1:
-        end = line_end
+    floor = max(0, span.start - context)
+    ceiling = min(len(content), span.end + context)
+
+    line_start = content.rfind("\n", floor, span.start)
+    start = max(
+        floor if line_start == -1 else line_start + 1, _sentence_start(content, floor, span.start)
+    )
+
+    line_end = content.find("\n", span.end, ceiling)
+    end = min(ceiling if line_end == -1 else line_end, _sentence_end(content, span.end, ceiling))
+
     return Span(start, max(end, span.end))
 
 
