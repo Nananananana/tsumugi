@@ -16,8 +16,11 @@ Local-first. One named adapter may open a socket; nothing else can. **Zero runti
 > MCP, and scoring the selection against a labelled corpus all work. Both
 > sibling adapters (`mamori`, `kiseki`) exist and are optional.
 >
-> Prompt templates do not exist, on purpose: not once has the single built-in
-> instruction set been the limiting factor.
+> Two instruction sets ship — one for a person reading the answer, one for a
+> program checking it — and `render()` emits the whole prompt, so a package
+> always describes exactly what was sent
+> ([ADR 0017](docs/adr/0017-the-instruction-set-is-a-parameter.md)). There is no
+> template *language*, on purpose: the third shape can argue for itself.
 >
 > The ContextPackage contract is **frozen at version 1**.
 >

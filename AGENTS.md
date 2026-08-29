@@ -139,7 +139,9 @@ Taken from `kiseki` and `mamori`, which paid for them.
   allow-list a test asserts. The provider is asked for text and never for a
   decision: it does not rank, does not choose what is sent, and does not
   resolve a citation (ADR-0016).
-- **Not built:** prompt templates. The evaluation corpus has seventy cases and
+- **Not built:** a prompt template *language*. Two instruction sets ship
+  (ADR-0017) and `render()` emits the whole prompt; a third shape has to argue
+  for itself. The evaluation corpus has seventy cases and
   all seven trap kinds; what is thin is genre count and variety.
 - Both sibling adapters exist. ADR-0009 is tested against the real `mamori`
   (`tests/test_adapter_mamori.py`, skipped when it is absent). The `kiseki`

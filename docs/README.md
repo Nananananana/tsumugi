@@ -58,9 +58,11 @@ Ten commands: `ingest`, `search`, `context`, `verify`, `ask`, `trace`,
 with no model and no network; `ask` is the tenth and says where it is sending
 before it sends.
 
-Deliberately *not* built: prompt templates. `proposals/0002` demoted them and
-the reason still holds — not once has the single built-in instruction set been
-the limiting factor. It will be built when a second use needs a second shape.
+`proposals/0002` deferred prompt templates until a second use needed a second
+shape. `ask` was that use, so `build_context` now takes an instruction set and
+two ship ([ADR 0017](adr/0017-the-instruction-set-is-a-parameter.md)). Two named
+dictionaries, not a template language — the deferral rule still holds for the
+third shape.
 
 [`architecture.md`](architecture.md) describes what the code does today and is
 kept honest by `tests/test_architecture.py`.

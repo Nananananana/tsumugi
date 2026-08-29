@@ -7,9 +7,9 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 What is **planned** and not built is in
 [proposals/0002-what-building-it-taught.md](proposals/0002-what-building-it-taught.md),
 which revises 0001's roadmap from what building it cost. Everything on that
-roadmap is now done except prompt templates, which stay deferred for the reason
-0002 gave: not once has the single built-in instruction set been the limiting
-factor.
+roadmap is now done. Prompt templates were the last item and arrived in the
+smallest form that answered the need: two instruction sets, not a template
+language ([ADR 0017](adr/0017-the-instruction-set-is-a-parameter.md)).
 
 ## What exists
 
