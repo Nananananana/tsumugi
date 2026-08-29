@@ -174,6 +174,27 @@ class TestTheTrapMetric:
         if score.grounded:
             assert copy_id in score.cited_a_copy, "reported, and not as a failure"
 
+    def test_citing_the_adversary_beside_the_answer_is_contrast_not_capture(self) -> None:
+        # The instruction set asks a model to cite both when two passages
+        # disagree. Measured per *answer*, following that rule scored as
+        # trapped on every case -- the metric was punishing the behaviour it
+        # had just asked for.
+        case = _case_with("superseded")
+        trap_id = next(id for id, trap in case.traps.items() if trap.kind == "superseded")
+        both = (case.facts[trap_id].text, _planted_text(case))
+        score = answer_case(case, Scripted(quotations=both))
+        if score.grounded:
+            assert not score.trapped, "one claim citing both is a comparison"
+            assert score.contrasted
+
+    def test_citing_only_the_adversary_is_capture(self) -> None:
+        case = _case_with("superseded")
+        trap_id = next(id for id, trap in case.traps.items() if trap.kind == "superseded")
+        score = answer_case(case, Scripted(quotations=(case.facts[trap_id].text,)))
+        if score.grounded:
+            assert trap_id in score.trapped
+            assert not score.contrasted
+
     def test_a_summary_counts_a_trapped_case_once(self) -> None:
         # Two adversaries quoted in one answer is one fooled answer, not two.
         scores = [
@@ -196,6 +217,20 @@ class TestTheTrapMetric:
         summary = summarise_answers(scores, model="m")
         assert summary.trapped == 0 and summary.cited_a_copy == 1
         assert "not being fooled" in summary.describe()
+
+    def test_contrast_is_reported_as_what_was_asked_for(self) -> None:
+        scores = [
+            AnswerScore(
+                case_id="a",
+                language="ja",
+                trap_kinds=("superseded",),
+                grounded=True,
+                contrasted=True,
+            )
+        ]
+        summary = summarise_answers(scores, model="m")
+        assert summary.trapped == 0 and summary.contrasted == 1
+        assert "what was asked for" in summary.describe()
 
 
 class TestAModelThatIgnoresTheContract:
