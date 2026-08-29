@@ -37,6 +37,13 @@ stable.
   The check runs in both directions: an unnamed network import fails, and so
   does a name left behind after its adapter stopped needing one.
 
+- **`parse_answer` accepts a lone markdown code fence.** Models wrap JSON in
+  one constantly, including when the instructions say not to. Unwrapping a
+  fence is reading a syntax, not guessing at an intent — the same class of
+  tolerance as NFKC in `domain.matching`, and it stops in the same place: a
+  fence *buried in prose* is still prose, because hunting for JSON inside a
+  page of text is "find the answer somewhere in there", and a verifier that
+  guesses is not a verifier.
 - **`tsumugi ask --json`** emits the provider, the prompt, the answer, the
   package and the verification as one document. The package is included whole
   rather than by id: an answer and the evidence it was checked against are only

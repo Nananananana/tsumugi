@@ -33,6 +33,24 @@ class AnswerFormatError(TsumugiError):
     """The answer is not in a shape this can read."""
 
 
+def _unfenced(payload: str) -> str:
+    """The contents of a lone markdown code fence, or the text unchanged.
+
+    Deliberately narrow. The whole payload has to be one fenced block: a
+    fence buried in prose is prose, and treating it otherwise would be the
+    "find the JSON somewhere in there" behaviour this refuses to have.
+    """
+    text = payload.strip()
+    if not text.startswith("```") or not text.endswith("```"):
+        return payload
+    lines = text.splitlines()
+    if len(lines) < 2:
+        return payload
+    # The opening line is ``` or ```json; the closing line is ```. Anything
+    # else on the opening line is a language tag and is ignored.
+    return "\n".join(lines[1:-1])
+
+
 class ProtectedPackageError(TsumugiError):
     """A protected package was handed to a verifier with no way to restore it.
 
@@ -52,12 +70,20 @@ def parse_answer(payload: str) -> list[tuple[str, list[str]]]:
     because that is what a model does when it ignores the schema, and telling
     the caller "every claim is uncited" is more useful than refusing to parse.
 
-    Nothing is inferred beyond that. Extracting quotations from prose by
-    looking for quote marks would be guessing at what the model meant, and a
-    verifier that guesses is not a verifier.
+    **One tolerance: a markdown code fence.** Models wrap JSON in ```` ```json ````
+    constantly, and it is asked for in the instructions not to. Unwrapping a
+    fence is reading a syntax, not guessing at an intent -- the same class of
+    tolerance as NFKC in :mod:`tsumugi.domain.matching`, and it stops exactly
+    where that one does.
+
+    Nothing else is inferred. Hunting for the first ``{`` in a page of prose,
+    or extracting quotations by looking for quote marks, would be guessing at
+    what the model meant -- and a verifier that guesses is not a verifier. An
+    answer that is not in the requested shape is a *result*, and reported as
+    one.
     """
     try:
-        data: Any = json.loads(payload)
+        data: Any = json.loads(_unfenced(payload))
     except json.JSONDecodeError as error:
         raise AnswerFormatError(
             f"the answer is not JSON ({error}). Expected "

@@ -428,3 +428,36 @@ class TestAnAnswerThatAssertsNothing:
             ]
         )
         assert report.clean and not report.asserts_nothing
+
+
+class TestOneToleranceAndItsEdge:
+    """A markdown fence is a syntax; prose around it is prose.
+
+    Models wrap JSON in a fence constantly, including when told not to.
+    Unwrapping one is reading a syntax rather than guessing at an intent --
+    the same class of tolerance as NFKC in `domain.matching`, and it stops in
+    the same place.
+    """
+
+    ANSWER = '{"claims": [{"text": "a claim", "citations": ["quoted"]}]}'
+
+    def test_a_fenced_answer_is_read(self) -> None:
+        fenced = "```json\n" + self.ANSWER + "\n```"
+        assert parse_answer(fenced) == [("a claim", ["quoted"])]
+
+    def test_a_fence_with_no_language_tag_is_read(self) -> None:
+        assert parse_answer("```\n" + self.ANSWER + "\n```") == [("a claim", ["quoted"])]
+
+    def test_a_fence_buried_in_prose_is_prose(self) -> None:
+        # The line this refuses to cross. Hunting for JSON inside a page of
+        # text is "find the answer somewhere in there", which is guessing --
+        # and an answer not in the requested shape is a result, not a puzzle.
+        with pytest.raises(AnswerFormatError):
+            parse_answer("Here you go:\n```json\n" + self.ANSWER + "\n```\nHope that helps.")
+
+    def test_unfenced_json_is_still_read(self) -> None:
+        assert parse_answer(self.ANSWER) == [("a claim", ["quoted"])]
+
+    def test_prose_is_still_refused(self) -> None:
+        with pytest.raises(AnswerFormatError):
+            parse_answer("The tent weighs 2.4kg, according to the notes.")
