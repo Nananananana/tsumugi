@@ -526,9 +526,11 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
     for claim in asked.verification.claims:
         print(f"  {claim.support.value:<12} {claim.text}")
     print(f"  {asked.verification.summary()}")
+    if asked.verification.asserts_nothing:
+        print("  the answer contains no claims; there is nothing to verify.")
     # Deliberately not phrased as a pass. A supported claim means the quotation
     # was where the model said it was, which is a smaller thing than true.
-    if not asked.trustworthy:
+    elif not asked.trustworthy:
         print("  not every claim is supported by the context it was given.")
 
     return 0 if asked.trustworthy else 1
@@ -578,6 +580,12 @@ def _verify(args: argparse.Namespace, config: TsumugiConfig) -> int:
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
         return 0 if report.clean else 1
+
+    if report.asserts_nothing:
+        # Said out loud rather than exiting silently. `all()` over nothing is
+        # true, so an answer with no claims used to report as verified.
+        print("the answer contains no claims; there is nothing to verify.")
+        return 1
 
     for claim in report.claims:
         print(f"{claim.support.value:<13} {_oneline(claim.text, 76)}")

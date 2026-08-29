@@ -132,8 +132,27 @@ class VerificationReport:
 
     @property
     def clean(self) -> bool:
-        """Every claim supported. Not the same as 'the answer is correct'."""
-        return all(claim.support is Support.SUPPORTED for claim in self.claims)
+        """At least one claim, and every claim supported.
+
+        **The first half is not pedantry.** ``all()`` over nothing is true, so
+        an answer of ``{"claims": []}`` used to verify clean, exit 0 from
+        `tsumugi verify`, and report as trustworthy from `ask`. A model that
+        asserts nothing had passed the check -- which is the fail-open this
+        library says it does not have, in the one place it most matters.
+
+        And it is reachable: a model told to answer in JSON and unable to
+        answer the question produces exactly that shape. Use
+        :attr:`asserts_nothing` to tell "nothing was checked" from "something
+        failed"; they are different, and neither is success.
+        """
+        return bool(self.claims) and all(
+            claim.support is Support.SUPPORTED for claim in self.claims
+        )
+
+    @property
+    def asserts_nothing(self) -> bool:
+        """No claims at all. Not clean, and not a failure either."""
+        return not self.claims
 
     def with_support(self, support: Support) -> tuple[Claim, ...]:
         return tuple(c for c in self.claims if c.support is support)

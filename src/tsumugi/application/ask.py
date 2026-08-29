@@ -66,10 +66,12 @@ class Asked:
 
     @property
     def trustworthy(self) -> bool:
-        """Every claim supported.
+        """At least one claim, and every quotation where the model said it was.
 
-        Named carefully. It means every quotation was where the model said it
-        was -- not that the answer is right.
+        Named carefully, twice over. It does not mean the answer is right; and
+        an answer that asserts nothing is not trustworthy either, because
+        ``all()`` over an empty list is true and a model that says nothing
+        would otherwise pass.
         """
         return self.verification.clean
 

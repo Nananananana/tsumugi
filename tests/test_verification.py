@@ -21,7 +21,15 @@ from tsumugi.application.verify import (
 )
 from tsumugi.domain.anchor import Anchor, ResolutionStatus, resolve
 from tsumugi.domain.budget import Budget
-from tsumugi.domain.claim import Support, verify_claims
+from tsumugi.domain.claim import (
+    Citation,
+    Claim,
+    Located,
+    Support,
+    VerificationReport,
+    verify_claims,
+)
+from tsumugi.domain.hashing import ContentHash
 from tsumugi.domain.matching import find_all, search_form
 from tsumugi.domain.package import (
     BudgetReport,
@@ -368,3 +376,55 @@ class TestProperties:
             for location in citation.locations:
                 found = location.anchor.span.slice(DOCUMENT.content)
                 assert search_form(found).text == search_form(quotation).text
+
+
+class TestAnAnswerThatAssertsNothing:
+    """`all()` over nothing is true, and that was a fail-open.
+
+    A model told to answer in JSON and unable to answer the question produces
+    `{"claims": []}` -- which used to verify clean, exit 0 from `tsumugi
+    verify`, and report as trustworthy from `ask`. The one place this library
+    promises to fail closed is exactly this one.
+    """
+
+    def test_an_empty_report_is_not_clean(self) -> None:
+        assert not VerificationReport.of([]).clean
+
+    def test_it_is_distinguishable_from_a_failure(self) -> None:
+        # Nothing checked and something failed are different, and neither is
+        # success. A caller that cannot tell them apart will retry the wrong
+        # one.
+        empty = VerificationReport.of([])
+        assert empty.asserts_nothing
+
+        failed = VerificationReport.of([Claim(text="a claim", citations=(Citation("nope"),))])
+        assert not failed.clean
+        assert not failed.asserts_nothing
+
+    def test_a_single_supported_claim_is_clean(self) -> None:
+        # The other half still holds: this is not a stricter check, it is a
+        # check that stops being vacuous.
+        report = VerificationReport.of(
+            [
+                Claim(
+                    text="a claim",
+                    citations=(
+                        Citation(
+                            "quoted",
+                            locations=(
+                                Located(
+                                    item_id="c1",
+                                    anchor=Anchor(
+                                        document_id="doc_1",
+                                        span=Span(0, 6),
+                                        text_hash=ContentHash.of("quoted"),
+                                        version=ContentHash.of("quoted"),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            ]
+        )
+        assert report.clean and not report.asserts_nothing

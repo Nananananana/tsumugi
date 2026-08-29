@@ -154,6 +154,7 @@ defect in this document.
 | A package's omissions account for every considered candidate | A property test over generated corpora |
 | `forget` leaves no recoverable text | A test that vacuums and then greps the database file |
 | A protected package cannot be verified without restoration | A test asserting the loud failure |
+| An answer that asserts nothing does not verify clean | A test that `all()` over no claims is not success |
 
 `tsumugi doctor` prints these against the loaded configuration, separating what is
 **measured** from what is true **by construction** from what is **your

@@ -66,6 +66,14 @@ stable.
 
 ### Fixed
 
+- **An answer of `{"claims": []}` verified clean.** `all()` over an empty list
+  is true, so a model that asserted nothing passed the check: `tsumugi verify`
+  exited 0 and `ask` reported it as trustworthy. It is reachable — a model told
+  to answer in JSON and unable to answer the question produces exactly that
+  shape — and it is a fail-open in the one place this library says it fails
+  closed. `clean` now requires at least one claim, and `asserts_nothing`
+  separates "nothing was checked" from "something failed", because they are
+  different and neither is success.
 - **A question mark meant nothing was ever confirmed.** For a query written
   without spaces — most Japanese — the whole string is one needle, and no
   document contains the `?`. So `tsumugi context "テントの重量は?"`, which is
