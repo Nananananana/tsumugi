@@ -143,7 +143,18 @@ class TestTheLoop:
         assert asked.package.render() in sent
         # Without this the model answers in prose and there is nothing to
         # verify, which reports as zero claims -- and zero claims reads clean.
-        assert "claims" in sent and "Quote exactly" in sent
+        assert "claims" in sent and "character for" in sent
+
+    def test_it_says_what_a_citation_is_not(self, corpus: Any) -> None:
+        # Earned. qwen2.5:14b answered a Japanese question correctly and cited
+        # `notes/持ち物リスト.md (持ち物リスト（控え）)` -- the header line above
+        # the passage, which is what "citation" means everywhere else. Every
+        # claim reported unsupported and the answer was right.
+        provider = FakeProvider()
+        _ask(corpus, provider=provider)
+        sent = provider.prompts[0]
+        assert "not a filename" in sent
+        assert "never cite this line" in sent
 
     def test_it_does_not_ask_the_model_for_offsets(self, corpus: Any) -> None:
         # A model asked for character positions returns positions that are

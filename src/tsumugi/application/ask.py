@@ -40,13 +40,32 @@ __all__ = ["Asked", "ask"]
 #: machine-readable for verification to run at all. Kept here rather than in
 #: the package's instructions: a package is not built for one consumer, and a
 #: reader pasting it into a chat window does not need this.
+#:
+#: Longer than it looks like it needs to be, and every extra line was earned.
+#: The first version said "citations": ["text quoted exactly from the
+#: context"], and qwen2.5:14b answered a Japanese question perfectly and cited
+#: ``notes/持ち物リスト.md (持ち物リスト（控え）)`` -- the header line above the
+#: passage. Which is what "citation" means everywhere else: name the source.
+#: Every claim reported unsupported, and the answer was right.
+#:
+#: So the contract now says what a citation is *not*, and shows the shape of
+#: the thing it must not be. Verification caught it, which is the arrangement
+#: working -- but a checker that always fails is a checker nobody keeps.
 _OUTPUT_CONTRACT = """
 Answer as JSON, and nothing else:
 
-{"claims": [{"text": "one statement", "citations": ["text quoted exactly from the context"]}]}
+{"claims": [{"text": "one statement", "citations": ["text copied from a passage"]}]}
 
-Quote exactly. Do not report character positions. If the context does not
-answer the question, say so in a claim with no citations.
+A citation is a **span of text copied out of a passage below**, character for
+character. It is not a filename, not a heading, and not a `[c1]` label. Copy
+from the lines *underneath* a header, never the header itself:
+
+    [c1] notes/gear.md (Gear)        <- never cite this line
+    The tent weighs 2.4kg.           <- cite from this one, e.g. "weighs 2.4kg"
+
+Do not report character positions. Do not paraphrase inside a citation; a
+citation that is nearly right is wrong. If the context does not answer the
+question, say so in a claim with no citations.
 """
 
 

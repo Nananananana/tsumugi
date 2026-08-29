@@ -44,6 +44,17 @@ stable.
 
 ### Fixed
 
+- **A model cited the source header instead of the passage, and every claim
+  reported unsupported.** Found by running the demo against a real
+  `qwen2.5:14b-instruct` rather than the fake provider the tests use: it
+  answered a Japanese question perfectly and cited
+  `notes/持ち物リスト.md (持ち物リスト（控え）)` — the header line above the
+  text, which is what "citation" means everywhere outside this library. The
+  output contract now says what a citation is *not*, and shows the shape of
+  the line to avoid. Fixed in the prompt and not in the verifier: turning a
+  prompt bug into a special case in the checker would be the wrong place.
+  Verification catching it is the arrangement working — but a checker that
+  always fails is a checker nobody keeps.
 - **`tsumugi demo | head` ended in a traceback on a Japanese Windows console.**
   A redirected stream takes the locale codepage, and one em dash was enough to
   end the run with a `UnicodeEncodeError` in place of an answer. The CLI now
