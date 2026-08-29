@@ -145,3 +145,55 @@ class TestTheExample:
             "not nearly there",
         ):
             assert reason in source, reason
+
+
+class TestTheOptionalModelStage:
+    """``--model`` is opt-in, and the demo is whole without it.
+
+    The stage cannot be tested against a real model in CI, so what is tested
+    is the property that makes it safe to ship: an absent model costs the
+    reader the last stage and nothing else.
+    """
+
+    def test_the_default_says_no_model_and_no_network(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run_demo()
+        assert "No model. No network." in capsys.readouterr().out
+
+    def test_a_model_that_is_not_running_does_not_fail_the_demo(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Port 1 on loopback: reserved, and nothing sane is bound to it. The
+        # whole arrangement is that selection and verification are local and
+        # deterministic and the model is one step at the end.
+        import tsumugi.interfaces.cli.demo as demo_module
+
+        original = demo_module.OllamaProvider
+        demo_module.OllamaProvider = lambda **kwargs: original(  # type: ignore[assignment]
+            url="http://127.0.0.1:1", timeout=5.0, **kwargs
+        )
+        try:
+            assert run_demo(model="nothing-is-listening") == 0
+        finally:
+            demo_module.OllamaProvider = original  # type: ignore[assignment]
+
+        out = capsys.readouterr().out
+        assert "Everything above still ran" in out
+        # And every earlier stage is still there.
+        assert "citations checked" in out and "left out" in out
+
+    def test_it_says_where_it_would_send_before_it_sends(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        import tsumugi.interfaces.cli.demo as demo_module
+
+        original = demo_module.OllamaProvider
+        demo_module.OllamaProvider = lambda **kwargs: original(  # type: ignore[assignment]
+            url="http://127.0.0.1:1", timeout=5.0, **kwargs
+        )
+        try:
+            run_demo(model="nothing-is-listening")
+        finally:
+            demo_module.OllamaProvider = original  # type: ignore[assignment]
+        assert "sending to http://127.0.0.1:1 (local)" in capsys.readouterr().out

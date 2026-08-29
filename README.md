@@ -203,7 +203,8 @@ answers — so there is one adapter, for [ollama](https://ollama.com):
 
 ```bash
 ollama pull qwen2.5:7b-instruct
-tsumugi ask "テントの重量は?"
+tsumugi ask  "テントの重量は?"
+tsumugi demo --model qwen2.5:7b-instruct   # the same walk-through, with a real one
 ```
 
 ```console

@@ -37,6 +37,20 @@ stable.
   The check runs in both directions: an unnamed network import fails, and so
   does a name left behind after its adapter stopped needing one.
 
+- **`tsumugi demo --model`** puts the same question to a real local model at
+  the end. Opt-in precisely because everything before it does not need one, and
+  a model that is not running costs the reader the last stage and nothing else
+  — which is the arrangement, and is tested.
+
+### Fixed
+
+- **`tsumugi demo | head` ended in a traceback on a Japanese Windows console.**
+  A redirected stream takes the locale codepage, and one em dash was enough to
+  end the run with a `UnicodeEncodeError` in place of an answer. The CLI now
+  reconfigures its streams to UTF-8 with `errors="replace"`, so an unwritable
+  character costs one glyph rather than the output. A library for Japanese
+  notes does not get to fail on Japanese; two subprocess tests hold it.
+
 ### Changed
 
 - **The threat model's flattest sentence lost its full stop.** It said the core

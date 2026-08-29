@@ -1,9 +1,12 @@
 """A corpus, a question, and the whole thing happening in front of you.
 
 Runs in a throwaway directory with no model, no network and nothing installed
-beyond the library. The point is not that it works — it is that each step says
-what it is *for*, because the parts of this design that matter are the ones
-that are easy to skip past: what was left out, why a token count is an
+beyond the library. ``--model`` adds a last stage that asks a real local one,
+which is opt-in precisely because everything before it does not need it.
+
+The point is not that it works — it is that each step says what it is *for*,
+because the parts of this design that matter are the ones that are easy to skip
+past: what was left out, why a token count is an
 estimate, and the difference between a quotation being real and a claim being
 true.
 
@@ -22,11 +25,14 @@ import tempfile
 from pathlib import Path
 
 from ... import __version__
+from ...application.ask import ask
 from ...application.build_context import build_context
 from ...application.ingest import ingest_paths
 from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
 from ...domain.budget import Budget
+from ...errors import TsumugiError
+from ...infrastructure.adapters.ollama import OllamaProvider
 from ...infrastructure.cost.heuristic import HeuristicTokenCost
 from ...infrastructure.filesystem import walk
 from ...infrastructure.freshness import remembered_roots
@@ -78,12 +84,12 @@ def _colour() -> bool:
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
-def run_demo(*, keep: bool = False) -> int:
+def run_demo(*, keep: bool = False, model: str | None = None) -> int:
     """Build a corpus, ask it something, and check the answer."""
     workspace = Path(tempfile.mkdtemp(prefix="tsumugi-demo-"))
     root = workspace / "notes-corpus"
     try:
-        return _run(workspace, root)
+        return _run(workspace, root, model=model)
     finally:
         if keep:
             print()
@@ -93,9 +99,13 @@ def run_demo(*, keep: bool = False) -> int:
             shutil.rmtree(workspace, ignore_errors=True)
 
 
-def _run(workspace: Path, root: Path) -> int:
+def _run(workspace: Path, root: Path, *, model: str | None = None) -> int:
     print(f"tsumugi {__version__} — a walk through, in a throwaway directory.")
-    print("No model. No network. Nothing installed beyond the library.")
+    if model is None:
+        print("No model. No network. Nothing installed beyond the library.")
+        print("(--model qwen2.5:7b-instruct adds a last stage that asks a real one.)")
+    else:
+        print(f"Nothing installed beyond the library. Stage 8 will ask {model}.")
 
     # ---------------------------------------------------------------- ingest
     _rule("1. A small corpus")
@@ -216,6 +226,9 @@ def _run(workspace: Path, root: Path) -> int:
     print("  Over months this is the number that says whether any of it helps.")
     print("  It holds identifiers and counts; never a question or a document.")
 
+    if model is not None:
+        _ask_a_real_model(store, index, model)
+
     _rule("The one thing to be clear about")
     print("A supported claim means the quoted text is where the model said it was.")
     print("It does not mean the claim is true. tsumugi does not eliminate")
@@ -225,6 +238,45 @@ def _run(workspace: Path, root: Path) -> int:
 
     connection.close()
     return 0
+
+
+def _ask_a_real_model(store: SqliteDocumentStore, index: FtsIndex, model: str) -> None:
+    """The same corpus, the same package, and a model that was not rehearsed.
+
+    Separate from everything above because everything above is deterministic
+    and this is not. A failure here is a model that is not running, which is
+    worth saying plainly rather than turning the whole demo red.
+    """
+    _rule(f"8. The same question, put to {model}")
+    provider = OllamaProvider(model=model)
+    print(f"  sending to {provider.endpoint.describe()}")
+    try:
+        asked = ask(
+            QUESTION,
+            store=store,
+            index=index,
+            cost_model=HeuristicTokenCost(),
+            budget=Budget.tokens(400),
+            provider=provider,
+            version=__version__,
+            freshness=remembered_roots(store),
+        )
+    except TsumugiError as error:
+        print(f"  {error}")
+        print()
+        print("  Everything above still ran. That is the point of the arrangement:")
+        print("  selection and verification are local and deterministic, and the")
+        print("  model is one step at the end that can be absent.")
+        return
+
+    print()
+    for claim in asked.verification.claims:
+        print(f"  {claim.support.value:<12} {claim.text}")
+    print(f"  {asked.verification.summary()}")
+    print()
+    print("  Nothing above changed because a model was here. The package is")
+    print("  byte-for-byte the one stage 3 built — the model was asked for text,")
+    print("  never for a decision, so an unsupported claim is this working.")
 
 
 def _one_line(text: str, width: int = 64) -> str:

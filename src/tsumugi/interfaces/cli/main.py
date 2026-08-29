@@ -218,6 +218,14 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument(
         "--keep", action="store_true", help="leave the corpus and index behind to poke at"
     )
+    demo.add_argument(
+        "--model",
+        metavar="NAME",
+        help=(
+            "also put the question to a local model at the end, e.g. "
+            "qwen2.5:7b-instruct. Needs ollama running; everything else does not."
+        ),
+    )
     demo.set_defaults(run=_demo)
 
     doctor = commands.add_parser("doctor", help="what this index holds, and what it is")
@@ -248,7 +256,27 @@ def _close_everything() -> None:
             _OPEN.pop().close()
 
 
+def _speak_utf8() -> None:
+    """Make the output streams able to carry the corpus.
+
+    A library for Japanese notes that raises ``UnicodeEncodeError`` the moment
+    somebody pipes it into a pager is not a library for Japanese notes. On
+    Windows a redirected stream takes the locale codepage -- cp932, cp1252 --
+    and an em dash or a kanji is enough to end the run with a traceback in
+    place of an answer.
+
+    ``errors="replace"`` is the second half and matters as much. A character
+    that genuinely cannot be written should cost one glyph, not the output.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            with contextlib.suppress(OSError, ValueError):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _speak_utf8()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -650,7 +678,7 @@ def _forget(args: argparse.Namespace, config: TsumugiConfig) -> int:
 def _demo(args: argparse.Namespace, config: TsumugiConfig) -> int:
     # Deliberately ignores the configured index: a demo must not touch, or even
     # open, whatever real corpus the reader has.
-    return run_demo(keep=args.keep)
+    return run_demo(keep=args.keep, model=args.model)
 
 
 def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:

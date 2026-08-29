@@ -8,11 +8,15 @@ once, badly.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from tsumugi.interfaces.cli.main import main
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture
@@ -506,3 +510,41 @@ class TestAsk:
             encoding="utf-8"
         )
         assert source.count("OllamaProvider(") == 1
+
+
+class TestOutputEncoding:
+    """It survives being piped on a machine whose locale is not UTF-8.
+
+    Found by running `tsumugi demo | head` on a Japanese Windows console: a
+    redirected stream takes the locale codepage, and one em dash ended the
+    run with a traceback in place of an answer. A library for Japanese notes
+    does not get to fail on Japanese.
+    """
+
+    def test_the_demo_survives_a_legacy_codepage(self) -> None:
+        finished = subprocess.run(
+            [sys.executable, "-c", "from tsumugi.interfaces.cli.main import main; main(['demo'])"],
+            capture_output=True,
+            cwd=ROOT,
+            # No PYTHONUTF8, and a codepage that cannot hold an em dash. This
+            # is what a redirected stream looks like on a Japanese Windows.
+            env={"PATH": "", "PYTHONIOENCODING": "cp932"},
+        )
+        assert finished.returncode == 0, finished.stderr.decode("utf-8", "replace")
+        assert b"Traceback" not in finished.stderr
+
+    def test_the_corpus_survives_it_too(self) -> None:
+        # cp932 holds Japanese but not every character a corpus might carry.
+        # The rule is that an unwritable character costs one glyph, never the
+        # output.
+        finished = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from tsumugi.interfaces.cli.main import main; main(['--help'])",
+            ],
+            capture_output=True,
+            cwd=ROOT,
+            env={"PATH": "", "PYTHONIOENCODING": "cp1252"},
+        )
+        assert finished.returncode == 0
