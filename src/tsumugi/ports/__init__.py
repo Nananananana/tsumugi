@@ -16,7 +16,9 @@ from __future__ import annotations
 
 from .cost import CostModel
 from .index import Index, IndexHit
+from .ledger import LedgerStore
 from .parser import ParsedDocument, Parser
+from .redactor import Redactor
 from .store import DocumentStore
 from .tokenizer import Tokenizer
 
@@ -25,7 +27,9 @@ __all__ = [
     "DocumentStore",
     "Index",
     "IndexHit",
+    "LedgerStore",
     "ParsedDocument",
     "Parser",
+    "Redactor",
     "Tokenizer",
 ]

@@ -9,6 +9,33 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — verification, and the loop closed
+
+- **`tsumugi verify`.** The model quotes; tsumugi resolves the offsets
+  (ADR-0004). Resolution is exact with one stated tolerance — NFKC, case-folded,
+  whitespace runs collapsed — and nothing beyond it. A resolved citation comes
+  back as an anchor into the real document, so `trace` can follow it to a line.
+- **Four outcomes, kept apart.** `supported`, `unsupported`, `uncited`,
+  `unverifiable`. A model that cites nothing failed differently from one that
+  cites something that does not exist; and a package redacted irreversibly
+  cannot be checked at all, which is neither of those.
+- **Restore, then verify** (ADR-0009). A verifier that sees a protection record
+  and holds no restorer refuses, naming the scope it would need — verifying
+  as-is would report every honest citation as unsupported, and the failure
+  would look exactly like a hallucination. A test asserts the property that
+  matters: **protection never changes a classification.**
+- **`ContextPackage.from_json`.** A contract only one program can produce is not
+  a contract. The `package_id` is recomputed and checked, not trusted: an
+  altered package is refused.
+- **`tsumugi ledger`.** `context` opens an entry, `verify` closes it with which
+  items were actually cited. It holds **no text** — identifiers, offsets, scores,
+  counts and a hash of the query — checked by grepping the database file and by
+  a schema test that fails if a text column is ever added. It is derived data:
+  `--forget` deletes it and the corpus is untouched.
+- The uncited share is `None` until something has been verified. Reporting 100%
+  unused for a ledger nobody closed would be a lie about the tool rather than
+  about the corpus.
+
 ### Added — the ContextPackage
 
 - **`tsumugi context`.** Retrieve, confirm, rank, fit to a stated budget, and

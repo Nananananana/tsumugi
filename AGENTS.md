@@ -115,20 +115,23 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 415 tests, 95% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 494 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
-- **Built:** `ingest`, `search`, `trace`, `doctor`, `context`. Domain (span,
+- **Built:** `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
+  `doctor`. Domain (span,
   hash, document, anchor, normalization, budget, omission, selection, package,
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** claim verification, the ledger, the MCP server, prompt
-  templates, redundancy marking, and both sibling adapters.
+- **Not built:** the MCP server, prompt templates, redundancy marking, the
+  evaluation corpus, and both sibling adapters.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three
-  that assert the schema and the enums have not drifted apart. **Freezes at
-  v0.2** — until then fields may still move.
+  that assert the schema and the enums have not drifted apart. **Not frozen yet.** The roadmap said v0.2, and the
+  evidence a freeze wants is a *second* consumer: everything that has produced
+  or consumed a package so far is tsumugi itself. The MCP server (ADR-0012) is
+  that consumer, and freezing after it is cheaper than freezing before it.
 - Evaluation: `docs/evaluation-corpus.md`. 100–1000 generated cases, labelled
   evidence, planted traps, a ~60-case CI tier and a held-out split. **A model
   runs at authoring time only; CI calls nothing.** Not built.

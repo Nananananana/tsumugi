@@ -9,6 +9,7 @@ from, and a file you do not know about is a file you cannot protect
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 import sys
 from collections.abc import Sequence
@@ -20,14 +21,17 @@ from ...application.build_context import build_context
 from ...application.ingest import ingest_paths
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
+from ...application.verify import verify_answer
 from ...config import TsumugiConfig
 from ...domain.budget import Budget, Unit
+from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
 from ...infrastructure.storage.database import SCHEMA_VERSION, connect
+from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.cost import CostModel
 
@@ -87,6 +91,20 @@ def build_parser() -> argparse.ArgumentParser:
     trace = commands.add_parser("trace", help="find where a quotation came from")
     trace.add_argument("quotation")
     trace.set_defaults(run=_trace)
+
+    verify = commands.add_parser("verify", help="resolve the citations in a model's answer")
+    verify.add_argument("answer", type=Path, help="the answer, as JSON; - for stdin")
+    verify.add_argument("--package", type=Path, required=True, help="the package it was built from")
+    verify.add_argument("--json", action="store_true")
+    verify.set_defaults(run=_verify)
+
+    ledger = commands.add_parser("ledger", help="what was sent, and what the model actually used")
+    ledger.add_argument(
+        "--since", metavar="ISO8601", help="only entries at or after this timestamp"
+    )
+    ledger.add_argument("-n", "--limit", type=int, default=20)
+    ledger.add_argument("--forget", action="store_true", help="delete the whole ledger")
+    ledger.set_defaults(run=_ledger)
 
     doctor = commands.add_parser("doctor", help="what this index holds, and what it is")
     doctor.set_defaults(run=_doctor)
@@ -229,6 +247,8 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         version=__version__,
     )
 
+    SqliteLedger(connection).open(package)
+
     if args.json:
         print(package.to_json())
         return 0 if package.items else 1
@@ -274,6 +294,136 @@ def _trace(args: argparse.Namespace, config: TsumugiConfig) -> int:
     return 0
 
 
+def _verify(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    try:
+        package = ContextPackage.from_json(args.package.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise ConfigurationError(f"cannot read the package: {error}") from error
+
+    try:
+        answer = (
+            sys.stdin.read() if str(args.answer) == "-" else args.answer.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError) as error:
+        # A model's answer arrives through whatever wrote the file, and on
+        # Windows that is often not UTF-8. One sentence beats a traceback.
+        raise ConfigurationError(f"cannot read the answer: {error}") from error
+
+    report = verify_answer(answer, package)
+
+    # Closing needs the index the package was built against, and a caller may
+    # be verifying a package built somewhere else entirely. That is legitimate,
+    # so a missing ledger entry is not an error.
+    index_path = config.resolved_index_path()
+    if index_path.exists():
+        SqliteLedger(connect(index_path, create=False)).close(report)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "package_id": report.package_id,
+                    "counts": report.counts,
+                    "claims": [
+                        {
+                            "text": claim.text,
+                            "support": claim.support.value,
+                            "citations": [
+                                {
+                                    "quotation": citation.quotation,
+                                    "locations": [
+                                        {
+                                            "item_id": location.item_id,
+                                            "source_path": location.source_path,
+                                            "start": location.anchor.span.start,
+                                            "end": location.anchor.span.end,
+                                        }
+                                        for location in citation.locations
+                                    ],
+                                }
+                                for citation in claim.citations
+                            ],
+                        }
+                        for claim in report.claims
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0 if report.clean else 1
+
+    for claim in report.claims:
+        print(f"{claim.support.value:<13} {_oneline(claim.text, 76)}")
+        for citation in claim.citations:
+            if not citation.resolved:
+                print(f"              x  {_oneline(citation.quotation, 60)}")
+                print("                 not found in the text that was sent")
+                continue
+            for location in citation.locations:
+                print(f"              -> {location.describe()}")
+            if citation.ambiguous:
+                # Ambiguity is information, not an error.
+                print(f"                 {len(citation.locations)} occurrences, all reported")
+        if claim.unverifiable_because:
+            print(f"                 {claim.unverifiable_because}")
+
+    print()
+    print(report.summary())
+    print()
+    # The sentence that has to be printed every time. The failure mode of an
+    # evidence system is that people stop reading "evidence" and start reading
+    # it as "correct".
+    print("A supported claim means the quoted text is where the model said it was.")
+    print("It does not mean the claim is true.")
+    return 0 if report.clean else 1
+
+
+def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    connection = connect(config.resolved_index_path(), create=False)
+    ledger = SqliteLedger(connection)
+
+    if args.forget:
+        removed = ledger.forget()
+        print(f"deleted {removed} entries. The ledger is derived data; this costs history.")
+        return 0
+
+    entries = ledger.entries(since=args.since, limit=args.limit)
+    if not entries:
+        print("the ledger is empty. It fills as you run `tsumugi context`.")
+        return 1
+
+    for entry in entries:
+        mark = "closed" if entry.closed else "open  "
+        used = "" if entry.cited_items is None else f", {entry.cited_items} cited"
+        print(
+            f"{mark} {entry.created_at[:19]}  {entry.package_id[7:19]}  "
+            f"{entry.items} items{used}, {entry.omissions} omitted, "
+            f"{entry.estimate}/{entry.limit} {entry.unit}"
+        )
+
+    usage = ledger.usage(since=args.since)
+    print()
+    print(
+        f"{usage.packages} packages, {usage.closed} verified, "
+        f"{usage.omissions} candidates left out "
+        f"({usage.budget_exhausted} of them for budget)"
+    )
+
+    share = usage.uncited_share
+    if share is None:
+        # Reporting 100% unused for a ledger nobody closed would be a lie about
+        # the tool rather than about the corpus.
+        print("Nothing has been verified yet, so nothing can be said about what was used.")
+        print("Run `tsumugi verify` on an answer to close an entry.")
+    else:
+        print(
+            f"Of the context that was sent and checked, {share:.0%} was never cited "
+            f"({usage.items_sent - usage.items_cited} of {usage.items_sent} items)."
+        )
+    return 0
+
+
 def _doctor(args: argparse.Namespace, config: TsumugiConfig) -> int:
     index_path = config.resolved_index_path()
     print(f"index:   {index_path}")
@@ -306,6 +456,10 @@ def _doctor(args: argparse.Namespace, config: TsumugiConfig) -> int:
     print("  the core opens no socket        tests/test_architecture.py")
     print("  the domain imports only stdlib  tests/test_architecture.py")
     print("  an anchor slices back exactly   tests/test_anchor.py")
+    print()
+    entries = SqliteLedger(connection).usage()
+    print(f"ledger:     {entries.packages} packages recorded, {entries.closed} verified")
+    print("            identifiers and counts only; no query or document text")
     print()
     print("your responsibility:")
     print("  This index is a complete plaintext copy of the corpus, and is not")

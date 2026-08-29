@@ -25,10 +25,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from .anchor import Anchor
 from .budget import Budget, Unit
 from .hashing import ContentHash
-from .omission import Omission
-from .selection import ContextItem
+from .omission import Omission, OmissionRule
+from .selection import ContextItem, ItemProvenance, Layer, SelectionTrace
+from .span import Span
 
 __all__ = [
     "CONTRACT",
@@ -287,6 +289,54 @@ class ContextPackage:
             payload["created_at"] = self.created_at
         return payload
 
+    @classmethod
+    def from_json(cls, payload: str) -> ContextPackage:
+        """Read a package back. The other half of being a document.
+
+        A contract only one program can produce is not a contract. This is what
+        lets `tsumugi verify` check an answer against a package built minutes
+        earlier, in another process, on another machine.
+
+        The ``package_id`` in the payload is **checked, not trusted**: it is
+        recomputed from the content, and a mismatch raises. An id that came
+        along for the ride would be worse than no id, because it would look
+        like a guarantee.
+        """
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"not a package: {error}") from error
+        if not isinstance(data, dict):
+            raise ValueError(f"a package is an object, not a {type(data).__name__}")
+
+        contract = data.get("contract")
+        if contract not in SUPPORTED_CONTRACTS:
+            raise ValueError(
+                f"unrecognised contract {contract!r}; this tsumugi understands "
+                f"{', '.join(sorted(SUPPORTED_CONTRACTS))}"
+            )
+
+        package = cls(
+            query=data["query"],
+            items=tuple(_item_from_dict(raw) for raw in data.get("items", [])),
+            omissions=tuple(_omission_from_dict(raw) for raw in data.get("omissions", [])),
+            budget=_budget_from_dict(data["budget"]),
+            provenance=_provenance_from_dict(data["provenance"]),
+            instructions=data.get("instructions") or {},
+            constraints=data.get("constraints") or {},
+            output_schema=data.get("output_schema"),
+            created_at=data.get("created_at", ""),
+            contract=contract,
+        )
+
+        stated = data.get("package_id")
+        if stated is not None and stated != str(package.package_id):
+            raise ValueError(
+                f"this package claims to be {stated} and hashes to {package.package_id}; "
+                f"it has been altered since it was built"
+            )
+        return package
+
     def to_json(self, *, indent: int | None = 2) -> str:
         payload = self.to_dict()
         payload["package_id"] = str(self.package_id)
@@ -294,6 +344,84 @@ class ContextPackage:
 
 
 # -- serialization helpers -----------------------------------------------
+
+
+def _item_from_dict(raw: dict[str, Any]) -> ContextItem:
+    anchor = raw["anchor"]
+    provenance = raw["provenance"]
+    selection = raw.get("selection")
+    return ContextItem(
+        item_id=raw["item_id"],
+        text=raw["text"],
+        anchor=Anchor(
+            document_id=anchor["document_id"],
+            span=Span(anchor["start"], anchor["end"]),
+            text_hash=ContentHash.parse(anchor["text_hash"]),
+            version=ContentHash.parse(anchor["document_hash"]),
+        ),
+        source_path=anchor.get("source_path", ""),
+        section=anchor.get("section", ""),
+        kind=raw.get("kind", "document_span"),
+        provenance=ItemProvenance(
+            layer=Layer(provenance["layer"]),
+            producer=provenance["producer"],
+            observed_at=provenance.get("observed_at"),
+            confidence=provenance.get("confidence"),
+        ),
+        selection=(
+            SelectionTrace(
+                rank=selection["rank"],
+                score=selection["score"],
+                signals=tuple(selection.get("signals", ())),
+            )
+            if selection is not None
+            else None
+        ),
+        cost=raw["cost"],
+    )
+
+
+def _omission_from_dict(raw: dict[str, Any]) -> Omission:
+    anchor = raw["anchor"]
+    return Omission(
+        rule=OmissionRule.parse(raw["rule"]),
+        reason=raw["reason"],
+        document_id=anchor["document_id"],
+        span=Span(anchor["start"], anchor["end"]),
+        source_path=anchor.get("source_path", ""),
+        score=raw.get("score"),
+        cost=raw.get("cost"),
+    )
+
+
+def _budget_from_dict(raw: dict[str, Any]) -> BudgetReport:
+    return BudgetReport(
+        budget=Budget(Unit(raw["unit"]), raw["limit"]),
+        estimate=raw["estimate"],
+        estimator=raw["estimator"],
+        measured_error=raw.get("measured_error"),
+    )
+
+
+def _provenance_from_dict(raw: dict[str, Any]) -> PackageProvenance:
+    protection = raw.get("protection")
+    return PackageProvenance(
+        tsumugi_version=raw["tsumugi_version"],
+        corpus_state=(ContentHash.parse(raw["corpus_state"]) if raw.get("corpus_state") else None),
+        settings_hash=(
+            ContentHash.parse(raw["settings_hash"]) if raw.get("settings_hash") else None
+        ),
+        providers=tuple(raw.get("providers", ())),
+        protection=(
+            Protection(
+                by=protection["by"],
+                scope=protection["scope"],
+                reversible=protection.get("reversible", True),
+            )
+            if protection
+            else None
+        ),
+    )
 
 
 def _item_to_dict(item: ContextItem) -> dict[str, Any]:

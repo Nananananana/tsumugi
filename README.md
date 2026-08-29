@@ -9,9 +9,10 @@ Local-first. No network in the core. **Zero runtime dependencies.**
 
 > ### Status: v0.2 in progress
 >
-> Reading a corpus, searching it, tracing a quotation back to its source, and
-> building a **ContextPackage** under a budget all work. Claim verification, the
-> ledger, the MCP server and both sibling adapters do not exist yet.
+> Reading a corpus, searching it, building a **ContextPackage** under a budget,
+> checking a model's citations against it, and recording what was sent and what
+> was used all work. The MCP server, prompt templates and both sibling adapters
+> do not exist yet.
 >
 > - **What the code does today** — [docs/architecture.md](docs/architecture.md)
 > - **What it is meant to become** — [docs/proposals/0001-the-design.md](docs/proposals/0001-the-design.md)
@@ -39,7 +40,9 @@ pip install -e .
 tsumugi ingest ~/notes
 tsumugi search  "東京"
 tsumugi context "テントの重量は?" --budget tokens:4000 --why
+tsumugi verify  answer.json --package package.json
 tsumugi trace   "テントは 2.4kg"
+tsumugi ledger  --since 2026-08-01
 tsumugi doctor
 ```
 
@@ -77,6 +80,43 @@ candidate and the rule that dropped it, so a silent truncation is not possible.
 Running it twice produces the same `package_id`: same corpus, same query, same
 settings, byte-identical package. That buys caching, diffing and regression
 tests at once.
+
+When the answer comes back, its citations get checked against the text that was
+actually sent:
+
+```console
+$ tsumugi verify answer.json --package package.json
+supported     The trust boundary is about a side of a line, not a machine.
+              -> src/mamori/domain/trust.py[531:591]
+unsupported   A quotation the model invented.
+              x  この文はどこにも存在しない
+                 not found in the text that was sent
+uncited       A claim with no citation at all.
+
+2 supported, 1 unsupported, 1 uncited
+
+A supported claim means the quoted text is where the model said it was.
+It does not mean the claim is true.
+```
+
+Four outcomes, kept apart on purpose. `uncited` is not `unsupported` — a model
+that cites nothing has failed differently from one that cites something that
+does not exist. **The model quotes; tsumugi resolves the offsets.** Models
+cannot count characters, so asking them for positions produces coordinates that
+are plausible, self-consistent, and wrong by enough to point at a different
+sentence.
+
+Every `context` opens a ledger entry and every `verify` closes it, so after a
+few weeks:
+
+```console
+$ tsumugi ledger --since 2026-08-01
+41 packages, 23 verified, 612 candidates left out (588 of them for budget)
+Of the context that was sent and checked, 71% was never cited (196 of 274 items).
+```
+
+The ledger holds identifiers, offsets and counts — never the question, the
+document or the answer. A test greps the database file to prove it.
 
 ```console
 $ tsumugi trace "テントは 2.4kg"

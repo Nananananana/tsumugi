@@ -5,9 +5,8 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 [docs/README.md](README.md).*
 
 What is **planned** and not built is in
-[proposals/0001-the-design.md](proposals/0001-the-design.md): claim
-verification, the ledger, prompt templates, redundancy marking, the MCP server,
-and both sibling adapters.
+[proposals/0001-the-design.md](proposals/0001-the-design.md): prompt templates,
+redundancy marking, the MCP server, and both sibling adapters.
 
 ## What exists
 
@@ -28,7 +27,7 @@ and both sibling adapters.
                           └────────────────────┘
 ```
 
-Five commands: `ingest`, `search`, `context`, `trace`, `doctor`.
+Seven commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`, `doctor`.
 
 `context` is the one the library is for. It retrieves, confirms, ranks, fits to
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
@@ -47,11 +46,11 @@ interfaces ──> application ──> domain
 
 | Layer | Holds | May import |
 |---|---|---|
-| `domain/` | `Span`, `ContentHash`, `Document`/`Section`/`Block`, `Anchor` and resolution, normalization, `Budget`, `Omission`, `ContextItem`, `ContextPackage`, budget fitting | **stdlib only** |
+| `domain/` | `Span`, `ContentHash`, `Document`/`Section`/`Block`, `Anchor` and resolution, normalization, `Budget`, `Omission`, `ContextItem`, `ContextPackage`, budget fitting, quotation matching, `Claim` | **stdlib only** |
 | `errors.py` | Every exception the library raises | nothing |
 | `ports/` | `Parser`, `Tokenizer`, `DocumentStore`, `Index`, `CostModel` protocols | `domain`, `errors` |
 | `infrastructure/` | Parsers and their registry, the filesystem walk, SQLite store, FTS5 index, bigram tokenizer, cost models | `domain`, `ports`, `errors` |
-| `application/` | `ingest_paths`, `search`, `build_context`, `trace_quotation` | `domain`, `ports`, `errors` |
+| `application/` | `ingest_paths`, `search`, `build_context`, `verify_answer`, `trace_quotation` | `domain`, `ports`, `errors` |
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
 | `interfaces/cli/` | Argument parsing, output. The only composition root | everything above |
 
@@ -88,6 +87,8 @@ tokenizer is a *proposer*; replacing any of them cannot change an answer below.
 | Whether a span is inside the document at all | `domain/span.py` |
 | Whether a package is well-formed enough to exist | `domain/package.py` |
 | That every candidate leaves as an item or an omission | `domain/assembly.py` |
+| Whether a quotation is really in the text that was sent | `domain/matching.py` |
+| Whether a claim is supported, unsupported, uncited or unverifiable | `domain/claim.py` |
 
 ## Key types
 
@@ -204,7 +205,8 @@ retrieval dataset ever shows bigrams costing real recall. An index records which
 tokenizer built it and refuses to be searched by another, because the terms
 would not line up and the failure would look like an empty corpus.
 
-`DocumentStore`, `Index` and `CostModel` are the other three. `CostModel` has
+`DocumentStore`, `Index`, `CostModel`, `Redactor` and `LedgerStore` are the
+others. `CostModel` has
 three implementations: `CharacterCost` and `ByteCost` count exactly, and
 `HeuristicTokenCost` estimates tokens by script class and reports its own
 measured error ([ADR 0006](adr/0006-the-budget-is-an-estimate.md), numbers in
@@ -252,6 +254,72 @@ one or the other, and raises rather than shipping if it did not. That failure
 would be the exact thing [ADR 0005](adr/0005-selection-is-a-report.md) exists to
 prevent, so it stops the build rather than going out quietly.
 
+## Verifying an answer
+
+```text
+   model's answer (JSON: claims, each with quotations)
+          │
+          ▼
+   ┌──────────────────────────────────────────────┐
+   │ restore, IF the package records a protection │  ADR-0009
+   │   no restorer + reversible  -> REFUSE loudly │
+   │   irreversible              -> unverifiable  │
+   ├──────────────────────────────────────────────┤
+   │ resolve each quotation against the text that │  domain/matching.py
+   │   was sent. NFKC, case-folded, whitespace    │
+   │   runs collapsed. Nothing else.              │
+   ├──────────────────────────────────────────────┤
+   │ classify                                     │  domain/claim.py
+   └──────────────────┬───────────────────────────┘
+                      ▼
+    supported / unsupported / uncited / unverifiable
+```
+
+**The model quotes; tsumugi resolves** ([ADR 0004](adr/0004-the-model-quotes.md)).
+Models cannot count characters, so asking for offsets produces coordinates that
+are plausible, self-consistent, and wrong by enough to point at a different
+sentence.
+
+The four outcomes are kept apart on purpose. `uncited` is not `unsupported`: a
+model that cites nothing has failed differently from one that cites something
+that does not exist. `unverifiable` is neither: when a package was redacted
+irreversibly the citation *cannot* be checked, and calling that `unsupported`
+would report an honest citation as a fabricated one.
+
+A resolved citation comes back as an **anchor into the real document**, so
+`trace` can follow it to a line in a file.
+
+**Restore, then verify.** If a redactor rewrote the package, the model was shown
+`<PERSON_001>` and quoted `<PERSON_001>`, while the anchors point at the original
+value. Verifying without restoring first fails for every honest citation, and
+the failure looks exactly like a hallucination. A verifier that sees
+`provenance.protection` and holds no restorer refuses, naming the scope it would
+need. A test asserts the property that matters: **protection never changes a
+classification**.
+
+## The ledger
+
+`build_context` opens an entry; `verify` closes it with which items were
+actually cited. Over time it answers what no synthetic dataset can: which
+documents are sent constantly and cited never
+([ADR 0011](adr/0011-record-what-was-sent-and-what-was-used.md)).
+
+Two rules, checked rather than promised:
+
+- **No text.** Identifiers, offsets, scores, counts and a hash of the query.
+  Never the question, the document or the answer. A test greps the database file
+  for both; another asserts the schema has no text column beyond identifiers, so
+  adding `query TEXT` later is a build failure rather than a quiet change of
+  what the ledger is.
+- **Derived.** `tsumugi ledger --forget` deletes it, and the corpus is
+  untouched. It never feeds back into a build — a ledger that influenced ranking
+  would make packages depend on their own history, and reproducibility would be
+  gone.
+
+`usage()` returns `None` for the uncited share when nothing has been verified.
+Reporting 100% unused for a ledger nobody closed would be a lie about the tool
+rather than about the corpus.
+
 ## Configuration
 
 ```text
@@ -278,8 +346,10 @@ does nothing is the worst available outcome. The index lives at
 | `test_budget_and_cost.py` | Units, the script-aware estimator, and that no script is free |
 | `test_context_package.py` | Every package invariant; Hypothesis over "nothing is dropped without a reason" |
 | `test_contract_conformance.py` | Real packages against the published JSON Schema, and that the schema and the enums have not drifted |
+| `test_verification.py` | The four outcomes, the matching tolerance, and that redaction never changes a verdict |
+| `test_ledger.py` | Opening, closing, and that no text reaches the file |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-415 tests, 95% line coverage. Every test runs with no network, no model and no
+494 tests, 94% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

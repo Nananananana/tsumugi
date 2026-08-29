@@ -223,6 +223,93 @@ class TestTrace:
         assert "no fuzzy match" in out.lower()
 
 
+class TestVerify:
+    def _package(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> tuple[Path, dict[str, object]]:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        run("context", "テント", "--budget", "characters:2000", "--json", index=index_path)
+        payload = capsys.readouterr().out
+        path = index_path.parent / "package.json"
+        path.write_text(payload, encoding="utf-8")
+        return path, json.loads(payload)
+
+    def _answer(self, at: Path, claims: list[dict[str, object]]) -> Path:
+        path = at.parent / "answer.json"
+        path.write_text(json.dumps({"claims": claims}, ensure_ascii=False), encoding="utf-8")
+        return path
+
+    def test_a_real_quotation_is_supported_and_anchored(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        package_path, package = self._package(corpus, index_path, capsys)
+        quotation = package["items"][0]["text"][:12]
+        answer = self._answer(package_path, [{"text": "a claim", "citations": [quotation]}])
+
+        assert run("verify", str(answer), "--package", str(package_path), index=index_path) == 0
+        out = capsys.readouterr().out
+        assert "supported" in out
+        assert "notes/mountain.md" in out
+
+    def test_an_invented_quotation_is_unsupported(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        package_path, _ = self._package(corpus, index_path, capsys)
+        answer = self._answer(
+            package_path, [{"text": "a claim", "citations": ["この文はどこにもない"]}]
+        )
+
+        assert run("verify", str(answer), "--package", str(package_path), index=index_path) == 1
+        out = capsys.readouterr().out
+        assert "unsupported" in out
+        assert "not found in the text that was sent" in out
+
+    def test_it_always_says_that_supported_is_not_true(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The failure mode of an evidence system is that people stop reading
+        # "evidence" and start reading it as "correct".
+        package_path, package = self._package(corpus, index_path, capsys)
+        quotation = package["items"][0]["text"][:12]
+        answer = self._answer(package_path, [{"text": "a claim", "citations": [quotation]}])
+
+        run("verify", str(answer), "--package", str(package_path), index=index_path)
+        assert "does not mean the claim is true" in capsys.readouterr().out
+
+    def test_an_altered_package_is_refused(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        package_path, package = self._package(corpus, index_path, capsys)
+        package["query"] = "a different question"
+        package_path.write_text(json.dumps(package, ensure_ascii=False), encoding="utf-8")
+        answer = self._answer(package_path, [{"text": "a claim", "citations": []}])
+
+        assert run("verify", str(answer), "--package", str(package_path), index=index_path) == 2
+
+    def test_a_non_json_answer_says_what_was_expected(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        package_path, _ = self._package(corpus, index_path, capsys)
+        answer = package_path.parent / "prose.txt"
+        answer.write_text("The tent weighs 2.4kg.", encoding="utf-8")
+
+        assert run("verify", str(answer), "--package", str(package_path), index=index_path) == 2
+        assert "not JSON" in capsys.readouterr().err
+
+    def test_json_output_carries_the_locations(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        package_path, package = self._package(corpus, index_path, capsys)
+        quotation = package["items"][0]["text"][:12]
+        answer = self._answer(package_path, [{"text": "a claim", "citations": [quotation]}])
+
+        run("verify", str(answer), "--package", str(package_path), "--json", index=index_path)
+        report = json.loads(capsys.readouterr().out)
+        assert report["counts"]["supported"] == 1
+        assert report["claims"][0]["citations"][0]["locations"][0]["source_path"]
+
+
 class TestDoctor:
     def test_it_reports_the_corpus(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
