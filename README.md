@@ -234,6 +234,13 @@ not choose what is sent, and does not resolve a citation — so the worst a
 hallucinating model can do is write a claim that verification then reports as
 `unsupported`, which is the system working rather than failing.
 
+`--protect` runs the prompt through [mamori](https://github.com/Nananananana/mamori)
+on the way out and restores before verifying — in that order, which is the
+whole of [ADR 0009](docs/adr/0009-restore-before-you-verify.md). Get it wrong
+and every honest citation reports as unsupported. Against real mamori and a
+real model, a claim citing `<PERSON_001>との打ち合わせは金曜。` resolves back to
+the name in the file and reports **supported**.
+
 It **refuses a host that is not this machine** unless `--allow-remote` says so
 in as many words. Your index holds a copy of your corpus; a mistyped URL should
 not be enough to post it somewhere. And it installs nothing: the adapter is

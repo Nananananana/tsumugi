@@ -44,6 +44,13 @@ stable.
   fence *buried in prose* is still prose, because hunting for JSON inside a
   page of text is "find the answer somewhere in there", and a verifier that
   guesses is not a verifier.
+- **`tsumugi ask --protect`** runs the prompt through `mamori` and restores
+  before verifying. `ask` is the one command that sends and was the one command
+  that could not protect what it sends. `--scope` names the session: one scope
+  is one conversation, so a value keeps its placeholder across turns and a
+  citation from an earlier turn still restores. It refuses when mamori is
+  missing rather than sending unprotected — someone who typed `--protect` and
+  got a plain send would have been told the opposite of what happened.
 - **`tsumugi ask --json`** emits the provider, the prompt, the answer, the
   package and the verification as one document. The package is included whole
   rather than by id: an answer and the evidence it was checked against are only
@@ -53,6 +60,10 @@ stable.
   inside one CLI branch. A shape defined at the edge that prints it is a shape
   the next consumer writes again, slightly differently — and two slightly
   different records of "was this answer checked?" is worse than one.
+- **The trap metric counted verbatim copies as being fooled**, and reported 88%
+  of a held-out run as trapped. A `near_duplicate` carries the answer's own
+  content, so quoting it is quoting the answer. Copies are now reported beside
+  the rates and never among them.
 - **`tsumugi eval --model NAME`** — the measurement the eval has disclaimed
   since the corpus existed. It printed "nothing here measures whether an answer
   built from a package is correct" because the pipeline stopped at a rendered

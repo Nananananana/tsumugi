@@ -596,3 +596,31 @@ class TestAskJson:
         ).read_text(encoding="utf-8")
         assert '"verification": asked.verification.to_dict()' in source
         assert '"package": asked.package.to_dict()' in source
+
+
+class TestProtectRefusesRatherThanSendingPlain:
+    def test_the_flag_is_wired_to_the_adapter_and_not_to_an_import(self) -> None:
+        # The first attempt put `import mamori` in this module and the
+        # architecture test refused it. The session belongs in the one file
+        # allowed to know a sibling exists.
+        source = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "tsumugi"
+            / "interfaces"
+            / "cli"
+            / "main.py"
+        ).read_text(encoding="utf-8")
+        assert "open_session" in source
+        assert "import mamori" not in source
+
+    def test_a_missing_mamori_is_a_message_not_a_silent_plain_send(self) -> None:
+        # The failure mode that matters. Someone who typed --protect and got
+        # an unprotected send has been told the opposite of what happened.
+        import inspect
+
+        from tsumugi.infrastructure.adapters import mamori as adapter
+
+        source = inspect.getsource(adapter.open_session)
+        assert "ConfigurationError" in source
+        assert "pip install mamori" in source

@@ -452,6 +452,13 @@ reports as unsupported ([ADR 0009](adr/0009-restore-before-you-verify.md)).
 Both failures are silent, and an ordering is a cheaper place to encode them
 than a warning nobody reads.
 
+`ask` takes an optional `Redactor`, and `tsumugi ask --protect` supplies the
+`mamori` one. That the sending command is also the protecting command is not a
+coincidence: protection has to bracket the send, and a bracket split across two
+commands is a bracket somebody forgets to close. The first attempt put
+`import mamori` in the CLI and `tests/test_architecture.py` refused it, which
+is what that test is for.
+
 **`infrastructure/adapters/` is the only package that may import a socket**,
 and the only file in it that does is named in `NETWORKED_ADAPTERS`
 ([ADR 0016](adr/0016-the-network-lives-in-one-place.md)). The test checks the
