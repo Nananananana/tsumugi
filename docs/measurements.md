@@ -300,11 +300,18 @@ named by model, and that is all it claims to be.
 
 | | |
 |---|---|
-| checkable | **8 of 9** — one answer was not in the requested shape, one run failed |
-| grounded | **100%** — every citation in every checkable answer resolved |
-| on target | **100%** — every one cited a planted answer |
+| answered | **9 of 10** — one call failed against the provider |
+| checkable | **9 of 9** — every answer came back in the requested shape |
+| grounded | **100%** — every citation resolved |
+| on target | **100%** — every answer cited a planted answer |
 | captured | **0%** — no answer gave an outdated passage as all the reader got |
-| also cited a contradicting passage | **8** — a count, not a verdict; see below |
+| also cited a contradicting passage | **9** — a count, not a verdict; see below |
+| cited a verbatim copy | 1 — reported, never counted as being fooled |
+
+Nine of nine parseable is worth one line of its own, because two runs earlier
+it was **0 of 50**. The same model, the same cases: what changed was a rule
+saying "reply with JSON only" in words rather than only as a schema, and a
+tolerance for the markdown fence models wrap JSON in anyway.
 
 ### The number that would not hold still
 

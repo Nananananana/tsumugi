@@ -748,6 +748,12 @@ def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -
         for s in scores
         if s.ran and not s.unreadable and s.expected_to_abstain and not s.abstained_correctly
     ]
+    captured = [s for s in scores if s.trapped]
+    if captured:
+        print()
+        print(f"  answers where an outdated passage was all the reader got: {len(captured)}")
+        for score in captured[:5]:
+            print(f"    {score.case_id}")
     if wrong:
         # The one the deterministic suite cannot reach. tsumugi reports that a
         # corpus may not answer a question and deliberately does not gate on
