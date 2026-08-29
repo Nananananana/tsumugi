@@ -37,6 +37,19 @@ stable.
   The check runs in both directions: an unnamed network import fails, and so
   does a name left behind after its adapter stopped needing one.
 
+- **`tsumugi eval --model NAME`** — the measurement the eval has disclaimed
+  since the corpus existed. It printed "nothing here measures whether an answer
+  built from a package is correct" because the pipeline stopped at a rendered
+  prompt; it no longer does, so the gap is measured rather than the sentence
+  deleted. Four rates, kept apart on purpose: **grounded** (every citation
+  resolved), **on target** (a citation landed in a planted answer), **trapped**
+  (a citation landed in a planted adversary — grounding cannot catch this,
+  because the superseded version really is in the corpus), and **abstention**
+  on `absent_answer` cases, which is the one the deterministic half genuinely
+  cannot reach.
+- **Never a floor.** The deterministic scores are a property of this code;
+  these are a property of this code *and* whichever model somebody pulled.
+  Gating on the second kind would make the first kind negotiable.
 - **`tsumugi demo --model`** puts the same question to a real local model at
   the end. Opt-in precisely because everything before it does not need one, and
   a model that is not running costs the reader the last stage and nothing else

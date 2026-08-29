@@ -16,6 +16,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 from ... import __version__
 from ...application.ask import ask
@@ -29,7 +30,8 @@ from ...config import TsumugiConfig
 from ...domain.budget import Budget, Unit
 from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
-from ...evaluation.dataset import load_cases
+from ...evaluation.answering import answer_cases, summarise_answers
+from ...evaluation.dataset import Case, load_cases
 from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
 from ...infrastructure.adapters.ollama import DEFAULT_MODEL, DEFAULT_URL, OllamaProvider
@@ -200,6 +202,15 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("train", "held_out"),
         help="held_out cases are not read while tuning; scoring them separately is "
         "what says whether a number is fitted to the cases it came from",
+    )
+    evaluate.add_argument(
+        "--model",
+        metavar="NAME",
+        help=(
+            "also put every case to a local model and report what it did with the "
+            "package. Never a gate: a model is not in CI and a number that depends on "
+            "which one you pulled is not a floor anybody can hold."
+        ),
     )
     evaluate.add_argument(
         "--failures", action="store_true", help="name every case that is not clean"
@@ -649,9 +660,14 @@ def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
             f"budget and reproducibility exact"
         )
 
+    if args.model:
+        _answer_report(cases, args.model, config)
+
     print()
     print("The corpus is generated and tidier than anything anyone writes.")
-    print("Nothing here measures whether an answer built from a package is correct.")
+    if not args.model:
+        print("Nothing here measures whether an answer built from a package is correct.")
+        print("`--model NAME` does, against a local one, and is never a gate.")
     # Floors, not perfection. A gate set at today's score makes every honest
     # experiment a build failure and turns tuning into threshold-chasing.
     return 1 if breached else 0
@@ -673,6 +689,34 @@ def _forget(args: argparse.Namespace, config: TsumugiConfig) -> int:
         print(f"{len(removed)} documents removed and the index vacuumed.")
         print("Anything already sent to a model is not covered by this.")
     return 0 if removed else 1
+
+
+def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -> None:
+    """The opt-in half: what a real model did with each package.
+
+    Printed after the deterministic scores and never folded into them. The
+    numbers above are a property of this code; the numbers below are a property
+    of this code *and* whichever model happened to be pulled, and mixing the
+    two would make the first kind unfalsifiable.
+    """
+    provider = OllamaProvider(model=model)
+    print()
+    print(f"--- and what {provider.name} did with them, at {provider.endpoint.describe()} ---")
+    scores = answer_cases(
+        cast("Sequence[Case]", cases), provider, candidate_limit=config.candidate_limit
+    )
+    print(summarise_answers(scores, model=provider.name).describe())
+
+    wrong = [s for s in scores if s.ran and not s.abstained_correctly and s.expected_to_abstain]
+    if wrong:
+        # The one the deterministic suite cannot reach. tsumugi reports that a
+        # corpus may not answer a question and deliberately does not gate on
+        # it, because that call is the model's -- so this is where the cost of
+        # that decision shows up, or does not.
+        print()
+        print(f"  answered anyway where the corpus has no answer: {len(wrong)}")
+        for score in wrong[:5]:
+            print(f"    {score.case_id}")
 
 
 def _demo(args: argparse.Namespace, config: TsumugiConfig) -> int:

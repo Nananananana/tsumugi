@@ -502,14 +502,35 @@ class TestAsk:
         main(["ask", "テント", "--url", "http://127.0.0.1:1"])
         assert "sending to ollama/" in capsys.readouterr().err
 
-    def test_no_other_command_constructs_a_provider(self) -> None:
-        # `ask` is the only outbound path, and the way that stops being true
-        # is somebody adding a provider to a command that used to be local.
+    def test_the_commands_that_can_send_are_the_ones_named(self) -> None:
+        # An allow-list, in the same shape and for the same reason as
+        # NETWORKED_ADAPTERS. The way this stops being true is somebody adding
+        # a provider to a command that used to be local, and nothing about
+        # that change would look wrong in a diff unless something checks.
+        import ast
+
         root = Path(__file__).resolve().parent.parent
-        source = (root / "src" / "tsumugi" / "interfaces" / "cli" / "main.py").read_text(
-            encoding="utf-8"
+        tree = ast.parse(
+            (root / "src" / "tsumugi" / "interfaces" / "cli" / "main.py").read_text(
+                encoding="utf-8"
+            )
         )
-        assert source.count("OllamaProvider(") == 1
+        sending = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and any(
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Name)
+                and inner.func.id == "OllamaProvider"
+                for inner in ast.walk(node)
+            )
+        }
+        assert sending == {"_ask", "_answer_report"}, (
+            f"{sorted(sending)} can send. `tsumugi ask` and `tsumugi eval --model` "
+            f"are the two that may; every other command is local, and the threat "
+            f"model says so."
+        )
 
 
 class TestOutputEncoding:

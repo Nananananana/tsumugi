@@ -191,6 +191,41 @@ objective one.
 
 ---
 
+## The half that now runs, opt-in
+
+`tsumugi eval` printed one sentence from the day the corpus existed:
+
+> Nothing here measures whether an answer built from a package is correct.
+
+That was true because the pipeline stopped at a rendered prompt. It no longer
+does, so `--model NAME` puts every case to a local model and reports four
+things, kept deliberately apart:
+
+| | Says |
+|---|---|
+| **grounded** | every citation resolved. Not that the answer is right — a model can quote perfectly and reason badly |
+| **on target** | a resolved citation landed inside a *planted answer*: retrieval and the answer agreed |
+| **trapped** | a resolved citation landed inside a planted *adversary*. Grounding cannot catch this: the superseded version really is in the corpus |
+| **abstention** | on `absent_answer` cases only — did the model decline, as it should? |
+
+The fourth is the one the deterministic half genuinely cannot reach. tsumugi
+**reports** that a corpus may not answer a question and does not gate on it,
+because "there is no answer here" is the model's call to make. Until there was
+a model, that decision had no test at all; now the cost of it is a number.
+
+**It is never a floor.** The deterministic scores are a property of this code.
+These are a property of this code *and* whichever model somebody happened to
+pull, and putting a gate on the second kind would make the first kind
+negotiable. Results are dated and named by model in
+[measurements.md](measurements.md), like everything else here.
+
+Both halves materialise a case through the same `prepared_case`. Two ways to
+build a case's index would be two ways for a case to mean slightly different
+things, and the difference would surface as a model looking better or worse
+than it is.
+
+---
+
 ## What the corpus cannot tell you
 
 Stated here rather than discovered later:
@@ -202,6 +237,10 @@ Stated here rather than discovered later:
   counterweight, and it is a counterweight rather than a fix.
 - **The genre mix is arbitrary** and matches nobody's actual corpus. Per-genre
   reporting keeps this in view.
+- **A model's score is a fact about that model on that day.** The opt-in half
+  above measures a pair — this code and one local model — and neither half of
+  the pair is the subject on its own. A number quoted without its model name
+  and date is not a measurement.
 - **Judgement was relocated, not removed.** Someone decided that a given distractor
   is a trap rather than a legitimate second answer. That decision now sits in the
   fixtures — more visible and more reviewable than a grader, and still a judgement.
