@@ -1,6 +1,6 @@
 # Examples
 
-Two ways in.
+Three ways in.
 
 ```bash
 tsumugi demo
@@ -18,6 +18,16 @@ python examples/library.py
 The same shape as ordinary Python, with every step commented for *why* rather
 than *what*. Read this one if you are going to call tsumugi from your own code.
 
+```bash
+ollama pull qwen2.5:7b-instruct
+python examples/ask.py                  # or: python examples/ask.py llama3.1:8b
+```
+
+The loop closed: build, send to a model on this machine, check what comes back.
+Prints why and exits cleanly if ollama is not running, because everything except
+the last step works without it. `tsumugi demo --model NAME` shows the same thing
+inside the walk-through.
+
 ---
 
 ## Which pieces you actually need
@@ -30,6 +40,9 @@ than *what*. Read this one if you are going to call tsumugi from your own code.
 | To check an answer's citations | `+ verify_answer` |
 | To know what you send and never use | `+ SqliteLedger` |
 | An agent to do all of it | `tsumugi mcp` |
+| An answer, end to end | `+ ask` and a local model |
 
-Nothing above needs a model. The one thing that does is generating the answer,
-and that is a step tsumugi does not take for you unless you ask it to.
+Only the last row needs a model, and it is the only row with an outbound path.
+It refuses a host that is not this machine unless you say `--allow-remote` in as
+many words: this index holds a copy of your corpus, and a mistyped URL should not
+be enough to post it somewhere.

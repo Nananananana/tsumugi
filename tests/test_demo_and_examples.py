@@ -132,6 +132,24 @@ class TestTheExample:
         assert "supported" in finished.stdout
         assert "considered and not sent" in finished.stdout
 
+    def test_the_ask_example_runs_without_a_model(self) -> None:
+        # The point of the test. Everything except the last step works with no
+        # model, and an example that died at the import -- or exited nonzero
+        # because ollama was not running -- would suggest otherwise to the
+        # first person who tries it.
+        finished = subprocess.run(  # noqa: S603
+            [sys.executable, str(ROOT / "examples" / "ask.py"), "no-such-model-exists"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={"PYTHONUTF8": "1", "PATH": ""},
+            cwd=ROOT,
+        )
+        assert finished.returncode == 0, finished.stderr
+        # It says where it would send before it tries, and names the local
+        # boundary while doing it.
+        assert "(local)" in finished.stdout
+
     def test_it_is_commented_for_why_rather_than_what(self) -> None:
         # The mechanics are short enough to read unaided; the reasons are the
         # part that is easy to get wrong. If this file stops explaining them it
