@@ -26,7 +26,7 @@ expensive way.
 | `docs/context-package.md` | The ContextPackage contract, for producers and consumers |
 | `docs/threat-model.md` | What tsumugi protects, what it does not, and what it becomes |
 | `docs/evaluation-corpus.md` | The labelled dataset: its shape, its traps, and what it cannot tell you |
-| `docs/measurements.md` | What the index costs, on real corpora, with the tool that produced it |
+| `docs/measurements.md` | What the index costs and what the estimator is wrong by, on real corpora, with the tools that produced them |
 | `docs/adr/` | Decisions as they were made, with their reasons — history |
 | `docs/proposals/` | Proposed or planned work — not necessarily implemented |
 | `CHANGELOG.md` | The released history, briefly |
@@ -47,10 +47,20 @@ expensive way.
 
 ## Where the project is right now
 
-**v0.1 is done and v0.2 is in progress.** `ingest`, `search`, `trace`,
-`doctor` and `context` work, and `context --json` emits a ContextPackage that
-validates against the published schema. Verification, the ledger, the MCP
-server and both sibling adapters do not exist yet.
+**v0.1 is done and v0.2 is in progress.** Everything the v0.1 note used to
+list as missing now exists: verification, the ledger, the MCP server, both
+sibling adapters, the forgetting path, the evaluation corpus and its runner,
+and — most recently — an optional `LLMProvider` with one ollama adapter, which
+closes the loop from a folder of notes to a checked answer.
+
+Ten commands: `ingest`, `search`, `context`, `verify`, `ask`, `trace`,
+`forget`, `ledger`, `mcp`, `eval`, plus `demo` and `doctor`. Nine of them run
+with no model and no network; `ask` is the tenth and says where it is sending
+before it sends.
+
+Deliberately *not* built: prompt templates. `proposals/0002` demoted them and
+the reason still holds — not once has the single built-in instruction set been
+the limiting factor. It will be built when a second use needs a second shape.
 
 [`architecture.md`](architecture.md) describes what the code does today and is
 kept honest by `tests/test_architecture.py`.

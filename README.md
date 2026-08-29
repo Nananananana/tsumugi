@@ -10,10 +10,14 @@ Local-first. One named adapter may open a socket; nothing else can. **Zero runti
 > ### Status: v0.2 in progress
 >
 > Reading a corpus, searching it, building a **ContextPackage** under a budget,
-> checking a model's citations against it, recording what was sent and what was
-> used, serving all of it to an agent over MCP, and scoring the selection
-> against a labelled corpus all work. Redundancy marking, prompt templates and
-> both sibling adapters do not exist yet.
+> marking redundancy without removing it, putting the question to a local model,
+> checking that model's citations against the package, recording what was sent
+> and what was used, forgetting on request, serving all of it to an agent over
+> MCP, and scoring the selection against a labelled corpus all work. Both
+> sibling adapters (`mamori`, `kiseki`) exist and are optional.
+>
+> Prompt templates do not exist, on purpose: not once has the single built-in
+> instruction set been the limiting factor.
 >
 > The ContextPackage contract is **frozen at version 1**.
 >
