@@ -1,0 +1,24 @@
+{
+  "budget": {
+    "limit": 400,
+    "unit": "tokens"
+  },
+  "case_id": "ja-recipes-mixed",
+  "genre": "recipes",
+  "language": "mixed",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "生地の寝かせ時間は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "mixed_script"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

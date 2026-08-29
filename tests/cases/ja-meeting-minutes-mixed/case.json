@@ -1,0 +1,24 @@
+{
+  "budget": {
+    "limit": 400,
+    "unit": "tokens"
+  },
+  "case_id": "ja-meeting-minutes-mixed",
+  "genre": "meeting-minutes",
+  "language": "mixed",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "次回の会議の開催日は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "mixed_script"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

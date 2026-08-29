@@ -125,7 +125,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 725 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 726 tests, 92% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest` (with `--rebuild`), `search`, `context`, `verify`,
   `trace`, `forget`, `ledger`, `mcp`, `eval`, `doctor`. Domain (span,
@@ -133,8 +133,8 @@ Taken from `kiseki` and `mamori`, which paid for them.
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** prompt templates, and a standalone `budget_squeeze` /
-  `mixed_script` evaluation case.
+- **Not built:** prompt templates. The evaluation corpus has seventy cases and
+  all seven trap kinds; what is thin is genre count and variety.
 - Both sibling adapters exist. ADR-0009 is tested against the real `mamori`
   (`tests/test_adapter_mamori.py`, skipped when it is absent). The `kiseki`
   adapter **imports nothing** — the export is a published JSON contract, so

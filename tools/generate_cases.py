@@ -354,6 +354,86 @@ def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, objec
     return case_id, documents, manifest
 
 
+def build_squeezed_out_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
+    """A budget too small for the answer itself.
+
+    Every other case has the answer fitting, so nothing tested the thing
+    ADR-0005 is most about: a passage that bears on the question and does not
+    fit has to be *reported*, by name and under the rule that dropped it. A
+    package that returned nothing and said nothing would pass every other case
+    in this corpus.
+    """
+    case_id = f"{genre.language}-{genre.key}-squeezed"
+    documents = {
+        "current.md": _answer_document(genre, "answer"),
+        "neighbour.md": _near_miss_document(genre, "near-miss"),
+    }
+    manifest: dict[str, object] = {
+        "case_id": case_id,
+        "genre": genre.key,
+        "language": genre.language,
+        "question": genre.question,
+        # Smaller than the answer passage, so nothing at all fits.
+        "budget": {"unit": "characters", "limit": 5},
+        "must_include": [],
+        "must_not_include": ["near-miss"],
+        "traps": {
+            "answer": {"kind": "budget_squeeze", "expect_omission_rule": "budget_exhausted"},
+            "near-miss": {"kind": "lexical_near_miss"},
+        },
+        "split": "train",
+        "tier": "ci",
+    }
+    return case_id, documents, manifest
+
+
+def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, object]]:
+    """Japanese prose, English terms and a code block in one document.
+
+    Exercises the two places a script boundary matters: tokenization, where a
+    Latin run must not be cut into character bigrams (ADR-0007), and cost,
+    where a kanji is six Latin characters' worth (ADR-0006).
+    """
+    case_id = f"{genre.language}-{genre.key}-mixed"
+    answer = _answer_sentence(genre)
+    fence = "```"
+    body = "\n".join(
+        [
+            f"# {genre.heading} / Notes",
+            "",
+            "運用メモ。The current setting is recorded below, in `config.toml`.",
+            "",
+            f"{fence}toml",
+            f"[{genre.key}]",
+            "reviewed = true",
+            'owner = "rotating"',
+            fence,
+            "",
+            f"{{{{F:answer}}}}{answer}{{{{/F}}}}。See also the appendix for background.",
+            "",
+            _FILLER["ja"],
+            _FILLER["en"],
+        ]
+    )
+    documents = {
+        "mixed.md": body,
+        "neighbour.md": _near_miss_document(genre, "near-miss"),
+    }
+    manifest: dict[str, object] = {
+        "case_id": case_id,
+        "genre": genre.key,
+        "language": "mixed",
+        "question": genre.question,
+        "budget": {"unit": "tokens", "limit": 400},
+        "must_include": ["answer"],
+        "must_not_include": [],
+        "traps": {"answer": {"kind": "mixed_script"}, "near-miss": {"kind": "lexical_near_miss"}},
+        "split": "train",
+        "tier": "ci",
+    }
+    return case_id, documents, manifest
+
+
 def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[str, object]]:
     """One case: its id, its marked-up documents, and its manifest."""
     case_id = f"{genre.language}-{genre.key}-{variant:02d}"
@@ -450,10 +530,13 @@ def check(directory: Path) -> list[str]:
         problems.append("only one document; any retriever passes this")
 
     # Traps have to be distinguishable from the answer, or the case is asking
-    # for something impossible.
-    for fact_id in case.must_not_include:
-        if case.facts[fact_id].text == case.facts[case.must_include[0]].text:
-            problems.append(f"{fact_id} is identical to the required fact")
+    # for something impossible. A case with no required fact -- a budget
+    # squeeze, where the answer is meant to be reported rather than included --
+    # has nothing to compare against, and asking anyway crashed the oracle.
+    for required in case.must_include[:1]:
+        for fact_id in case.must_not_include:
+            if case.facts[fact_id].text == case.facts[required].text:
+                problems.append(f"{fact_id} is identical to the required fact")
 
     for relative, text in case.documents.items():
         for shape in _FORBIDDEN:
@@ -505,6 +588,8 @@ def main(argv: list[str] | None = None) -> int:
         # question nothing answers, and a document edited after ingest.
         built.append(build_absent_case(genre))
         built.append(build_stale_case(genre))
+        built.append(build_squeezed_out_case(genre))
+        built.append(build_mixed_script_case(genre))
 
     for case_id, documents, manifest in built:
         write_case(args.out, case_id, documents, manifest)

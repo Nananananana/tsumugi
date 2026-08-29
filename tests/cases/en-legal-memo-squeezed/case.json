@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "en-legal-memo-squeezed",
+  "genre": "legal-memo",
+  "language": "en",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "how long is the notice period",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

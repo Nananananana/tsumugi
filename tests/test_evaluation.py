@@ -60,7 +60,7 @@ class TestMarkup:
 
 class TestTheFixtures:
     def test_there_are_cases(self) -> None:
-        assert len(load_cases(CASES)) >= 10
+        assert len(load_cases(CASES)) >= 50
 
     def test_every_case_loads(self) -> None:
         for case in load_cases(CASES):
@@ -80,6 +80,14 @@ class TestTheFixtures:
         # A corpus whose only document is the answer measures nothing.
         for case in load_cases(CASES):
             assert len(case.documents) >= 2, case.case_id
+
+    def test_all_seven_trap_kinds_are_planted(self) -> None:
+        # The genres are decoration; the traps are the dataset. A kind defined
+        # in docs/evaluation-corpus.md and never planted measures nothing.
+        from tsumugi.evaluation.dataset import TRAP_KINDS
+
+        planted = {trap.kind for case in load_cases(CASES) for trap in case.traps.values()}
+        assert planted == TRAP_KINDS
 
     def test_every_case_plants_at_least_one_trap(self) -> None:
         # The genres are decoration; the traps are the dataset.
@@ -142,12 +150,29 @@ class TestCaseValidation:
         with pytest.raises(ValueError, match="both required and forbidden"):
             load_case(directory)
 
-    def test_a_case_requiring_nothing_is_refused(self, tmp_path: Path) -> None:
-        # It would measure nothing -- unless the point is that the answer is
-        # not in the corpus at all.
+    def test_a_case_asserting_nothing_is_refused(self, tmp_path: Path) -> None:
+        # It would measure nothing.
         directory = self._write(tmp_path, {"question": "q"}, {"a.md": "{{F:a}}text{{/F}}"})
-        with pytest.raises(ValueError, match="requires no facts"):
+        with pytest.raises(ValueError, match="asserts nothing"):
             load_case(directory)
+
+    def test_a_case_may_require_nothing_if_it_expects_a_reported_exclusion(
+        self, tmp_path: Path
+    ) -> None:
+        # A budget squeeze: the answer is meant to be *reported*, not included,
+        # which is exactly what ADR-0005 is about. An earlier rule knew only
+        # about required and forbidden facts and rejected every such case.
+        directory = self._write(
+            tmp_path,
+            {
+                "question": "q",
+                "traps": {
+                    "a": {"kind": "budget_squeeze", "expect_omission_rule": "budget_exhausted"}
+                },
+            },
+            {"a.md": "{{F:a}}text{{/F}}"},
+        )
+        assert load_case(directory).must_include == ()
 
     def test_an_absent_answer_case_may_require_nothing(self, tmp_path: Path) -> None:
         directory = self._write(

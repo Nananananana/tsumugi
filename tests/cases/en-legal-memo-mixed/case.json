@@ -1,0 +1,24 @@
+{
+  "budget": {
+    "limit": 400,
+    "unit": "tokens"
+  },
+  "case_id": "en-legal-memo-mixed",
+  "genre": "legal-memo",
+  "language": "mixed",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "how long is the notice period",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "mixed_script"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

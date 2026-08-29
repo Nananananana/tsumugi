@@ -112,10 +112,23 @@ class Case:
             raise ValueError(
                 f"{self.case_id}: {', '.join(sorted(both))} is both required and forbidden"
             )
-        if not self.must_include and "absent_answer" not in {t.kind for t in self.traps.values()}:
-            # A case requiring nothing measures nothing -- unless the point of
-            # the case is that the answer is not in the corpus at all.
-            raise ValueError(f"{self.case_id}: requires no facts and is not an absent_answer case")
+        # A case has to assert *something*. Requiring a fact is one way; so is
+        # forbidding one, and so is expecting a named rule for an exclusion --
+        # which is how a `budget_squeeze` case works, where the answer is meant
+        # to be reported rather than included. An earlier version of this rule
+        # only knew about the first two and rejected every squeeze case, which
+        # is the oracle catching a rule rather than a case.
+        asserts_something = (
+            bool(self.must_include)
+            or bool(self.must_not_include)
+            or any(trap.expect_omission_rule is not None for trap in self.traps.values())
+            or self.is_unanswerable
+        )
+        if not asserts_something:
+            raise ValueError(
+                f"{self.case_id}: asserts nothing -- no required fact, no forbidden one, "
+                f"no expected omission rule, and not an absent_answer case"
+            )
 
     def materialise(self, into: Path) -> Path:
         """Write the stripped corpus somewhere ``ingest`` can read it.

@@ -1,0 +1,24 @@
+{
+  "budget": {
+    "limit": 400,
+    "unit": "tokens"
+  },
+  "case_id": "en-travel-mixed",
+  "genre": "travel",
+  "language": "mixed",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "when is the first ferry departure",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "mixed_script"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

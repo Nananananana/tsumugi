@@ -103,15 +103,16 @@ tsumugi eval            # everything
 tsumugi eval --tier ci  # the fast tier CI runs
 ```
 
-Fifty cases: thirty across ten genres in three budget shapes, plus one
-`absent_answer` and one `stale_anchor` case per genre.
+Seventy cases across ten genres, with **all seven trap kinds planted**: thirty
+in three budget shapes, plus one each of `absent_answer`, `stale_anchor`,
+`budget_squeeze` and `mixed_script` per genre.
 
-| | all (50) |
+| | all (70) |
 |---|---|
 | Evidence recall | **100%** |
-| Evidence precision | **99.0%** |
-| Lexical-near-miss trap rate | **10.0%** |
-| Omission correctness | **95.0%** |
+| Evidence precision | **99.1%** |
+| Lexical-near-miss trap rate | **7.5%** |
+| Omission correctness | **96.7%** |
 | Budget adherence | exact |
 | Reproducibility | exact |
 
@@ -127,6 +128,7 @@ Three real defects, each invisible from every other angle:
 | First | **Unconfirmed candidates entering packages**, contradicting ADR-0007 in its own words. Four commits old. |
 | Same | **Confirmation weaker in English than Japanese** — a single shared word confirmed a document about something else. |
 | Adding `stale_anchor` cases | **Staleness could never fire.** `build_context` compared the anchor against the *store*, which holds the text it anchored and so always matches. Nothing read the disk. True since v0.2 (see below). |
+| Adding `budget_squeeze` cases | **The harness refused to load them.** A case that requires no fact but expects one to be *reported* is exactly what ADR-0005 is about, and the validation rule only knew about required and forbidden facts. The oracle caught a rule rather than a case. |
 
 ### Staleness was structurally undetectable
 
@@ -295,10 +297,10 @@ above says nothing about Korean text.
 - **Not a measure of whether an answer is correct.** Retrieval finding the right
   passage says nothing about what a model then does with it, and no number here
   is about that.
-- **Fifty cases is a twentieth to a half of what
-  [evaluation-corpus.md](evaluation-corpus.md) describes**, and five of its
-  seven trap kinds are planted. `mixed_script` and a standalone
-  `budget_squeeze` are still missing.
+- **Seventy cases is a fourteenth to two-thirds of what
+  [evaluation-corpus.md](evaluation-corpus.md) describes.** All seven trap
+  kinds are planted; what is thin is the number of genres and the variety
+  within each.
 - **The index and cost numbers above are not gated.** Retrieval is: CI runs the
   `ci` tier and fails below its floors. Index size and ingest speed are re-run
   by hand.

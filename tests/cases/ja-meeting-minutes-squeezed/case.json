@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "ja-meeting-minutes-squeezed",
+  "genre": "meeting-minutes",
+  "language": "ja",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "次回の会議の開催日は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

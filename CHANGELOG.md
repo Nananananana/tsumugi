@@ -9,6 +9,24 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — the last two trap kinds, and seventy cases
+
+- `budget_squeeze` and `mixed_script` join the five already planted, so **all
+  seven kinds `docs/evaluation-corpus.md` defines now exist**. A kind defined
+  and never planted measures nothing, and a test asserts the set is complete.
+- The squeeze case tests what nothing else did: a passage that bears on the
+  question, does not fit, and has to be **reported** — by name, under the rule
+  that dropped it. Every other case had the answer fitting, so a package that
+  returned nothing and said nothing would have passed all of them.
+- **The oracle caught a rule rather than a case.** It rejected all ten squeeze
+  cases, correctly: the validation only knew about required and forbidden
+  facts, and a case that requires nothing but expects a *reported* exclusion is
+  exactly what ADR-0005 is about. The rule now asks whether a case asserts
+  anything at all.
+- Trap rate 10.0% → **7.5%**, omission correctness 95% → **96.7%**, precision
+  **99.1%**. The `mixed_script` cases pass outright: Latin runs are not cut
+  into bigrams, and the CJK-aware cost estimate holds across a script boundary.
+
 ### Changed — staleness is checked by default
 
 - **Schema 2: the index records where each document was read from.** Freshness

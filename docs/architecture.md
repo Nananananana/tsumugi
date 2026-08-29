@@ -368,7 +368,7 @@ or written.
 
 ## Measuring the selection
 
-`tsumugi eval` scores the selection against thirty labelled cases: a small
+`tsumugi eval` scores the selection against seventy labelled cases: a small
 generated corpus per case, a question, the fact that answers it, and planted
 adversaries. **The corpus is labelled; the ideal output is not** — there is no
 single correct structured prompt, so scoring distance to one measures
@@ -458,5 +458,5 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-725 tests, 92% line coverage. Every test runs with no network, no model and no
+726 tests, 92% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

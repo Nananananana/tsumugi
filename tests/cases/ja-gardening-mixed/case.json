@@ -1,0 +1,24 @@
+{
+  "budget": {
+    "limit": 400,
+    "unit": "tokens"
+  },
+  "case_id": "ja-gardening-mixed",
+  "genre": "gardening",
+  "language": "mixed",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "球根の植え付け時期は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "mixed_script"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}
