@@ -5,9 +5,9 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 [docs/README.md](README.md).*
 
 What is **planned** and not built is in
-[proposals/0001-the-design.md](proposals/0001-the-design.md). Most of that
-document is still unbuilt: there is no ContextPackage, no budget, no selection,
-no ledger, no MCP server and no adapter to either sibling project yet.
+[proposals/0001-the-design.md](proposals/0001-the-design.md): claim
+verification, the ledger, prompt templates, redundancy marking, the MCP server,
+and both sibling adapters.
 
 ## What exists
 
@@ -28,7 +28,13 @@ no ledger, no MCP server and no adapter to either sibling project yet.
                           └────────────────────┘
 ```
 
-Four commands: `ingest`, `search`, `trace`, `doctor`.
+Five commands: `ingest`, `search`, `context`, `trace`, `doctor`.
+
+`context` is the one the library is for. It retrieves, confirms, ranks, fits to
+a stated budget, and emits a **ContextPackage** — a portable JSON document that
+says what is being sent, where each piece came from, what was left out, and
+which rule dropped it. The contract is [context-package.md](context-package.md)
+and the schema is [`schemas/context-package-1.json`](../schemas/context-package-1.json).
 
 ## Layers
 
@@ -41,11 +47,11 @@ interfaces ──> application ──> domain
 
 | Layer | Holds | May import |
 |---|---|---|
-| `domain/` | `Span`, `ContentHash`, `Document`/`Section`/`Block`, `Anchor` and resolution, offset-preserving normalization | **stdlib only** |
+| `domain/` | `Span`, `ContentHash`, `Document`/`Section`/`Block`, `Anchor` and resolution, normalization, `Budget`, `Omission`, `ContextItem`, `ContextPackage`, budget fitting | **stdlib only** |
 | `errors.py` | Every exception the library raises | nothing |
 | `ports/` | `Parser`, `Tokenizer`, `DocumentStore`, `Index`, `CostModel` protocols | `domain`, `errors` |
-| `infrastructure/` | Parsers and their registry, the filesystem walk, SQLite store, FTS5 index, bigram tokenizer | `domain`, `ports`, `errors` |
-| `application/` | `ingest_paths`, `search`, `trace_quotation` | `domain`, `ports`, `errors` |
+| `infrastructure/` | Parsers and their registry, the filesystem walk, SQLite store, FTS5 index, bigram tokenizer, cost models | `domain`, `ports`, `errors` |
+| `application/` | `ingest_paths`, `search`, `build_context`, `trace_quotation` | `domain`, `ports`, `errors` |
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
 | `interfaces/cli/` | Argument parsing, output. The only composition root | everything above |
 
@@ -80,6 +86,8 @@ tokenizer is a *proposer*; replacing any of them cannot change an answer below.
 | Whether a document's recorded hash matches its content | `domain/document.py` |
 | Whether a normalized offset maps back to the original | `domain/text.py` |
 | Whether a span is inside the document at all | `domain/span.py` |
+| Whether a package is well-formed enough to exist | `domain/package.py` |
+| That every candidate leaves as an item or an omission | `domain/assembly.py` |
 
 ## Key types
 
@@ -196,12 +204,53 @@ retrieval dataset ever shows bigrams costing real recall. An index records which
 tokenizer built it and refuses to be searched by another, because the terms
 would not line up and the failure would look like an empty corpus.
 
-`DocumentStore`, `Index` and `CostModel` are the other three. `CostModel` has no
-implementation yet; it is defined because the budget is v0.2 work and the shape
-is settled ([ADR 0006](adr/0006-the-budget-is-an-estimate.md)).
+`DocumentStore`, `Index` and `CostModel` are the other three. `CostModel` has
+three implementations: `CharacterCost` and `ByteCost` count exactly, and
+`HeuristicTokenCost` estimates tokens by script class and reports its own
+measured error ([ADR 0006](adr/0006-the-budget-is-an-estimate.md), numbers in
+[measurements.md](measurements.md)).
 
 Block kinds are an open registry rather than an enum, so a parser for a format
 nobody has written yet gets a kind without patching the library.
+
+## Building a package
+
+```text
+   question + budget
+          │
+          ▼
+   search (two stages, above)
+          │  candidates, each already anchored
+          ▼
+   ┌──────────────────────────────────────────────┐
+   │ fit_to_budget                                │  domain/assembly.py
+   │   best-first, deterministic to the last key  │
+   │   one oversized candidate does not stop the  │
+   │     fill -- a later smaller one may fit      │
+   │   EVERY candidate leaves as an item or an    │
+   │     omission, with the rule that dropped it  │
+   └──────────────────┬───────────────────────────┘
+                      ▼
+   ContextPackage: items, omissions, budget report, provenance
+```
+
+The invariants are checked at construction, so a package that would be wrong
+cannot be built:
+
+| Refused | Because |
+|---|---|
+| An item whose text length differs from its anchor's span | The anchor would not describe what is sent, and every citation into it would be meaningless |
+| Items whose costs do not sum to the reported estimate | A budget that does not add up cannot be checked by anyone |
+| An estimate above the limit | A package over its own budget is not a package |
+| A token budget with no `measured_error` | An estimate that does not say how wrong it is misleads a caller once, expensively |
+| An interpretation with no confidence, or a fact with one | `kiseki`'s layering survives the crossing |
+| The same passage in both `items` and `omissions` | A package cannot both send and withhold one passage |
+| An unrecognised `contract` string | Fail closed |
+
+`build_context` additionally asserts that every candidate reached the package as
+one or the other, and raises rather than shipping if it did not. That failure
+would be the exact thing [ADR 0005](adr/0005-selection-is-a-report.md) exists to
+prevent, so it stops the build rather than going out quietly.
 
 ## Configuration
 
@@ -226,8 +275,11 @@ does nothing is the worst available outcome. The index lives at
 | `test_parsers.py` | Each format, and the property that no parser reports an impossible span |
 | `test_storage_and_index.py` | Versions, staleness, `forget` leaving nothing recoverable, FTS5 edge cases |
 | `test_ingest_and_search.py` | The walk, what gets skipped and reported, search, trace |
+| `test_budget_and_cost.py` | Units, the script-aware estimator, and that no script is free |
+| `test_context_package.py` | Every package invariant; Hypothesis over "nothing is dropped without a reason" |
+| `test_contract_conformance.py` | Real packages against the published JSON Schema, and that the schema and the enums have not drifted |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-305 tests, 93% line coverage. Every test runs with no network, no model and no
+415 tests, 95% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

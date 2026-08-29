@@ -47,8 +47,10 @@ expensive way.
 
 ## Where the project is right now
 
-**v0.1 is partly built.** `ingest`, `search`, `trace` and `doctor` work;
-everything the design calls a ContextPackage does not exist yet.
+**v0.1 is done and v0.2 is in progress.** `ingest`, `search`, `trace`,
+`doctor` and `context` work, and `context --json` emits a ContextPackage that
+validates against the published schema. Verification, the ledger, the MCP
+server and both sibling adapters do not exist yet.
 
 [`architecture.md`](architecture.md) describes what the code does today and is
 kept honest by `tests/test_architecture.py`. The larger design — packages,

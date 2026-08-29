@@ -7,11 +7,11 @@ Local-first. No network in the core. **Zero runtime dependencies.**
 
 ---
 
-> ### Status: v0.1 in progress
+> ### Status: v0.2 in progress
 >
-> Reading a corpus, searching it and tracing a quotation back to its source all
-> work. Everything the design calls a **ContextPackage** — selection, budgets,
-> omissions, verification — does not exist yet.
+> Reading a corpus, searching it, tracing a quotation back to its source, and
+> building a **ContextPackage** under a budget all work. Claim verification, the
+> ledger, the MCP server and both sibling adapters do not exist yet.
 >
 > - **What the code does today** — [docs/architecture.md](docs/architecture.md)
 > - **What it is meant to become** — [docs/proposals/0001-the-design.md](docs/proposals/0001-the-design.md)
@@ -37,8 +37,9 @@ the ability to check the result.
 pip install -e .
 
 tsumugi ingest ~/notes
-tsumugi search "東京"
-tsumugi trace "テントは 2.4kg"
+tsumugi search  "東京"
+tsumugi context "テントの重量は?" --budget tokens:4000 --why
+tsumugi trace   "テントは 2.4kg"
 tsumugi doctor
 ```
 
@@ -51,6 +52,31 @@ corpus: /home/you/notes
   refused  .config/.env  (looks like a credential store (.env))
   6 more skipped; --show-skipped to list them
 ```
+
+```console
+$ tsumugi context "テントの重量は?" --budget tokens:400
+# SYSTEM
+Answer the question using only the context provided below.
+- Quote the exact text you rely on. Do not report character offsets.
+...
+# NOT INCLUDED
+19 relevant-looking passages were considered and left out of this context.
+Do not assume what you have been given is complete.
+
+--- 1a78a34e8a99 ---
+20 items, 398/400 tokens via heuristic/cjk-aware@1
+estimated, not counted: p50 5.0% p95 18.3% against cl100k_base
+```
+
+Three things in that output are the whole design. The model is told the
+selection **has edges**, because it cannot see them otherwise. The token count
+says it is an **estimate and how wrong it is** — a number with no stated error
+misleads a caller exactly once, expensively. And `--why` names every dropped
+candidate and the rule that dropped it, so a silent truncation is not possible.
+
+Running it twice produces the same `package_id`: same corpus, same query, same
+settings, byte-identical package. That buys caching, diffing and regression
+tests at once.
 
 ```console
 $ tsumugi trace "テントは 2.4kg"

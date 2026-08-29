@@ -7,6 +7,7 @@ once, badly.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -93,6 +94,109 @@ class TestSearch:
 
     def test_searching_without_an_index_says_so(self, index_path: Path) -> None:
         assert run("search", "anything", index=index_path) == 2
+
+
+class TestContext:
+    def test_it_renders_a_structured_prompt(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        assert run("context", "テント", "--budget", "characters:2000", index=index_path) == 0
+        out = capsys.readouterr().out
+        for section in ("# SYSTEM", "# TASK", "# CONTEXT"):
+            assert section in out
+
+    def test_the_prompt_tells_the_model_to_quote_rather_than_locate(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # ADR-0004. A model asked for offsets produces coordinates that are
+        # plausible, self-consistent and wrong.
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        run("context", "テント", "--budget", "characters:2000", index=index_path)
+        assert "Do not report character offsets" in capsys.readouterr().out
+
+    def test_a_budget_without_a_unit_is_refused(self, corpus: Path, index_path: Path) -> None:
+        # The unit is a decision, and defaulting it puts the decision back
+        # where nobody makes it.
+        run("ingest", str(corpus), index=index_path)
+        assert run("context", "テント", "--budget", "2000", index=index_path) == 2
+
+    def test_a_token_budget_states_that_it_is_estimated(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        run("context", "テント", "--budget", "tokens:500", index=index_path)
+        out = capsys.readouterr().out
+        assert "estimated, not counted" in out
+        assert "cl100k_base" in out
+
+    def test_the_json_package_validates_against_the_published_schema(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        jsonschema = pytest.importorskip("jsonschema")
+        schema = json.loads(
+            (Path(__file__).parent.parent / "schemas" / "context-package-1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        run("context", "テント", "--budget", "tokens:500", "--json", index=index_path)
+        jsonschema.validate(json.loads(capsys.readouterr().out), schema)
+
+    def test_the_same_question_twice_produces_the_same_package_id(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        ids = []
+        for _ in range(2):
+            run("context", "テント", "--budget", "tokens:500", "--json", index=index_path)
+            ids.append(json.loads(capsys.readouterr().out)["package_id"])
+        assert ids[0] == ids[1]
+
+    def _crowd(self, corpus: Path) -> None:
+        """Enough competing documents that a budget can actually bind."""
+        for n in range(6):
+            (corpus / "notes" / f"gear-{n}.md").write_text(
+                f"# 装備 {n}\n\nテントの候補 {n} について。重量と設営のしやすさを比較する。\n",
+                encoding="utf-8",
+            )
+
+    def test_a_tight_budget_reports_what_it_dropped(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # The most useful thing a selection can say (ADR-0005).
+        self._crowd(corpus)
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+
+        run("context", "テント", "--budget", "characters:60", "--why", index=index_path)
+        out = capsys.readouterr().out
+        assert "budget_exhausted" in out
+        assert "would exceed the limit" in out
+
+    def test_omissions_are_mentioned_even_without_why(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._crowd(corpus)
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        run("context", "テント", "--budget", "characters:60", index=index_path)
+        assert "left out" in capsys.readouterr().out
+
+    def test_finding_nothing_exits_non_zero(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        run("ingest", str(corpus), index=index_path)
+        capsys.readouterr()
+        assert run("context", "量子色力学", "--budget", "tokens:500", index=index_path) == 1
 
 
 class TestTrace:

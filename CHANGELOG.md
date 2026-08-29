@@ -4,10 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.1 in progress
+## [Unreleased] — v0.2 in progress
 
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
+
+### Added — the ContextPackage
+
+- **`tsumugi context`.** Retrieve, confirm, rank, fit to a stated budget, and
+  emit a package that says what is being sent, where each piece came from, what
+  was left out, and which rule dropped it.
+- **The contract is published**: `schemas/context-package-1.json`, with a
+  conformance suite any producer can run. Three of its tests assert that the
+  omission rules, provenance layers and budget units in the code are exactly
+  those in the schema — there is no pydantic to derive one from the other, so
+  those tests are all that keeps them in step.
+- **`omissions[]` is required and enforced.** Every candidate that comes in
+  leaves as an item or an omission, checked by a property test and asserted
+  again in `build_context`, which raises rather than shipping a package that
+  lost one. Any cap that bounded the search appears under `truncated_by_cap`.
+- **Packages are reproducible.** `package_id` is a hash of everything that
+  determined the package, excluding the timestamp. Same corpus, query and
+  settings produce a byte-identical package.
+- **Budgets name their unit.** `Budget.tokens(8000)` / `.characters(20000)` /
+  `.bytes(65536)`; a bare number is refused. Characters and bytes are counted,
+  tokens estimated — and a token budget with no measured error is refused at
+  construction.
+- **A CJK-aware token estimator**, fitted against `cl100k_base` and scored on a
+  held-out split: p50 4.95%, p95 18.28%. A kanji costs six times a Latin
+  character, which is the entire argument of ADR-0006. `tools/measure_cost.py`
+  re-derives and re-scores it.
+- **The prompt tells the model the selection has edges.** A rendered package
+  with omissions carries a `# NOT INCLUDED` section, because a model cannot see
+  the edge of a selection and will otherwise answer with the confidence of
+  complete information.
+- **kiseki's layering survives the crossing.** An interpretation stays an
+  interpretation inside a package, must carry confidence, and is labelled as
+  such in the rendered prompt. A fact carrying confidence is refused.
 
 ### Added — the evidence core
 

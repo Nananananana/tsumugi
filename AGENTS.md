@@ -115,17 +115,20 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 305 tests, 93% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 415 tests, 95% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
-- **Built:** `ingest`, `search`, `trace`, `doctor`. Domain (span, hash, document,
-  anchor, normalization), ports (parser, tokenizer, store, index, cost), SQLite
-  store with append-only versions, FTS5 + bigram index, four parsers with a
-  registry, the filesystem walk with ignore and refusal rules.
-- **Not built:** everything the design calls a ContextPackage — packages,
-  budgets, selection, omissions, the ledger, verification, MCP, and both sibling
-  adapters. `CostModel` is a port with no implementation.
-- Contract: ContextPackage `1-draft`, in `docs/context-package.md`. Freezes at
-  v0.2. There is no `schemas/` directory yet.
+- **Built:** `ingest`, `search`, `trace`, `doctor`, `context`. Domain (span,
+  hash, document, anchor, normalization, budget, omission, selection, package,
+  assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
+  append-only versions, FTS5 + bigram index, four parsers with a registry, the
+  filesystem walk, three cost models.
+- **Not built:** claim verification, the ledger, the MCP server, prompt
+  templates, redundancy marking, and both sibling adapters.
+- Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
+  `schemas/context-package-1.json` publishes it, and
+  `tests/test_contract_conformance.py` checks six rules against it plus three
+  that assert the schema and the enums have not drifted apart. **Freezes at
+  v0.2** — until then fields may still move.
 - Evaluation: `docs/evaluation-corpus.md`. 100–1000 generated cases, labelled
   evidence, planted traps, a ~60-case CI tier and a held-out split. **A model
   runs at authoring time only; CI calls nothing.** Not built.

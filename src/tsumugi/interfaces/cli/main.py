@@ -16,16 +16,20 @@ from dataclasses import replace
 from pathlib import Path
 
 from ... import __version__
+from ...application.build_context import build_context
 from ...application.ingest import ingest_paths
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
 from ...config import TsumugiConfig
-from ...errors import TsumugiError
+from ...domain.budget import Budget, Unit
+from ...errors import ConfigurationError, TsumugiError
+from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
 from ...infrastructure.storage.database import SCHEMA_VERSION, connect
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
+from ...ports.cost import CostModel
 
 __all__ = ["build_parser", "main"]
 
@@ -58,6 +62,27 @@ def build_parser() -> argparse.ArgumentParser:
     find.add_argument("query")
     find.add_argument("-n", "--limit", type=int, default=10)
     find.set_defaults(run=_search)
+
+    context = commands.add_parser("context", help="build a ContextPackage for a question")
+    context.add_argument("query")
+    context.add_argument(
+        "--budget",
+        default="characters:4000",
+        metavar="UNIT:N",
+        help=(
+            "tokens:8000, characters:20000 or bytes:65536. The unit is required: "
+            "tokens are estimated and the estimate states its error, while "
+            "characters and bytes are counted (default: characters:4000)"
+        ),
+    )
+    context.add_argument(
+        "--min-score", type=float, default=0.0, help="relevance floor for inclusion"
+    )
+    context.add_argument("--json", action="store_true", help="emit the package itself")
+    context.add_argument(
+        "--why", action="store_true", help="print what was left out, and under which rule"
+    )
+    context.set_defaults(run=_context)
 
     trace = commands.add_parser("trace", help="find where a quotation came from")
     trace.add_argument("quotation")
@@ -173,6 +198,63 @@ def _search(args: argparse.Namespace, config: TsumugiConfig) -> int:
         # A cap that bounds coverage is never silent. ADR-0005.
         print(f"note: {truncated.as_omission_reason()}; there may be more.")
     return 0
+
+
+def _cost_model(unit: Unit) -> CostModel:
+    """The composition root's one job for budgets."""
+    if unit is Unit.TOKENS:
+        return HeuristicTokenCost()
+    if unit is Unit.BYTES:
+        return ByteCost()
+    return CharacterCost()
+
+
+def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    try:
+        budget = Budget.parse(args.budget)
+    except ValueError as error:
+        raise ConfigurationError(str(error)) from error
+
+    connection = connect(config.resolved_index_path(), create=False)
+    store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+
+    package = build_context(
+        args.query,
+        store=store,
+        index=index,
+        cost_model=_cost_model(budget.unit),
+        budget=budget,
+        candidate_limit=config.candidate_limit,
+        minimum_score=args.min_score,
+        version=__version__,
+    )
+
+    if args.json:
+        print(package.to_json())
+        return 0 if package.items else 1
+
+    print(package.render())
+    print()
+    print(f"--- {package.package_id.short()} ---")
+    print(
+        f"{len(package.items)} items, {package.budget.estimate}/{package.budget.budget.limit} "
+        f"{package.budget.budget.unit.value} via {package.budget.estimator}"
+    )
+    if package.budget.measured_error is not None:
+        reported = package.budget.measured_error
+        # An estimate that does not say how wrong it is will mislead a caller
+        # exactly once, expensively (ADR-0006).
+        print(
+            f"estimated, not counted: p50 {reported['p50']:.1%} "
+            f"p95 {reported['p95']:.1%} against {reported['against']}"
+        )
+    if args.why:
+        print()
+        print(package.why_not())
+    elif package.omissions:
+        print(f"{len(package.omissions)} candidates were left out; --why to see them")
+
+    return 0 if package.items else 1
 
 
 def _trace(args: argparse.Namespace, config: TsumugiConfig) -> int:

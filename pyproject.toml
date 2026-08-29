@@ -36,6 +36,10 @@ dev = [
     "mypy>=1.10",
     "import-linter>=2",
     "pre-commit",
+    # Validates real packages against the published contract. There is no
+    # pydantic in the core (ADR-0001), so the schema and the dataclasses are
+    # kept in step by a test rather than derived from one another.
+    "jsonschema>=4",
 ]
 
 [project.urls]
@@ -49,6 +53,11 @@ tsumugi = "tsumugi.interfaces.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tsumugi"]
+
+# The contract ships with the library: a consumer validating a package should
+# not have to fetch a schema from the internet.
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "tsumugi/schemas"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

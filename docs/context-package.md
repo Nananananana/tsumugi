@@ -2,7 +2,12 @@
 
 **Contract:** `tsumugi.context-package/1`
 **Status:** draft — the envelope is decided, the fields may still move.
-Frozen at v0.2. Until then, treat the version as `1-draft`.
+Frozen at v0.2. Until then, the version string is literally
+`tsumugi.context-package/1-draft`.
+
+**Implemented.** `tsumugi context --json` produces this, the schema lives at
+[`schemas/context-package-1.json`](../schemas/context-package-1.json), and the
+conformance suite is `tests/test_contract_conformance.py`.
 
 *This document is the contract, for producers and consumers alike. It is not a
 description of tsumugi's internals, and a change to tsumugi that is not visible
@@ -199,8 +204,8 @@ that failure loud.
 
 ## Conformance
 
-A conformance suite will ship in the repository alongside the first
-implementation. Neither exists yet. It checks a package against:
+The conformance suite is `tests/test_contract_conformance.py`. It checks a
+package against:
 
 1. The JSON Schema in `schemas/context-package-1.json`
 2. `sum(item.cost) <= budget.limit`
@@ -211,6 +216,12 @@ implementation. Neither exists yet. It checks a package against:
 
 Rules 1–4 and 6 can be checked against a package alone. Rules 3 and 5 need the
 corpus and the producer.
+
+A seventh check has no number because it is about the repository rather than a
+package: three tests assert that the omission rules, the provenance layers and
+the budget units in the code are exactly those in the schema. There is no
+pydantic to derive one from the other ([ADR 0001](adr/0001-the-domain-depends-on-nothing.md)),
+so those tests are the only thing keeping the two representations in step.
 
 A producer that is not tsumugi passes the same suite. That is the whole point of
 writing the contract down.
