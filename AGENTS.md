@@ -115,23 +115,25 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Version `0.1.0.dev0`. Nothing released, the public API is not stable.
 - **License: Apache-2.0. Python: 3.12+. Runtime dependencies: 0**, checked in CI
   by installing without extras and asserting nothing came along.
-- 494 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
+- 532 tests, 94% coverage. `ruff`, `mypy --strict` and five `import-linter`
   contracts all green.
 - **Built:** `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
-  `doctor`. Domain (span,
+  `mcp`, `doctor`. Domain (span,
   hash, document, anchor, normalization, budget, omission, selection, package,
   assembly), ports (parser, tokenizer, store, index, cost), SQLite store with
   append-only versions, FTS5 + bigram index, four parsers with a registry, the
   filesystem walk, three cost models.
-- **Not built:** the MCP server, prompt templates, redundancy marking, the
-  evaluation corpus, and both sibling adapters.
+- **Not built:** prompt templates, redundancy marking, the evaluation corpus,
+  and both sibling adapters.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three
-  that assert the schema and the enums have not drifted apart. **Not frozen yet.** The roadmap said v0.2, and the
-  evidence a freeze wants is a *second* consumer: everything that has produced
-  or consumed a package so far is tsumugi itself. The MCP server (ADR-0012) is
-  that consumer, and freezing after it is cheaper than freezing before it.
+  that assert the schema and the enums have not drifted apart. **Frozen at `1`.** A field may be added;
+  none will be removed or change meaning. Frozen once the MCP server had built a
+  package in one process and verified it in another through JSON -- a second
+  consumer, which is the evidence a freeze wants -- rather than when the
+  calendar said v0.2. Readers still accept the `-draft` string; nothing writes
+  it.
 - Evaluation: `docs/evaluation-corpus.md`. 100–1000 generated cases, labelled
   evidence, planted traps, a ~60-case CI tier and a held-out split. **A model
   runs at authoring time only; CI calls nothing.** Not built.

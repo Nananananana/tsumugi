@@ -34,6 +34,7 @@ from ...infrastructure.storage.database import SCHEMA_VERSION, connect
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.cost import CostModel
+from ..mcp.server import serve
 
 __all__ = ["build_parser", "main"]
 
@@ -105,6 +106,17 @@ def build_parser() -> argparse.ArgumentParser:
     ledger.add_argument("-n", "--limit", type=int, default=20)
     ledger.add_argument("--forget", action="store_true", help="delete the whole ledger")
     ledger.set_defaults(run=_ledger)
+
+    mcp = commands.add_parser(
+        "mcp",
+        help="speak MCP on stdin/stdout, so an agent can use this corpus",
+        description=(
+            "A read-only MCP server over JSON-RPC on stdio. Exposes search, context, "
+            "trace and verify. Nothing that writes to the corpus or the index is "
+            "reachable from here."
+        ),
+    )
+    mcp.set_defaults(run=_mcp)
 
     doctor = commands.add_parser("doctor", help="what this index holds, and what it is")
     doctor.set_defaults(run=_doctor)
@@ -377,6 +389,13 @@ def _verify(args: argparse.Namespace, config: TsumugiConfig) -> int:
     print("A supported claim means the quoted text is where the model said it was.")
     print("It does not mean the claim is true.")
     return 0 if report.clean else 1
+
+
+def _mcp(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    # Nothing is printed here. stdout carries JSON-RPC responses and nothing
+    # else; a stray line corrupts the stream and the client sees a parse error
+    # it cannot attribute.
+    return serve(config)
 
 
 def _ledger(args: argparse.Namespace, config: TsumugiConfig) -> int:

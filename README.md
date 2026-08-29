@@ -10,9 +10,11 @@ Local-first. No network in the core. **Zero runtime dependencies.**
 > ### Status: v0.2 in progress
 >
 > Reading a corpus, searching it, building a **ContextPackage** under a budget,
-> checking a model's citations against it, and recording what was sent and what
-> was used all work. The MCP server, prompt templates and both sibling adapters
-> do not exist yet.
+> checking a model's citations against it, recording what was sent and what was
+> used, and serving all of it to an agent over MCP all work. Prompt templates,
+> the evaluation corpus and both sibling adapters do not exist yet.
+>
+> The ContextPackage contract is **frozen at version 1**.
 >
 > - **What the code does today** — [docs/architecture.md](docs/architecture.md)
 > - **What it is meant to become** — [docs/proposals/0001-the-design.md](docs/proposals/0001-the-design.md)
@@ -43,6 +45,7 @@ tsumugi context "テントの重量は?" --budget tokens:4000 --why
 tsumugi verify  answer.json --package package.json
 tsumugi trace   "テントは 2.4kg"
 tsumugi ledger  --since 2026-08-01
+tsumugi mcp     # speak MCP on stdio, so an agent can use the corpus
 tsumugi doctor
 ```
 
@@ -134,6 +137,28 @@ two-character query at all, and two-character compounds — 東京, 会議, 開�
 are the backbone of the written language. Both were measured before anything was
 built, and the numbers are in
 [ADR 0007](docs/adr/0007-index-japanese-by-bigram.md).
+
+## For an agent
+
+`tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — four tools,
+no dependency, and nothing that can write to your corpus or your index is
+reachable from it.
+
+```json
+{"mcpServers": {"tsumugi": {"command": "tsumugi", "args": ["mcp"]}}}
+```
+
+| Tool | |
+|---|---|
+| `search` | ranked passages with anchors |
+| `context` | a full ContextPackage, **including what was left out** |
+| `trace` | from a quotation back to document, section and line |
+| `verify` | claim classifications for an answer |
+
+The agent is the reason the contract is a document rather than a Python class:
+`context` builds a package in one process, the agent answers, and `verify`
+resolves the citations in another — through JSON, with no shared objects. That
+round trip is what the contract was frozen on.
 
 ## The one thing to be clear about
 

@@ -9,6 +9,25 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — an agent-facing surface, and the freeze
+
+- **`tsumugi mcp`.** A read-only MCP server: JSON-RPC 2.0 over stdio,
+  newline-delimited, on the standard library. Four tools — `search`, `context`,
+  `trace`, `verify` — over the same application layer the CLI uses.
+- **Nothing that writes is reachable.** A call naming `ingest` or `forget` is
+  answered by saying the server is read-only, so an agent reaching for a write
+  tool is told it does not exist rather than getting a generic failure.
+- The transport survives bad input: a malformed line is answered with a parse
+  error and the session continues. `params` must be absent or an object;
+  positional parameters are refused rather than read as empty, because leniency
+  there hides a client bug. Nothing but responses reaches stdout.
+- **ContextPackage v1 is frozen.** A field may be added; none will be removed
+  or change meaning inside version 1. Frozen once a *second program* had
+  produced and consumed a package — the MCP server builds one in one process
+  and verifies it in another, through JSON, with no shared objects — rather than
+  when the calendar said v0.2. Readers still accept the `-draft` string that
+  earlier packages carry; nothing writes it.
+
 ### Added — verification, and the loop closed
 
 - **`tsumugi verify`.** The model quotes; tsumugi resolves the offsets

@@ -6,7 +6,7 @@ v0.1.0.dev0. Where it disagrees with the code, one of the two is a defect. See
 
 What is **planned** and not built is in
 [proposals/0001-the-design.md](proposals/0001-the-design.md): prompt templates,
-redundancy marking, the MCP server, and both sibling adapters.
+redundancy marking, the evaluation corpus, and both sibling adapters.
 
 ## What exists
 
@@ -27,7 +27,8 @@ redundancy marking, the MCP server, and both sibling adapters.
                           └────────────────────┘
 ```
 
-Seven commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`, `doctor`.
+Eight commands: `ingest`, `search`, `context`, `verify`, `trace`, `ledger`,
+`mcp`, `doctor`.
 
 `context` is the one the library is for. It retrieves, confirms, ranks, fits to
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
@@ -52,7 +53,8 @@ interfaces ──> application ──> domain
 | `infrastructure/` | Parsers and their registry, the filesystem walk, SQLite store, FTS5 index, bigram tokenizer, cost models | `domain`, `ports`, `errors` |
 | `application/` | `ingest_paths`, `search`, `build_context`, `verify_answer`, `trace_quotation` | `domain`, `ports`, `errors` |
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
-| `interfaces/cli/` | Argument parsing, output. The only composition root | everything above |
+| `interfaces/cli/` | Argument parsing, output. A composition root | everything above |
+| `interfaces/mcp/` | JSON-RPC on stdio, four read-only tools. The other composition root | everything above |
 
 **This table is executable.** `tests/test_architecture.py` parses every module
 and asserts it; `.importlinter` asserts the direction. A diagram that stops
@@ -320,6 +322,42 @@ Two rules, checked rather than promised:
 Reporting 100% unused for a ledger nobody closed would be a lie about the tool
 rather than about the corpus.
 
+## The agent-facing surface
+
+`tsumugi mcp` speaks JSON-RPC 2.0 over stdio — newline-delimited JSON, one
+object per line. That is the whole framing, which is why an agent surface costs
+no dependency ([ADR 0012](adr/0012-an-agent-facing-surface.md)).
+
+| Tool | Returns |
+|---|---|
+| `search` | ranked spans with anchors |
+| `context` | a full ContextPackage, **including `omissions[]`** |
+| `trace` | from a quotation back to document, section and line |
+| `verify` | claim classifications for an answer |
+
+Three constraints, all of them tested:
+
+**Read-only.** `ingest` and `forget` are not exposed, and a call naming one is
+answered by saying the server is read-only rather than by a generic failure.
+That rule bounds the damage instead of trying to prevent every case; adding a
+fifth tool that writes would end it.
+
+**The full package, including omissions.** An agent that cannot see the edge of
+a selection has the same problem as a person who cannot.
+
+**The same application layer as the CLI.** Both are thin shells over the same
+use cases. A behaviour available in one and not the other is a defect.
+
+The transport survives bad input: a malformed line is answered with a parse
+error and the session continues. `params` must be absent or an object —
+positional parameters are refused rather than read as empty, because leniency
+there hides a client bug. Nothing but responses reaches stdout; diagnostics go
+to stderr, since a stray line corrupts the stream and the client sees an error
+it cannot attribute.
+
+Document text goes out to the caller. Nothing coming back is executed, fetched
+or written.
+
 ## Configuration
 
 ```text
@@ -348,8 +386,9 @@ does nothing is the worst available outcome. The index lives at
 | `test_contract_conformance.py` | Real packages against the published JSON Schema, and that the schema and the enums have not drifted |
 | `test_verification.py` | The four outcomes, the matching tolerance, and that redaction never changes a verdict |
 | `test_ledger.py` | Opening, closing, and that no text reaches the file |
+| `test_mcp.py` | The transport, the read-only rule, and context→verify entirely over the protocol |
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-494 tests, 94% line coverage. Every test runs with no network, no model and no
+532 tests, 94% line coverage. Every test runs with no network, no model and no
 third-party package beyond the test tools themselves.

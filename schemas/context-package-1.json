@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "contract": {
-      "description": "A consumer that does not recognise this refuses the package rather than guessing at it.",
+      "description": "Frozen at version 1. A field may be added; none will be removed or change meaning. A consumer that does not recognise this refuses the package rather than guessing at it. The -draft suffix is accepted for packages built before the freeze and is no longer produced.",
       "type": "string",
       "pattern": "^tsumugi\\.context-package/1(-draft)?$"
     },

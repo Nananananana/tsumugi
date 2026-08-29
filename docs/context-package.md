@@ -1,13 +1,25 @@
 # ContextPackage
 
 **Contract:** `tsumugi.context-package/1`
-**Status:** draft — the envelope is decided, the fields may still move.
-Frozen at v0.2. Until then, the version string is literally
-`tsumugi.context-package/1-draft`.
+**Status: frozen.** A field may be added; none will be removed or change
+meaning inside version 1. A change a consumer must notice takes a new version.
 
-**Implemented.** `tsumugi context --json` produces this, the schema lives at
-[`schemas/context-package-1.json`](../schemas/context-package-1.json), and the
-conformance suite is `tests/test_contract_conformance.py`.
+It was frozen once a **second program had produced and consumed a package**,
+not once the calendar said v0.2. The MCP server builds one in one process,
+hands it to an agent, and verifies it in another — through JSON, with no shared
+objects. That round trip is the evidence
+[ADR 0002](adr/0002-the-context-package-is-a-document.md) wanted: *a class other
+programs can import is a different kind of object from a document other programs
+can produce.* Freezing before that would have been freezing on a schedule.
+
+Packages written before the freeze carry `tsumugi.context-package/1-draft`.
+Readers still accept it — refusing evidence over a version string would be the
+wrong trade — and nothing produces it any more.
+
+`tsumugi context --json` and the MCP `context` tool produce this. The schema is
+[`schemas/context-package-1.json`](../schemas/context-package-1.json) and ships
+with the package; the conformance suite is
+`tests/test_contract_conformance.py`.
 
 *This document is the contract, for producers and consumers alike. It is not a
 description of tsumugi's internals, and a change to tsumugi that is not visible

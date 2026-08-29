@@ -42,13 +42,24 @@ __all__ = [
     "corpus_state",
 ]
 
-#: Bumped when the shape changes in a way a consumer must notice. ``1-draft``
-#: until the freeze at v0.2: the envelope is decided, the fields may still move.
-CONTRACT: Final = "tsumugi.context-package/1-draft"
+#: **Frozen.** A field may be added; none will be removed or change meaning
+#: inside version 1. A change that a consumer must notice takes a new version.
+#:
+#: Frozen once a second program had produced and consumed a package rather than
+#: once the calendar said v0.2. The MCP server (ADR-0012) builds one in one
+#: process, hands it to an agent, and verifies it in another -- through JSON,
+#: with no shared objects. That round trip is the evidence ADR-0002 wanted:
+#: "a class other programs can import is a different kind of object from a
+#: document other programs can produce."
+CONTRACT: Final = "tsumugi.context-package/1"
 
 #: A consumer that does not recognise the contract refuses the package rather
 #: than guessing at it. Fail closed.
-SUPPORTED_CONTRACTS: Final = frozenset({CONTRACT})
+#:
+#: The draft string is still read, because packages built before the freeze
+#: exist and refusing them would be discarding evidence over a version string.
+#: It is not written any more.
+SUPPORTED_CONTRACTS: Final = frozenset({CONTRACT, "tsumugi.context-package/1-draft"})
 
 
 @dataclass(frozen=True, slots=True)
