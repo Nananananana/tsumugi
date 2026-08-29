@@ -27,6 +27,14 @@ What it can say, and the four questions are deliberately separate:
                 that is the correct answer; anywhere else it is a model
                 refusing work it was given the evidence for.
 
+A fifth outcome is reported separately and is not a rate: ``unreadable``, for
+an answer that was not in the requested shape at all. That is a *result* --
+llama3.1:8b produced 16 of them on a first 50-case run -- and folding it into
+"failed to run" alongside a model that was not listening would hide the more
+interesting of the two. A model that cannot follow the output contract is
+telling you something about the model; a socket that refused is telling you
+about the machine.
+
 The fourth is the one the deterministic suite genuinely cannot reach. tsumugi
 reports that a corpus may not answer a question and does not gate on it —
 `docs/evaluation-corpus.md` says so — because deciding "there is no answer
@@ -39,6 +47,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..application.ask import ask
+from ..application.verify import AnswerFormatError
 from ..domain.claim import Located
 from ..errors import TsumugiError
 from ..ports.llm import LLMProvider
@@ -55,9 +64,14 @@ class AnswerScore:
     case_id: str
     language: str
     trap_kinds: tuple[str, ...]
-    #: Empty unless the provider failed. A run with failures still reports; a
-    #: model that died on case 40 should not erase the first thirty-nine.
+    #: Empty unless the provider could not be reached. A run with failures
+    #: still reports; a model that died on case 40 should not erase the first
+    #: thirty-nine.
     failure: str = ""
+    #: The model answered, and not in the shape it was asked for. Kept apart
+    #: from ``failure``: one is a fact about the model, the other about the
+    #: machine.
+    unreadable: str = ""
     claims: int = 0
     grounded: bool = False
     on_target: bool = False
@@ -67,6 +81,7 @@ class AnswerScore:
 
     @property
     def ran(self) -> bool:
+        """It answered. Whether the answer was usable is ``unreadable``."""
         return not self.failure
 
     @property
@@ -86,6 +101,7 @@ class AnswerSummary:
     model: str
     ran: int = 0
     failed: int = 0
+    unreadable: int = 0
     grounded: int = 0
     on_target: int = 0
     trapped: int = 0
@@ -105,6 +121,14 @@ class AnswerSummary:
             f"  trapped     {self._share(self.trapped):>5}   a citation landed in a "
             f"planted adversary",
         ]
+        if self.unreadable:
+            # Reported as a count, not a rate. It is a fact about the model's
+            # ability to follow an output contract, not about retrieval, and
+            # averaging it in with the rest would say neither thing clearly.
+            lines.append(
+                f"  {self.unreadable} of those answers were not in the requested shape "
+                f"and could not be checked at all"
+            )
         if self.abstention_cases:
             share = self.abstained_correctly / self.abstention_cases
             lines.append(
@@ -136,6 +160,15 @@ def answer_case(case: Case, provider: LLMProvider, *, candidate_limit: int = 50)
                 provider=provider,
                 candidate_limit=candidate_limit,
                 version="eval",
+            )
+        except AnswerFormatError as error:
+            # The model answered; it just did not answer in the shape it was
+            # asked for. A result, not a failed run.
+            return AnswerScore(
+                case_id=case.case_id,
+                language=case.language,
+                trap_kinds=kinds,
+                unreadable=str(error),
             )
         except TsumugiError as error:
             return AnswerScore(
@@ -221,6 +254,8 @@ def summarise_answers(scores: Sequence[AnswerScore], *, model: str) -> AnswerSum
             summary.failed += 1
             continue
         summary.ran += 1
+        if score.unreadable:
+            summary.unreadable += 1
         summary.grounded += int(score.grounded)
         summary.on_target += int(score.on_target)
         summary.trapped += int(bool(score.trapped))

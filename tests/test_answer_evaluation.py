@@ -64,6 +64,22 @@ class Scripted:
         )
 
 
+@dataclass
+class Prose:
+    """Answers in perfectly good English that no verifier can check."""
+
+    @property
+    def name(self) -> str:
+        return "prose/1"
+
+    @property
+    def endpoint(self) -> Endpoint:
+        return Endpoint(url="memory://prose", is_local=True)
+
+    def generate(self, prompt: str) -> str:
+        return "The retry policy uses exponential backoff, according to the notes."
+
+
 def _case_with(kind: str | None = None, *, without: str | None = None) -> Case:
     """One real case from the committed corpus, chosen by what it plants.
 
@@ -156,6 +172,33 @@ class TestTheTrapMetric:
             )
         ]
         assert summarise_answers(scores, model="m").trapped == 1
+
+
+class TestAModelThatIgnoresTheContract:
+    def test_prose_is_a_result_not_a_failed_run(self) -> None:
+        # llama3.1:8b produced 16 of these on a first fifty-case run. Folding
+        # them into "failed to run" alongside a model that was not listening
+        # would hide the more interesting of the two: a model that cannot
+        # follow an output contract is a fact about the model, an unreachable
+        # socket is a fact about the machine.
+        case = _case_with(without="absent_answer")
+        score = answer_case(case, Prose())
+        assert score.ran, "it answered"
+        assert score.unreadable, "just not in the shape it was asked for"
+        assert not score.failure
+        assert not score.grounded
+
+    def test_the_summary_counts_them_and_does_not_average_them(self) -> None:
+        scores = [
+            AnswerScore(case_id="a", language="ja", trap_kinds=(), unreadable="not JSON"),
+            AnswerScore(case_id="b", language="ja", trap_kinds=(), grounded=True),
+        ]
+        summary = summarise_answers(scores, model="m")
+        assert summary.ran == 2 and summary.unreadable == 1 and summary.failed == 0
+        described = summary.describe()
+        # A count, in words. Not a percentage sitting beside the four rates,
+        # because it is not measuring the same kind of thing.
+        assert "1 of those answers" in described
 
 
 class TestFailureIsRecordedNotRaised:

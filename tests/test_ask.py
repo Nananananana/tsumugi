@@ -136,14 +136,30 @@ class TestTheLoop:
         assert asked.verification.claims
         assert asked.trustworthy
 
-    def test_the_prompt_is_the_package_plus_an_output_contract(self, corpus: Any) -> None:
+    def test_the_prompt_is_the_package_exactly(self, corpus: Any) -> None:
+        # Not "contains". A package is the record of a prompt -- the ledger
+        # stores its id, `--json` publishes it, and a reader is invited to
+        # inspect it before anything is sent. An extra paragraph stapled on
+        # afterwards makes all three of those slightly false.
         provider = FakeProvider()
         asked = _ask(corpus, provider=provider)
+        assert provider.prompts[0] == asked.package.render()
+        assert asked.prompt == asked.package.render()
+
+    def test_the_prompt_asks_for_something_verifiable(self, corpus: Any) -> None:
+        provider = FakeProvider()
+        _ask(corpus, provider=provider)
         sent = provider.prompts[0]
-        assert asked.package.render() in sent
-        # Without this the model answers in prose and there is nothing to
-        # verify, which reports as zero claims -- and zero claims reads clean.
-        assert "claims" in sent and "character for" in sent
+        # Without a schema the model answers in prose, and prose verifies as
+        # zero claims -- which reads clean.
+        assert "# OUTPUT_SCHEMA" in sent and "claims" in sent
+
+    def test_it_does_not_ask_the_model_for_offsets(self, corpus: Any) -> None:
+        # A model asked for character positions returns positions that are
+        # plausible and wrong. It quotes; tsumugi resolves (ADR-0005).
+        provider = FakeProvider()
+        _ask(corpus, provider=provider)
+        assert "Do not report character offsets" in provider.prompts[0]
 
     def test_it_says_what_a_citation_is_not(self, corpus: Any) -> None:
         # Earned. qwen2.5:14b answered a Japanese question correctly and cited
@@ -154,14 +170,7 @@ class TestTheLoop:
         _ask(corpus, provider=provider)
         sent = provider.prompts[0]
         assert "not a filename" in sent
-        assert "never cite this line" in sent
-
-    def test_it_does_not_ask_the_model_for_offsets(self, corpus: Any) -> None:
-        # A model asked for character positions returns positions that are
-        # plausible and wrong. It quotes; tsumugi resolves (ADR-0005).
-        provider = FakeProvider()
-        _ask(corpus, provider=provider)
-        assert "Do not report character positions" in provider.prompts[0]
+        assert "never the header itself" in sent
 
     def test_an_unsupported_claim_is_reported_not_raised(self, corpus: Any) -> None:
         invented = json.dumps(
@@ -363,10 +372,15 @@ class TestTheBoundary:
 
 
 class TestTheModelDecidesNothing:
-    def test_the_package_is_the_same_with_or_without_a_provider(self, corpus: Any) -> None:
-        # The selection is deterministic and the model is downstream of it.
-        # If a provider could change what was selected, every guarantee about
-        # what was sent would be a guarantee about what a model felt like.
+    def test_the_selection_is_the_same_with_or_without_a_provider(self, corpus: Any) -> None:
+        # The selection is deterministic and the model is downstream of it. If
+        # a provider could change what was selected, every guarantee about what
+        # was sent would be a guarantee about what a model felt like.
+        #
+        # Items and omissions, not package_id: `ask` asks for a different
+        # instruction set, and the id covers the instructions because the two
+        # really are different prompts. What must not differ is which evidence
+        # was chosen.
         from tsumugi.application.build_context import build_context
 
         store, index, _ = corpus
@@ -378,7 +392,25 @@ class TestTheModelDecidesNothing:
             budget=Budget.characters(4000),
         )
         asked = _ask(corpus)
-        assert asked.package.package_id == built.package_id
+        assert [i.text for i in asked.package.items] == [i.text for i in built.items]
+        assert [o.rule for o in asked.package.omissions] == [o.rule for o in built.omissions]
+
+    def test_the_same_instruction_set_gives_the_same_id(self, corpus: Any) -> None:
+        # And reproducibility still holds where it is claimed (ADR-0003).
+        from tsumugi.application.build_context import build_context
+        from tsumugi.application.instructions import ANSWER_SCHEMA, ANSWERING
+
+        store, index, _ = corpus
+        built = build_context(
+            QUESTION,
+            store=store,
+            index=index,
+            cost_model=CharacterCost(),
+            budget=Budget.characters(4000),
+            instructions=ANSWERING,
+            output_schema=ANSWER_SCHEMA,
+        )
+        assert _ask(corpus).package.package_id == built.package_id
 
     def test_a_package_is_still_usable_without_one(self, corpus: Any) -> None:
         # The whole library works with no model and no network. `ask` is one

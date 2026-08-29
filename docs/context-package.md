@@ -153,6 +153,27 @@ the hash.
 Two runs with the same inputs produce the same `package_id` and byte-identical
 output ([ADR 0003](adr/0003-a-package-is-reproducible.md)).
 
+**`instructions` and `output_schema` are among those inputs.** A package built
+for a person to read and one built for a program to check carry different
+instruction sets, so they hash differently over identical evidence. That is the
+intended reading: they are different prompts. Anything that wants "the
+selection for this question" regardless of who it was addressed to should
+compare `items[]` and `omissions[]`, which do not vary
+([ADR 0017](adr/0017-the-instruction-set-is-a-parameter.md)).
+
+### `instructions` and `output_schema`
+
+What the package tells the model, as data rather than as string-building at the
+edge. **`render()` emits the whole prompt**, including these — a consumer that
+appends its own paragraph on the way out has a package that no longer describes
+what was sent, and the ledger, `--json` and every "look at what is about to go"
+claim quietly stop being exact.
+
+Two sets ship: a default for a human reader, and an answering set that pairs
+with a JSON `output_schema` so `verify` has something to check. Producers may
+supply their own; consumers must render whatever is there and must not require
+either of these fields to be present.
+
 ### `items[]`
 
 Each item is a piece of context that will be sent.

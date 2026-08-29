@@ -12,8 +12,9 @@ that bounded the search in the first place.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Final
+from typing import Any, Final
 
 from ..domain.anchor import ResolutionStatus, resolve
 from ..domain.assembly import Candidate, fit_to_budget
@@ -31,21 +32,10 @@ from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
 from ..ports.index import Index
 from ..ports.store import DocumentStore
+from .instructions import DEFAULT
 from .search import search
 
 __all__ = ["build_context"]
-
-_INSTRUCTIONS = {
-    "role": "Answer the question using only the context provided below.",
-    "rules": [
-        # ADR-0004: the model quotes, tsumugi resolves the offsets. Asking for
-        # positions produces coordinates that are plausible and wrong.
-        "Quote the exact text you rely on. Do not report character offsets.",
-        "If the context does not answer the question, say so plainly.",
-        "Context marked as an interpretation is a reading, not a fact.",
-    ],
-}
-
 
 #: Named so the ranker can explain itself inside the package. A score with no
 #: account of where it came from is the part of a retrieval system users are
@@ -67,6 +57,8 @@ def build_context(
     context_characters: int = 400,
     version: str = "",
     freshness: FreshnessCheck | None = None,
+    instructions: Mapping[str, Any] | None = None,
+    output_schema: Mapping[str, Any] | None = None,
 ) -> ContextPackage:
     """Select what bears on ``query``, fit it to ``budget``, and account for the rest."""
     results, truncation = search(
@@ -196,7 +188,11 @@ def build_context(
                 freshness.name if freshness is not None else "freshness/unchecked",
             ),
         ),
-        instructions=_INSTRUCTIONS,
+        # Part of package_id, and so it should be: a package built for a
+        # person to read and one built for a program to check are different
+        # prompts, and an id that called them the same would be wrong.
+        instructions=DEFAULT if instructions is None else instructions,
+        output_schema=output_schema,
         created_at=datetime.now(UTC).isoformat(),
     )
 

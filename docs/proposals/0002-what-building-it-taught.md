@@ -153,6 +153,13 @@ waiting for, and it arrived on the metric's first run.
    building has the single built-in instruction set been the limiting factor.
    Build it when a second use needs a second shape, not before.
 
+   > *Since written:* the condition fired. `ask` needs a machine-readable
+   > answer and a human reader does not, so `build_context` takes an
+   > instruction set and two ship
+   > ([ADR 0017](../adr/0017-the-instruction-set-is-a-parameter.md)). Two named
+   > dictionaries, not a template language — the rule above still holds for the
+   > third shape.
+
 ### Then — v0.4
 
 4. **The sibling adapters.** [ADR 0009](../adr/0009-restore-before-you-verify.md)
