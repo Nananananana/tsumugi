@@ -140,6 +140,15 @@ def _needles(query: str) -> list[str]:
     -> 10.0% (this change), and train and held-out agree at 10%, so it is not
     fitted to the cases it was measured on.
 
+    **Punctuation at a boundary is not content.** A query is a question and
+    people type it as one: ``テントの重量は?`` was confirmed against nothing,
+    because the whole spaceless query is one needle and no document contains
+    the question mark. The README's own example returned an empty package. So
+    leading and trailing punctuation is trimmed, from the query and from each
+    word -- a boundary trim, not a tokenization change, and not a stopword
+    list. Internal punctuation stays: ``don't`` is one word and ``config.yaml``
+    is one name.
+
     **The residual 10% is diagnosed, not mysterious**, and is left alone. All
     three remaining failures confirm on a stopword phrase: "when is the first
     ferry departure" matches a document about a shuttle bus on *the first*.
@@ -148,16 +157,31 @@ def _needles(query: str) -> list[str]:
     language and does not generalise. Chasing it on thirty synthetic cases
     would be fitting the ranker to the fixtures.
     """
-    folded = unicodedata.normalize("NFKC", query).casefold()
-    words = [w for w in folded.split() if w]
+    folded = _trim_punctuation(unicodedata.normalize("NFKC", query).casefold())
+    words = [trimmed for w in folded.split() if (trimmed := _trim_punctuation(w))]
     if len(words) <= 1:
-        return [folded] if folded else []
+        return [words[0]] if words else ([folded] if folded else [])
 
     runs: list[str] = []
     for length in range(len(words), 1, -1):
         for start in range(len(words) - length + 1):
             runs.append(" ".join(words[start : start + length]))
     return list(dict.fromkeys(runs))
+
+
+def _trim_punctuation(text: str) -> str:
+    """Drop punctuation and symbols from both ends.
+
+    By Unicode category rather than by a list of characters, so ``?``, ``？``,
+    ``。``, ``।`` and ``؟`` are all covered without anyone having to think of
+    them. Nothing is removed from the middle: a needle is still a phrase.
+    """
+    start, end = 0, len(text)
+    while start < end and unicodedata.category(text[start])[0] in {"P", "S"}:
+        start += 1
+    while end > start and unicodedata.category(text[end - 1])[0] in {"P", "S"}:
+        end -= 1
+    return text[start:end]
 
 
 def _confirm(content: str, needles: Sequence[str]) -> list[Span]:

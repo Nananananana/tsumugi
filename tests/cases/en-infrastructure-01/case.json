@@ -12,7 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
-  "question": "how many nodes does the staging cluster have",
+  "question": "how many nodes does the staging cluster have?",
   "split": "train",
   "tier": "full",
   "traps": {

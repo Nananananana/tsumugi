@@ -10,7 +10,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "サンプルの保存温度は",
+  "question": "サンプルの保存温度は？",
   "split": "train",
   "tier": "ci",
   "traps": {

@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "how many nodes does the staging cluster have",
+  "question": "how many nodes does the staging cluster have?",
   "split": "train",
   "tier": "ci",
   "traps": {

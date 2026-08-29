@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "what backoff does the retry policy use",
+  "question": "what backoff does the retry policy use?",
   "split": "train",
   "tier": "ci",
   "traps": {

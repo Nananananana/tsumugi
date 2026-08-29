@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "テントの重量は",
+  "question": "テントの重量は？",
   "split": "train",
   "tier": "ci",
   "traps": {

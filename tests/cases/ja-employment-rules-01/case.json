@@ -12,7 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
-  "question": "有給休暇の付与日数は",
+  "question": "有給休暇の付与日数は？",
   "split": "train",
   "tier": "full",
   "traps": {

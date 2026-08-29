@@ -342,7 +342,7 @@ def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, objec
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
-        "question": genre.question,
+        "question": _ask(genre, 1),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": ["answer"],
         "must_not_include": [],
@@ -372,7 +372,7 @@ def build_squeezed_out_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
-        "question": genre.question,
+        "question": _ask(genre, 0),
         # Smaller than the answer passage, so nothing at all fits.
         "budget": {"unit": "characters", "limit": 5},
         "must_include": [],
@@ -423,7 +423,7 @@ def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
         "case_id": case_id,
         "genre": genre.key,
         "language": "mixed",
-        "question": genre.question,
+        "question": _ask(genre, 1),
         "budget": {"unit": "tokens", "limit": 400},
         "must_include": ["answer"],
         "must_not_include": [],
@@ -432,6 +432,21 @@ def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
         "tier": "ci",
     }
     return case_id, documents, manifest
+
+
+#: People type questions with question marks, and until 2026-08-30 no case did
+#: -- so the corpus never noticed that a trailing ``?`` was part of the phrase
+#: confirmation looked for, and `tsumugi context "テントの重量は?"` returned an
+#: empty package. Applied by variant so that punctuated and bare questions both
+#: stay covered, and deterministically, because nothing here uses a seed.
+_QUESTION_MARK = {"ja": "？", "en": "?", "mixed": "?"}
+
+
+def _ask(genre: Genre, variant: int) -> str:
+    """The genre's question, punctuated on every other variant."""
+    if variant % 2 == 0:
+        return genre.question
+    return genre.question + _QUESTION_MARK.get(genre.language, "?")
 
 
 def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[str, object]]:
@@ -488,7 +503,7 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
-        "question": genre.question,
+        "question": _ask(genre, variant),
         "budget": budget,
         "must_include": [answer],
         "must_not_include": [near_miss],

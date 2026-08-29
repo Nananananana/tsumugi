@@ -57,6 +57,22 @@ stable.
 
 ### Fixed
 
+- **A question mark meant nothing was ever confirmed.** For a query written
+  without spaces — most Japanese — the whole string is one needle, and no
+  document contains the `?`. So `tsumugi context "テントの重量は?"`, which is
+  the example printed in this project's own README, came back with **zero
+  items and two omissions**, both `below_threshold`, on a corpus that plainly
+  held the answer. English was hit too: `use?` is not the word `use`.
+  Leading and trailing punctuation is now trimmed by Unicode category, from
+  the query and from each word — a boundary trim, not a tokenization change,
+  and not a stopword list. Internal punctuation stays: `config.yaml` is one
+  name and `don't` is one word.
+- **The evaluation corpus had seventy cases and not one question mark.** Which
+  is why seventy cases and a 100% recall score never noticed. Half the
+  generated questions now carry their language's question mark. Every score is
+  unchanged with the fix in place; with it removed, recall falls **100% → 64%**
+  and omission correctness **96.7% → 60%**, so the corpus now catches this
+  rather than merely being said to.
 - **A model cited the source header instead of the passage, and every claim
   reported unsupported.** Found by running the demo against a real
   `qwen2.5:14b-instruct` rather than the fake provider the tests use: it

@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "有給休暇の付与日数は",
+  "question": "有給休暇の付与日数は？",
   "split": "train",
   "tier": "ci",
   "traps": {

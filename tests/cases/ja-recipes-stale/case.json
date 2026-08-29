@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "生地の寝かせ時間は",
+  "question": "生地の寝かせ時間は？",
   "split": "train",
   "tier": "ci",
   "traps": {

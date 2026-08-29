@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "how long is the notice period",
+  "question": "how long is the notice period?",
   "split": "train",
   "tier": "ci",
   "traps": {

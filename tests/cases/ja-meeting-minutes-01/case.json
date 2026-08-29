@@ -12,7 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
-  "question": "次回の会議の開催日は",
+  "question": "次回の会議の開催日は？",
   "split": "train",
   "tier": "full",
   "traps": {

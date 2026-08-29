@@ -13,7 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
-  "question": "when is the first ferry departure",
+  "question": "when is the first ferry departure?",
   "split": "train",
   "tier": "ci",
   "traps": {

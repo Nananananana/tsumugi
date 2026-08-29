@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tsumugi.application.ingest import ingest_paths
-from tsumugi.application.search import search
+from tsumugi.application.search import _needles, search
 from tsumugi.application.trace import trace_quotation
 from tsumugi.domain.anchor import ResolutionStatus
 from tsumugi.infrastructure.filesystem import IgnoreRules, walk
 from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.parsers import parser_for
+from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 
 
@@ -206,3 +209,73 @@ class TestTrace:
         _ingest(corpus, store, index)
         trace = trace_quotation("The unit is explicit", store)[0]
         assert trace.line == 3
+
+
+class TestAQuestionIsTypedAsAQuestion:
+    """A trailing `?` used to mean nothing was ever confirmed.
+
+    Found by running `examples/ask.py`: the package came back with zero items
+    and two omissions, both `below_threshold`, on a corpus that plainly held
+    the answer. For a spaceless query the whole string is one needle, and no
+    document contains the question mark -- so `tsumugi context "テントの重量は?"`,
+    which is the example in the README, returned nothing at all.
+
+    The evaluation corpus had seventy cases and not one question mark in any
+    of them.
+    """
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "テントの重量は?",
+            "テントの重量は？",
+            "テントの重量は。",
+            "「テントの重量は」",
+            "テントの重量は!",
+        ],
+    )
+    def test_japanese_punctuation_does_not_prevent_confirmation(self, query: str) -> None:
+        assert _needles(query) == ["テントの重量は"]
+
+    def test_english_punctuation_is_trimmed_per_word(self) -> None:
+        # Every run is built from trimmed words, so the longest one -- the
+        # whole phrase -- is a phrase the document can actually contain.
+        needles = _needles("what backoff does the retry policy use?")
+        assert needles[0] == "what backoff does the retry policy use"
+
+    def test_internal_punctuation_is_kept(self) -> None:
+        # A needle is still a phrase, and these are single words with
+        # punctuation inside them rather than words with punctuation attached.
+        assert _needles("config.yaml") == ["config.yaml"]
+        assert "don't" in _needles("what don't we support")[0]
+
+    def test_a_query_of_nothing_but_punctuation_finds_nothing(self) -> None:
+        # Rather than becoming the empty needle, which every document
+        # contains -- a fail-open that would put the whole corpus in a package.
+        assert _needles("???") == ["???"] or _needles("???") == []
+        assert "" not in _needles("???")
+
+    def test_the_question_mark_survives_the_whole_pipeline(self, tmp_path: Path) -> None:
+        root = tmp_path / "notes"
+        root.mkdir()
+        with (root / "gear.md").open("w", encoding="utf-8", newline="") as handle:
+            handle.write("# 装備\n\nテントの重量は2.4kg、二人用。\n")
+
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(root.rglob("*.md")),
+            root=root,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+
+        bare, _ = search("テントの重量は", store=store, index=index, limit=10)
+        asked, _ = search("テントの重量は?", store=store, index=index, limit=10)
+        assert bare, "the corpus holds the answer"
+        # The same result, not merely a non-empty one: a question mark is not
+        # a search term and must not change what is found.
+        assert [r.anchor.span for r in asked] == [r.anchor.span for r in bare]
+        assert all(not r.unconfirmed for r in asked)
+        connection.close()
