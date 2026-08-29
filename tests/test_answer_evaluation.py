@@ -293,3 +293,22 @@ def _first_context_line(prompt: str) -> str:
         if inside and line.strip() and not line.startswith("["):
             return line.strip()
     pytest.skip("the package carried no context")
+
+
+class TestAnUnreadableAnswerIsNotAnAnswer:
+    def test_it_is_not_counted_as_answering_the_unanswerable(self) -> None:
+        # It reported ten models confidently answering a question the corpus
+        # cannot answer, when in fact none of them had produced anything
+        # parseable at all. The worst kind of wrong number: alarming, precise
+        # and about nothing.
+        score = AnswerScore(
+            case_id="x",
+            language="en",
+            trap_kinds=("absent_answer",),
+            unreadable="the answer is not JSON",
+        )
+        assert score.expected_to_abstain
+        assert not score.abstained
+        # The CLI's filter excludes it; the summary's denominator does too.
+        summary = summarise_answers([score], model="m")
+        assert summary.abstention_cases == 0, "there was nothing to abstain with"

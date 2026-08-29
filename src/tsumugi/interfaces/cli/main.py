@@ -715,7 +715,14 @@ def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -
         print(f"  answers not in the requested shape: {len(unreadable)}")
         print(f"    e.g. {unreadable[0].case_id}: {unreadable[0].unreadable[:90]}")
 
-    wrong = [s for s in scores if s.ran and not s.abstained_correctly and s.expected_to_abstain]
+    # `not s.unreadable` matters: an answer nobody can parse did not "answer
+    # anyway", it produced nothing. Counting it here reported ten models
+    # confidently answering an unanswerable question when in fact none had.
+    wrong = [
+        s
+        for s in scores
+        if s.ran and not s.unreadable and s.expected_to_abstain and not s.abstained_correctly
+    ]
     if wrong:
         # The one the deterministic suite cannot reach. tsumugi reports that a
         # corpus may not answer a question and deliberately does not gate on
