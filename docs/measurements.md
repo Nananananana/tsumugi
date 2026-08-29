@@ -284,6 +284,66 @@ Korean costs nothing is worse than one that guesses. The weight is set by
 analogy with kana and marked in the source as an assumption. The measured error
 above says nothing about Korean text.
 
+## What a real model does with a package
+
+*Measured 2026-08-30 against `ollama/llama3.1:8b`, on the ten held-out cases.
+Reproduce with:*
+
+```bash
+tsumugi eval --split held_out --model llama3.1:8b
+```
+
+**This is never a floor.** Everything above is a property of this code. This is
+a property of this code *and* one local model on one afternoon, and gating on
+the second kind would make the first kind negotiable. It is reported, dated and
+named by model, and that is all it claims to be.
+
+| | |
+|---|---|
+| checkable | **8 of 10** — two answers were not in the requested shape |
+| grounded | **100%** — every citation in every checkable answer resolved |
+| on target | **100%** — every one cited a planted answer |
+| cited the superseded version too | **7 of 8** |
+| cited a verbatim copy | 5 — reported, never counted as being fooled |
+
+### The one that matters
+
+**Seven of eight answers cited the outdated figure alongside the correct one.**
+Both passages really are in the corpus, so grounding cannot catch it — the
+citation resolves, because the old version is genuinely there.
+
+This is not a retrieval defect. tsumugi carries a superseded passage on
+purpose: [ADR 0008](adr/0008-redundancy-is-proposed.md) marks and never
+removes, and [ADR 0015](adr/0015-redundancy-does-not-decide-which-is-right.md)
+records why — measured, the similarity ranges of *a correction* and *a passage
+about a different subject* overlap, so no threshold separates them and a
+library that picked would be guessing on the reader's behalf.
+
+What it did show is two things the prompt was not saying:
+
+1. **The redundancy marking never reached the model.** `redundant_with:itm_001`
+   was in the published JSON and not in the rendered prompt. Marking a consumer
+   cannot see is not marking. `render()` now says `-- repeats itm_001`.
+2. **Nothing asked what to do when two passages disagree.** The instruction set
+   now does: *say so and cite both, do not quietly pick one.* Asking a model to
+   surface a disagreement is not asking it to resolve one, and surfacing rather
+   than deciding is what this project does everywhere else.
+
+### What this measurement cannot say
+
+- **It is one model.** `qwen2.5:14b-instruct` answered correctly through the
+  same pipeline where `llama3.1:8b` produced fifty unreadable answers in fifty
+  cases, and only running both found the regression that caused it. A number
+  here without its model name is not a measurement.
+- **Ten cases.** Held-out, which is the honest split to quote, and small.
+- **"Grounded" is not "right".** It means every quotation was where the model
+  said it was. A model can quote a corpus perfectly and reason from it badly,
+  and nothing in this table would notice.
+- **The unreadable answers are excluded from every rate**, and counted
+  separately. An answer nobody can parse says nothing about grounding, and
+  counting it as ungrounded would report a model that cannot follow an output
+  contract as one that cites badly — two problems with two different fixes.
+
 ## What these numbers are not
 
 - **Not a benchmark against anything else.** No other tool was run.
@@ -295,8 +355,9 @@ above says nothing about Korean text.
 - **One machine, one SSD, one SQLite build.** Timings on spinning disk, on a
   network drive, or on a SQLite compiled differently will differ.
 - **Not a measure of whether an answer is correct.** Retrieval finding the right
-  passage says nothing about what a model then does with it, and no number here
-  is about that.
+  passage says nothing about what a model then does with it. The model section
+  above measures whether an answer was *anchored*, which is a smaller and
+  different question: a model can quote perfectly and reason badly.
 - **Seventy cases is a fourteenth to two-thirds of what
   [evaluation-corpus.md](evaluation-corpus.md) describes.** All seven trap
   kinds are planted; what is thin is the number of genres and the variety
