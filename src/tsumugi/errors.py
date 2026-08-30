@@ -12,7 +12,6 @@ from __future__ import annotations
 __all__ = [
     "AnchorError",
     "ConfigurationError",
-    "ContractError",
     "IngestionError",
     "StaleAnchorError",
     "StorageError",
@@ -61,13 +60,4 @@ class StaleAnchorError(AnchorError):
     the whole of ADR-0010: evidence that was true in May is historical, not
     false, and silently re-anchoring it against edited text would be the single
     most damaging thing this library could do.
-    """
-
-
-class ContractError(TsumugiError):
-    """A ContextPackage does not conform to the contract it names.
-
-    Raised on reading a package whose ``contract`` version is unrecognised, and
-    on assembling one that would violate an invariant. Fail closed: a consumer
-    that cannot verify the shape refuses it rather than guessing.
     """

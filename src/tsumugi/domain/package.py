@@ -39,6 +39,7 @@ __all__ = [
     "ContextPackage",
     "PackageProvenance",
     "Protection",
+    "UnsupportedContractError",
     "corpus_state",
 ]
 
@@ -60,6 +61,47 @@ CONTRACT: Final = "tsumugi.context-package/1"
 #: exist and refusing them would be discarding evidence over a version string.
 #: It is not written any more.
 SUPPORTED_CONTRACTS: Final = frozenset({CONTRACT, "tsumugi.context-package/1-draft"})
+
+
+#: Every top-level key version 1 defines. Kept beside the loader rather than
+#: derived from the schema: the domain may not read a data file, and a
+#: hand-written list that a conformance test compares against the schema is
+#: worth more than a clever derivation that makes both halves the same half.
+KNOWN_FIELDS: Final = frozenset(
+    {
+        "budget",
+        "constraints",
+        "contract",
+        "created_at",
+        "instructions",
+        "items",
+        "omissions",
+        "output_schema",
+        "package_id",
+        "provenance",
+        "query",
+    }
+)
+
+
+class UnsupportedContractError(ValueError):
+    """This reader does not know the contract the package names.
+
+    Separate from every other way reading can fail, because **the two need
+    opposite responses**: a package this reader is too old for wants an
+    upgrade, and a malformed package wants a human told. `musubi` named the
+    failure -- one exception carrying both situations, so a consumer cannot
+    branch on it -- and it was live here: the version check and the invariant
+    checks all raised bare ``ValueError``, distinguishable only by matching on
+    the message.
+
+    A ``ValueError`` still, so existing callers keep working. It lives here
+    rather than in ``errors`` because the domain may not import that module --
+    the layer table maps ``domain`` to the empty set on purpose. ``errors`` had
+    an exported ``ContractError`` documented as covering exactly this case,
+    which nothing ever raised and nothing could: the only code that could raise
+    it was forbidden from importing it. It has been removed.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +212,7 @@ class ContextPackage:
 
     def __post_init__(self) -> None:
         if self.contract not in SUPPORTED_CONTRACTS:
-            raise ValueError(
+            raise UnsupportedContractError(
                 f"unrecognised contract {self.contract!r}; this tsumugi understands "
                 f"{', '.join(sorted(SUPPORTED_CONTRACTS))}"
             )
@@ -351,9 +393,23 @@ class ContextPackage:
         if not isinstance(data, dict):
             raise ValueError(f"a package is an object, not a {type(data).__name__}")
 
+        # The schema sets `additionalProperties: false` everywhere and
+        # ADR-0022 says v1 is closed, so a package carrying a field this
+        # version does not define is not a v1 package. Until now the reference
+        # loader accepted one that the contract it publishes rejects -- the two
+        # halves disagreeing about what "valid" means, which is the failure
+        # `akashi` named, in the gap between an implementation and its schema.
+        unknown = sorted(set(data) - KNOWN_FIELDS)
+        if unknown:
+            raise ValueError(
+                f"fields this contract does not define: {', '.join(unknown)}. "
+                "Version 1 is closed (ADR-0022); a package that adds anything "
+                "is a different contract, not a wider one"
+            )
+
         contract = data.get("contract")
         if contract not in SUPPORTED_CONTRACTS:
-            raise ValueError(
+            raise UnsupportedContractError(
                 f"unrecognised contract {contract!r}; this tsumugi understands "
                 f"{', '.join(sorted(SUPPORTED_CONTRACTS))}"
             )

@@ -19,11 +19,11 @@ from .domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
 from .domain.budget import Budget, Unit
 from .domain.document import Block, Document, Section, register_block_kind
 from .domain.hashing import ContentHash
+from .domain.package import UnsupportedContractError
 from .domain.span import Span
 from .errors import (
     AnchorError,
     ConfigurationError,
-    ContractError,
     IngestionError,
     StaleAnchorError,
     StorageError,
@@ -40,7 +40,6 @@ __all__ = [
     "Budget",
     "ConfigurationError",
     "ContentHash",
-    "ContractError",
     "Document",
     "IngestionError",
     "Resolution",
@@ -52,6 +51,7 @@ __all__ = [
     "TsumugiError",
     "Unit",
     "UnresolvableAnchorError",
+    "UnsupportedContractError",
     "__version__",
     "contract_schema",
     "contract_schema_text",

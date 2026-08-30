@@ -50,6 +50,7 @@ from tsumugi.domain.hashing import ContentHash
 from tsumugi.domain.omission import Omission, OmissionRule
 from tsumugi.domain.package import (
     CONTRACT,
+    KNOWN_FIELDS,
     SUPPORTED_CONTRACTS,
     BudgetReport,
     ContextPackage,
@@ -807,3 +808,23 @@ def test_there_is_exactly_one_copy_of_the_contract() -> None:
         if not {".git", ".venv", "dist", "build"} & set(path.parts)
     )
     assert copies == [f"src/tsumugi/schemas/{CONTRACT_SCHEMA_NAME}"], copies
+
+
+def test_the_loader_and_the_schema_define_the_same_fields() -> None:
+    """`KNOWN_FIELDS` and the schema's top-level properties are one list.
+
+    The loader rejects a package carrying a field version 1 does not define,
+    because the schema sets ``additionalProperties: false`` and ADR-0022 says
+    v1 is closed. Before that, the reference implementation *accepted* a
+    package its own published contract rejects -- the two halves disagreeing
+    about what valid means, which is the class `akashi` named, sitting in the
+    gap between an implementation and its schema rather than between two
+    identifiers.
+
+    The list is hand-written because the domain may not read a data file. This
+    is the check that makes that safe, and it earned its place immediately: the
+    first version of `KNOWN_FIELDS` was written from memory and was wrong in
+    both directions -- four fields missing, and `protection` invented at the
+    top level when it lives inside `provenance`.
+    """
+    assert set(contract_schema()["properties"]) == KNOWN_FIELDS
