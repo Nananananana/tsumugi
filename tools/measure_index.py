@@ -36,7 +36,7 @@ from tsumugi.application.ingest import ingest_paths
 from tsumugi.application.search import search
 from tsumugi.infrastructure.filesystem import walk
 from tsumugi.infrastructure.index.fts import FtsIndex
-from tsumugi.infrastructure.index.tokenization import BigramTokenizer, is_cjk
+from tsumugi.infrastructure.index.tokenization import BigramTokenizer, script_class
 from tsumugi.infrastructure.parsers import parser_for
 from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
@@ -145,7 +145,13 @@ def measure(roots: list[Path], queries: list[str]) -> Measurement:
         for document in store.all_current():
             result.documents += 1
             result.characters += len(document.content)
-            result.cjk_share += sum(1 for c in document.content if is_cjk(c))
+            # Every CJK script, not only the ones that get bigrammed: this
+            # measures the corpus, not the tokenizer's opinion of it.
+            result.cjk_share += sum(
+                1
+                for c in document.content
+                if script_class(c) in {"ideograph", "katakana", "hiragana", "hangul"}
+            )
             terms += len(tokenizer.index_terms(document.content))
 
         result.documents_table_bytes = _table_bytes(connection, "documents")

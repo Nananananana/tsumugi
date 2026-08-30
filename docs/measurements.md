@@ -66,6 +66,46 @@ Roughly 45% of the index is the stored document text
 ([ADR 0010](adr/0010-the-index-stores-the-text.md)) rather than the search
 structure, so the bigram decision is not even the larger half of the bill.
 
+## Script-aware bigramming: 12–20% fewer terms, and almost no smaller a file
+
+Prompted by reading what other people do with FTS5 and CJK: several
+practitioners bigram only the ideographic runs and let kana pass through.
+Measured here across four variants, on the evaluation corpus, train and
+held-out agreeing:
+
+| bigrammed | terms/char | recall | precision | traps |
+|---|---|---|---|---|
+| ideographs + all kana + hangul *(was)* | 0.40 | 92.6% | 96.5% | 2.9% |
+| **ideographs + katakana** *(is)* | **0.32** | 92.6% | 96.5% | 2.9% |
+| ideographs only | 0.32 | 91.9% | 96.4% | 2.9% |
+
+**Hiragana is grammar** — particles and inflection — so its bigrams are an
+index's most frequent terms and its least discriminating. **Katakana is not**:
+it writes loan words and they concatenate, so `スポーツクラブ` has to be
+findable by `スポーツ`, and the third row is what dropping it costs.
+**Hangul is spaced**, so a run is already a word.
+
+The same change on three real corpora, before and after:
+
+| corpus | terms/char | index ÷ corpus |
+|---|---|---|
+| Japanese working notes | 0.41 → **0.36** | 4.61× → 4.49× |
+| this repository (`src` + `docs`) | 0.13 → 0.13 | 3.02× → 3.02× |
+| the evaluation fixtures | 0.24 → **0.22** | 8.16× → 8.09× |
+
+**The term count falls 12–20% on CJK text and the file barely moves.** That is
+the honest result and it is not the one the change was made for: at these
+sizes the index is dominated by the *stored text*
+([ADR 0010](adr/0010-the-index-stores-the-text.md)) and by SQLite's page
+granularity, so a fifth off the term list rounds away. The saving is in term
+count, which is what grows with a corpus, not in the file as measured on a
+corpus this small.
+
+It also found a defect. Once hiragana stopped being bigrammed it stopped being
+its own script for run-splitting, so `tsumugiは予算` indexed `tsumugiは` as one
+term — a token no query could produce. Runs now break at **every** change of
+script class rather than at the boundary of what gets bigrammed.
+
 ## Speed
 
 | | First ingest | Re-ingest, unchanged | Documents/second | Search p50 | Search p95 |
