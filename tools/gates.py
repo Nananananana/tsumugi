@@ -70,32 +70,62 @@ def _script(name: str) -> str:
     return name
 
 
-#: Name, and the command as CI runs it. Kept in the same order CI does, so a
-#: reader comparing this file with `.github/workflows/ci.yml` can do it by eye.
-GATES: tuple[tuple[str, list[str]], ...] = (
-    ("ruff check", [sys.executable, "-m", "ruff", "check", "."]),
-    ("ruff format --check", [sys.executable, "-m", "ruff", "format", "--check", "."]),
-    ("mypy", [sys.executable, "-m", "mypy"]),
+#: Name, the `.github/workflows/ci.yml` step it stands for, and the command.
+#:
+#: The middle field used to be a sentence in this docstring saying the order
+#: matched CI's "so a reader can compare by eye". Nothing checked that, and a
+#: CI step added without a line here would have left this file reporting
+#: "7 gates, all green" over a shrinking share of the real thing -- a checker
+#: quietly covering less, which is the failure this file exists to stop.
+#: `tests/test_gate_runner.py` now holds the two lists together.
+GATES: tuple[tuple[str, str, list[str]], ...] = (
+    ("ruff check", "Ruff", [sys.executable, "-m", "ruff", "check", "."]),
+    ("ruff format --check", "Ruff", [sys.executable, "-m", "ruff", "format", "--check", "."]),
+    ("mypy", "Types", [sys.executable, "-m", "mypy"]),
     # The console script, because that is what CI runs. `python -m
     # importlinter.cli lint` prints nothing and exits 0 -- a silent no-op, and
     # it was in this list on the first run of this file. A gate runner with a
     # dead gate is the joke this file exists to stop, arriving inside it.
-    ("import-linter", [_script("lint-imports")]),
-    ("pytest", [sys.executable, "-m", "pytest", "-q"]),
+    ("import-linter", "Layering", [_script("lint-imports")]),
+    ("pytest", "Test", [sys.executable, "-m", "pytest", "-q"]),
     (
         "evaluation fixtures",
+        "Check the evaluation fixtures",
         [sys.executable, "tools/generate_cases.py", "--out", "tests/cases", "--check-only"],
     ),
     (
         "eval floors",
+        "Evaluate",
         [sys.executable, "-m", "tsumugi.interfaces.cli.main", "eval", "--tier", "ci"],
     ),
 )
 
+#: CI steps this file deliberately does not run, and why. Every step in
+#: `ci.yml` is in exactly one of these two lists -- a test says so, which is
+#: what makes the docstring's "the gap is specific" a claim rather than a hope.
+NOT_RUN_HERE: dict[str, str] = {
+    "Install": "builds the environment this file runs inside",
+    "Install with no extras": "same, and the point of that job is the environment",
+    "Install the sibling": "installs mamori from git; a network fetch, not a gate",
+    "Check the SQLite build": (
+        "environment probe, not a property of this code. Every SQLite here has "
+        "FTS5, so it cannot fail on this machine -- the one CI step whose "
+        "failure has never been observed"
+    ),
+    "Assert the sibling is actually ours": (
+        "reads `direct_url.json`, which a `-e .` install has not got"
+    ),
+    "The seam": "needs mamori installed; runs here only when a developer has it",
+    "Assert nothing came with it": (
+        "asks what a no-extras install contains; this environment has extras"
+    ),
+    "Assert the contract shipped with it": "inspects an installed wheel, not the source tree",
+}
+
 
 def main() -> int:
     failures: list[tuple[str, int, str]] = []
-    for name, command in GATES:
+    for name, _step, command in GATES:
         began = time.perf_counter()
         finished = subprocess.run(  # noqa: S603
             command,
