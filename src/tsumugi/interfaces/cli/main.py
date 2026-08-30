@@ -232,8 +232,10 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help=(
             "also put every case to a local model and report what it did with the "
-            "package. Never a gate: a model is not in CI and a number that depends on "
-            "which one you pulled is not a floor anybody can hold."
+            "package. Comma-separate two or more to run each and compare -- every "
+            "model-facing defect this project has found was found by two models "
+            "disagreeing. Never a gate: a number that depends on which model you "
+            "pulled is not a floor anybody can hold."
         ),
     )
     evaluate.add_argument(
@@ -687,8 +689,10 @@ def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
             f"budget and reproducibility exact"
         )
 
-    if args.model:
-        _answer_report(cases, args.model, config)
+    for model in [name.strip() for name in args.model.split(",")] if args.model else []:
+        _answer_report(cases, model, config)
+    if args.model and "," in args.model:
+        _disagreements(cases, args.model.split(","), config)
 
     print()
     print("The corpus is generated and tidier than anything anyone writes.")
@@ -763,6 +767,54 @@ def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -
         print(f"  answered anyway where the corpus has no answer: {len(wrong)}")
         for score in wrong[:5]:
             print(f"    {score.case_id}")
+
+
+def _disagreements(cases: Sequence[object], models: Sequence[str], config: TsumugiConfig) -> None:
+    """Where two models did different things with the same package.
+
+    The reason `--model` takes a list. Every model-facing defect this project
+    has found was found this way: `qwen2.5:14b` answered fifty cases and
+    `llama3.1:8b` answered none of them, on the same prompt, because a rule
+    saying "reply with JSON" had moved into a schema section. One model looked
+    like a working system.
+
+    Agreement is not correctness -- two models can be wrong together, and on a
+    corpus this tidy they often will be. Disagreement is where to look.
+    """
+    typed = cast("Sequence[Case]", cases)
+    outcomes: dict[str, dict[str, str]] = {}
+    for model in models:
+        provider = OllamaProvider(model=model.strip())
+        scored = answer_cases(typed, provider, candidate_limit=config.candidate_limit)
+        outcomes[provider.name] = {
+            score.case_id: (
+                "unreadable"
+                if score.unreadable
+                else "failed"
+                if not score.ran
+                else "grounded"
+                if score.grounded
+                else "ungrounded"
+            )
+            for score in scored
+        }
+
+    names = list(outcomes)
+    differing = [
+        case_id
+        for case_id in outcomes[names[0]]
+        if len({outcomes[name].get(case_id) for name in names}) > 1
+    ]
+    print()
+    print(f"--- where {' and '.join(names)} differed ---")
+    print(f"  {len(differing)} of {len(outcomes[names[0]])} cases")
+    for case_id in differing[:10]:
+        verdicts = ", ".join(f"{name}: {outcomes[name].get(case_id)}" for name in names)
+        print(f"    {case_id}  {verdicts}")
+    if not differing:
+        # Worth saying out loud rather than printing nothing: agreement on a
+        # corpus this tidy is weak evidence, and silence would read as strong.
+        print("  They agreed everywhere, which is weaker evidence than it looks.")
 
 
 def _demo(args: argparse.Namespace, config: TsumugiConfig) -> int:

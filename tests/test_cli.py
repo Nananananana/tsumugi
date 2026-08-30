@@ -526,10 +526,10 @@ class TestAsk:
                 for inner in ast.walk(node)
             )
         }
-        assert sending == {"_ask", "_answer_report"}, (
+        assert sending == {"_ask", "_answer_report", "_disagreements"}, (
             f"{sorted(sending)} can send. `tsumugi ask` and `tsumugi eval --model` "
-            f"are the two that may; every other command is local, and the threat "
-            f"model says so."
+            f"are the two commands that may; every other command is local, and the "
+            f"threat model says so."
         )
 
 
@@ -624,3 +624,47 @@ class TestProtectRefusesRatherThanSendingPlain:
         source = inspect.getsource(adapter.open_session)
         assert "ConfigurationError" in source
         assert "pip install mamori" in source
+
+
+class TestComparingTwoModels:
+    """`--model a,b` runs both and names where they differed.
+
+    The reason the flag takes a list: every model-facing defect this project
+    has found was found by two models disagreeing. `qwen2.5:14b` answered
+    fifty evaluation cases and `llama3.1:8b` answered none of them, on the
+    same prompt -- and one model alone looked like a working system.
+    """
+
+    def test_the_help_says_why_a_list(self) -> None:
+        from tsumugi.interfaces.cli.main import build_parser
+
+        text = build_parser().format_help()
+        assert "eval" in text
+        source = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "tsumugi"
+            / "interfaces"
+            / "cli"
+            / "main.py"
+        ).read_text(encoding="utf-8")
+        # The formatter wraps the help string, so match on a fragment that
+        # survives being broken across lines.
+        assert "disagreeing" in source and "Comma-separate" in source
+
+    def test_agreement_is_reported_as_weak_evidence(self) -> None:
+        # Silence would read as a strong result. Two models can be wrong
+        # together, and on a corpus this tidy they often will be.
+        import inspect
+
+        from tsumugi.interfaces.cli import main as module
+
+        assert "weaker evidence than it looks" in inspect.getsource(module._disagreements)
+
+    def test_one_model_does_not_trigger_a_comparison(self) -> None:
+        import inspect
+
+        from tsumugi.interfaces.cli import main as module
+
+        source = inspect.getsource(module._eval)
+        assert '"," in args.model' in source
