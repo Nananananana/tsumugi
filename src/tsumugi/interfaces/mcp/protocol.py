@@ -65,6 +65,29 @@ class Request:
     def is_notification(self) -> bool:
         return self.id is None
 
+    @property
+    def meta(self) -> dict[str, Any]:
+        """``params._meta``, which is where MCP puts protocol metadata now.
+
+        The 2026-07-28 revision made the protocol stateless: there is no
+        handshake and no session, so every request carries its own version and
+        capabilities here. An older client sends none of it, which is how a
+        server tells the two eras apart.
+        """
+        found = self.params.get("_meta")
+        return found if isinstance(found, dict) else {}
+
+    @property
+    def protocol_version(self) -> str | None:
+        """The revision this request says it speaks, or ``None`` if it did not.
+
+        ``None`` means a client from before the handshake was retired. It is
+        not an error here: this server answers both, and refusing the older one
+        would refuse most clients shipped today.
+        """
+        found = self.meta.get("io.modelcontextprotocol/protocolVersion")
+        return found if isinstance(found, str) else None
+
     def require(self, name: str) -> Any:
         if name not in self.params:
             raise RpcError(INVALID_PARAMS, f"missing required parameter {name!r}")

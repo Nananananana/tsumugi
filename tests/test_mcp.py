@@ -132,7 +132,9 @@ class TestTheHandshake:
 
         responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
         assert responses[0]["error"]["code"] == -32700
-        assert responses[1]["result"] == {}
+        # `resultType` and `_meta` ride on every result in 2026-07-28; the
+        # answer to a ping is still nothing.
+        assert responses[1]["result"]["resultType"] == "complete"
 
 
 class TestTheToolsAreReadOnly:
@@ -396,3 +398,85 @@ class TestOneReportShape:
         source = inspect.getsource(server.McpServer._verify)
         assert "report.to_dict()" in source
         assert '"support": claim.support.value' not in source
+
+
+class TestBothProtocolEras:
+    """MCP 2026-07-28 retired the handshake. Most clients have not.
+
+    The specification expects an implementation to detect the counterpart's
+    era and fall back. For a server that means answering a stateless client
+    that opens with `tools/call`, and an older one that opens with
+    `initialize` -- and telling each the version it asked for, because
+    reporting a revision a client does not implement is worse than reporting
+    none.
+    """
+
+    def test_a_stateless_client_needs_no_handshake(self, index: Path) -> None:
+        # No initialize, no notifications/initialized. Straight to work.
+        (response,) = drive(
+            [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "search",
+                        "arguments": {"query": "テント"},
+                        "_meta": {
+                            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                            "io.modelcontextprotocol/clientCapabilities": {},
+                        },
+                    },
+                }
+            ],
+            index,
+        )
+        assert "error" not in response
+        assert response["result"]["resultType"] == "complete"
+
+    def test_an_older_client_still_gets_its_handshake(self, index: Path) -> None:
+        (response,) = drive(
+            [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {"protocolVersion": "2025-06-18"},
+                }
+            ],
+            index,
+        )
+        # The version it asked for. Answering 2026-07-28 would be telling a
+        # client to speak a protocol it does not have.
+        assert response["result"]["protocolVersion"] == "2025-06-18"
+
+    def test_discover_answers_the_same_facts_as_initialize(self, index: Path) -> None:
+        first, second = drive(
+            [
+                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                {"jsonrpc": "2.0", "id": 2, "method": "server/discover", "params": {}},
+            ],
+            index,
+        )
+        assert first["result"]["serverInfo"] == second["result"]["serverInfo"]
+        assert first["result"]["instructions"] == second["result"]["instructions"]
+
+    def test_a_result_names_the_server_without_a_session(self, index: Path) -> None:
+        # There is no handshake left to carry it, and a stateless client should
+        # not have to remember what it was talking to.
+        (response,) = drive([{"jsonrpc": "2.0", "id": 1, "method": "ping"}], index)
+        info = response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]
+        assert info["name"] == "tsumugi"
+
+    def test_a_list_says_how_long_it_keeps(self, index: Path) -> None:
+        # Four tools compiled into the module; they cannot change while the
+        # process runs, so a client re-listing on every turn is wasting a
+        # round trip.
+        (response,) = drive([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}], index)
+        assert response["result"]["ttlMs"] > 0
+        assert response["result"]["cacheScope"] == "server"
+
+    def test_the_version_it_reports_is_the_current_revision(self) -> None:
+        from tsumugi.interfaces.mcp.server import PROTOCOL_VERSION
+
+        assert PROTOCOL_VERSION == "2026-07-28"

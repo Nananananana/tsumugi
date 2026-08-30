@@ -60,7 +60,31 @@ __all__ = ["TOOLS", "McpServer", "serve"]
 #: The version of the MCP spec this speaks. A client asking for another one is
 #: answered with this rather than refused: the handshake is a negotiation, and
 #: refusing an unknown string would break against every future client.
-PROTOCOL_VERSION: Final = "2025-06-18"
+#: The revision this server speaks. MCP retired the `initialize` handshake and
+#: the connection-scoped session here: the protocol is stateless, every request
+#: carries its own version and capabilities in `_meta`, and every result names
+#: its type.
+#:
+#: <https://modelcontextprotocol.io/specification/2026-07-28>
+PROTOCOL_VERSION: Final = "2026-07-28"
+
+#: What an older client asks for and still gets. The spec expects
+#: implementations to detect the counterpart's era and fall back, and a server
+#: that dropped the handshake would stop working with every client shipped
+#: before this revision -- which is most of them, today.
+LEGACY_PROTOCOL_VERSION: Final = "2025-06-18"
+
+#: `_meta` key carrying the protocol version of a single request. Reserved by
+#: the specification; the prefix is not ours to invent.
+META_PROTOCOL_VERSION: Final = "io.modelcontextprotocol/protocolVersion"
+META_CLIENT_CAPABILITIES: Final = "io.modelcontextprotocol/clientCapabilities"
+META_SERVER_INFO: Final = "io.modelcontextprotocol/serverInfo"
+
+#: How long a client may cache a list result, and how widely. `tools/list` here
+#: is a constant: four read-only tools compiled into the module, which cannot
+#: change while the process runs. An hour is arbitrary and conservative.
+LIST_TTL_MS: Final = 3_600_000
+LIST_CACHE_SCOPE: Final = "server"
 
 _BUDGET_HELP = (
     "tokens:8000, characters:20000 or bytes:65536. The unit is required. Tokens are "
@@ -184,23 +208,57 @@ class McpServer:
     # -- dispatch --------------------------------------------------------
 
     def handle(self, request: Request) -> dict[str, Any] | None:
-        """Answer one request. ``None`` for a notification."""
-        if request.method == "initialize":
-            result = self._initialize(request)
-        elif request.method in {"notifications/initialized", "notifications/cancelled"}:
+        """Answer one request. ``None`` for a notification.
+
+        Stateless, and always was: nothing here reads anything established by
+        an earlier message. That was a design choice under the old spec and is
+        a requirement under this one -- "servers MUST NOT rely on prior
+        requests over the same connection to establish context".
+        """
+        if request.method in {"initialize", "server/discover"}:
+            result = self._describe(request)
+        elif request.method.startswith("notifications/"):
             return None
         elif request.method == "ping":
             result = {}
         elif request.method == "tools/list":
-            result = {"tools": TOOLS}
+            # Cacheable: these four tools are compiled into the module and
+            # cannot change while the process runs.
+            result = {"tools": TOOLS, "ttlMs": LIST_TTL_MS, "cacheScope": LIST_CACHE_SCOPE}
         elif request.method == "tools/call":
             result = self._call(request)
         else:
             raise RpcError(METHOD_NOT_FOUND, f"unknown method {request.method!r}")
-        return result
+        return self._decorate(result, request)
 
-    def _initialize(self, request: Request) -> dict[str, Any]:
-        asked = request.params.get("protocolVersion")
+    def _decorate(self, result: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Add what every result in this revision carries.
+
+        ``resultType`` distinguishes a completed request from one that needs
+        more input; this server never asks for more, so it is always
+        ``complete``. A client from an earlier revision ignores the field --
+        the spec tells it to read an absent one as ``complete`` -- so sending
+        it costs nothing and omitting it would make this a legacy server.
+
+        ``serverInfo`` rides in ``_meta`` because there is no handshake left to
+        carry it, and a stateless client should not have to remember what it
+        was talking to.
+        """
+        decorated = {"resultType": "complete", **result}
+        meta = dict(decorated.get("_meta") or {})
+        meta[META_SERVER_INFO] = {"name": "tsumugi", "version": __version__}
+        decorated["_meta"] = meta
+        return decorated
+
+    def _describe(self, request: Request) -> dict[str, Any]:
+        """Answer `server/discover`, and `initialize` from an older client.
+
+        One handler for both because the answer is the same set of facts. The
+        version reported back is the one the client asked for when it asked --
+        an older client that says 2025-06-18 gets that, because telling it
+        otherwise would be telling it to speak a protocol it does not have.
+        """
+        asked = request.params.get("protocolVersion") or request.protocol_version
         return {
             "protocolVersion": asked if isinstance(asked, str) else PROTOCOL_VERSION,
             "capabilities": {"tools": {}},

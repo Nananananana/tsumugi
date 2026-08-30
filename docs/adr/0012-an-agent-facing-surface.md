@@ -91,3 +91,32 @@ never acts on it. The tools do not write, do not shell out, and do not fetch. Th
 is a property of the four tools chosen, and adding a fifth that writes would end
 it — which is the reason the read-only rule is in this ADR rather than in a
 comment.
+
+---
+
+## Amendment, 2026-08-30: the 2026-07-28 revision
+
+MCP went **stateless**. The `initialize`/`initialized` handshake and the
+connection-scoped session are retired; every request now carries its own
+protocol version and client capabilities in `_meta`, every result names its
+`resultType`, and list results may declare how long they keep.
+
+The interesting part is how little of this server changed. `handle()` never
+read anything established by an earlier message -- that was a choice made
+because a dispatch with no session is easier to test, and it turned out to be
+the requirement three revisions later. What was added is what the new shape
+*says*: `resultType`, `serverInfo` in a result's `_meta`, `ttlMs` on
+`tools/list`, and `server/discover` as a second name for the facts
+`initialize` used to return.
+
+**Both eras are answered, and that is a decision rather than politeness.** A
+server that dropped the handshake would stop working with every client shipped
+before this revision, which is most of them today. The specification expects
+implementations to detect the counterpart's era and fall back; here the tell is
+whether a request carries `_meta.io.modelcontextprotocol/protocolVersion`. An
+older client is told the version *it* asked for, because answering `2026-07-28`
+to a client that does not implement it would be worse than answering nothing.
+
+The cost is a second code path that has to keep working, and a date in this
+repository that will go stale again. Both are cheaper than the alternative,
+which is an agent surface that quietly stops being one.
