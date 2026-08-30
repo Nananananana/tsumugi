@@ -259,7 +259,7 @@ class TestSerialization:
         built = package(
             provenance=PackageProvenance(
                 tsumugi_version="0.1.0.dev0",
-                protection=Protection(by="mamori@0.12.0", scope="sess_2f11"),
+                protection=Protection(by="mamori@0.12.0", scope="sess_2f11", reversible=True),
             )
         )
         recorded = json.loads(built.to_json())["provenance"]["protection"]

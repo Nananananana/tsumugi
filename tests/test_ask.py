@@ -101,6 +101,13 @@ class ShoutingRedactor:
         self.restored.append(text)
         return text.replace("[[WHO]]", "呼び出し側")
 
+    def as_protection(self) -> Protection:
+        # It says so, because a redactor that can restore is the only thing
+        # that knows (ADR-0020). Without this the record defaults to
+        # irreversible and every claim comes back unverifiable -- correct for
+        # a redactor that has not said, and not what this one is.
+        return Protection(by=self.name, scope=self.scope, reversible=True)
+
 
 @pytest.fixture
 def corpus(tmp_path: Path) -> tuple[SqliteDocumentStore, FtsIndex, sqlite3.Connection]:

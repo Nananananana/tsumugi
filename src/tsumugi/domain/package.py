@@ -74,7 +74,14 @@ class Protection:
 
     by: str
     scope: str
-    reversible: bool = True
+    #: ``False`` unless something says otherwise, and the default is the whole
+    #: decision (ADR-0020). Getting this wrong in the ``True`` direction
+    #: reports honest citations as *unsupported* -- a false accusation, and a
+    #: silent one, because the output looks like a correctly-caught
+    #: fabrication. Wrong in the ``False`` direction reports everything as
+    #: *unverifiable*, with its reason: useless, obvious, and fixed by passing
+    #: the right value.
+    reversible: bool = False
 
     def __post_init__(self) -> None:
         if not self.by or not self.scope:
@@ -435,7 +442,10 @@ def _provenance_from_dict(raw: dict[str, Any]) -> PackageProvenance:
             Protection(
                 by=protection["by"],
                 scope=protection["scope"],
-                reversible=protection.get("reversible", True),
+                # A document missing this is already non-conforming: the
+                # schema requires it. All this decides is how loudly a
+                # malformed input fails, and loudly is the answer (ADR-0020).
+                reversible=protection.get("reversible", False),
             )
             if protection
             else None

@@ -150,7 +150,7 @@ class TestRuleOneTheSchema:
         protected = a_package(
             provenance=PackageProvenance(
                 tsumugi_version="0.1.0.dev0",
-                protection=Protection(by="mamori@0.12.0", scope="sess_2f11"),
+                protection=Protection(by="mamori@0.12.0", scope="sess_2f11", reversible=True),
             )
         )
         jsonschema.validate(json.loads(protected.to_json()), schema)
@@ -498,3 +498,36 @@ class TestTheCounterExamples:
     def test_the_producer_refuses_to_build_one(self) -> None:
         with pytest.raises(ValueError, match="ends before it starts"):
             Span(30, 10)
+
+
+class TestAProtectionIsIrreversibleUntilItSaysOtherwise:
+    """ADR-0020. The default decides what a false record costs.
+
+    Wrong in the `True` direction reports honest citations as *unsupported* --
+    a false accusation, and a silent one, because the output looks exactly
+    like a correctly-caught fabrication. Wrong in the `False` direction
+    reports everything as *unverifiable*, with its reason attached: useless,
+    obvious, and fixed by passing the right value.
+    """
+
+    def test_the_default_is_irreversible(self) -> None:
+        assert Protection(by="something@1", scope="s").reversible is False
+
+    def test_a_document_missing_the_field_reads_as_irreversible(self) -> None:
+        # Already non-conforming -- the schema requires it -- so all this
+        # decides is how loudly a malformed input fails.
+        payload = json.loads(a_package().to_json())
+        payload["provenance"]["protection"] = {"by": "mamori@0.22.0", "scope": "s"}
+        del payload["package_id"]  # it no longer describes this payload
+        protection = ContextPackage.from_json(json.dumps(payload)).provenance.protection
+        assert protection is not None
+        assert protection.reversible is False
+
+    def test_the_wire_is_unchanged(self, schema: dict[str, Any]) -> None:
+        # The field was always required, so no emitted document differs. This
+        # decision is about defaults in memory, not about the contract.
+        assert schema["$defs"]["provenance"]["properties"]["protection"]["required"] == [
+            "by",
+            "scope",
+            "reversible",
+        ]

@@ -111,21 +111,26 @@ def ask(
         output_schema=ANSWER_SCHEMA,
     )
 
+    prompt = package.render()
     if redactor is not None:
-        # Recorded on the package; applied to the rendered text below.
-        # Redacting the package itself would leave items whose text no longer
-        # matched their text_hash, and the contract refuses to build one.
+        # Protect first, then record. A redactor knows whether a value can be
+        # restored only after it has seen the text: mamori reports it per
+        # protection, and asking beforehand gets a pessimistic guess from its
+        # policy instead (ADR-0020). The record is only useful if it is true.
+        #
+        # The rendered text, never the package. Redacting the package would
+        # leave items whose text no longer matched their text_hash, and the
+        # contract refuses to build one.
+        prompt = redactor.protect(prompt)
         package = replace(
             package,
             provenance=replace(package.provenance, protection=_protection_of(redactor)),
         )
 
     if ledger is not None:
+        # After the protection is recorded, so the ledger holds the package
+        # that was actually sent.
         ledger.open(package)
-
-    prompt = package.render()
-    if redactor is not None:
-        prompt = redactor.protect(prompt)
 
     answer = provider.generate(prompt)
 

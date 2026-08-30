@@ -268,7 +268,7 @@ class TestRestoreBeforeVerify:
         protected = a_package(
             provenance=PackageProvenance(
                 tsumugi_version="0.1.0.dev0",
-                protection=Protection(by="mamori@0.12.0", scope="sess_2f11"),
+                protection=Protection(by="mamori@0.12.0", scope="sess_2f11", reversible=True),
             )
         )
         with pytest.raises(ProtectedPackageError, match="sess_2f11"):
@@ -278,7 +278,7 @@ class TestRestoreBeforeVerify:
         protected = a_package(
             provenance=PackageProvenance(
                 tsumugi_version="0.1.0.dev0",
-                protection=Protection(by="fake-redactor@1", scope="sess_test"),
+                protection=Protection(by="fake-redactor@1", scope="sess_test", reversible=True),
             )
         )
         report = verify_answer(
@@ -300,7 +300,7 @@ class TestRestoreBeforeVerify:
         protected = a_package(
             provenance=PackageProvenance(
                 tsumugi_version="0.1.0.dev0",
-                protection=Protection(by="fake-redactor@1", scope="sess_test"),
+                protection=Protection(by="fake-redactor@1", scope="sess_test", reversible=True),
             )
         )
         through = verify_answer(

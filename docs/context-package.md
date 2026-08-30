@@ -221,6 +221,14 @@ no stated error is a number pretending to be a measurement.
 
 ### `provenance.protection`
 
+`reversible` decides what a verifier *does*, so it is required on the wire and
+**defaults to `false`** everywhere a default exists
+([ADR 0020](adr/0020-a-protection-is-irreversible-until-it-says-otherwise.md)).
+Getting it wrong in the `true` direction reports honest citations as
+`unsupported` — a false accusation, and a silent one. Wrong the other way
+reports everything as `unverifiable`, with its reason. Only a redactor knows
+which it is, so a producer should ask it after protecting rather than assume.
+
 `null` when the package has not passed through a redactor. Otherwise it names the
 redactor and the scope:
 

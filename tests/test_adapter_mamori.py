@@ -103,7 +103,7 @@ class TestTheAdapter:
         # every real value back into an index that is already a complete
         # plaintext copy of a corpus.
         assert redactor.scope
-        assert "田中" not in repr(redactor.as_protection())
+        assert "田中" not in repr(redactor.as_protection(reversible=True))
 
     def test_protecting_removes_the_values(self, redactor: MamoriRedactor) -> None:
         protected = redactor.protect(TEXT)
@@ -124,7 +124,7 @@ class TestRestoreBeforeVerify:
         # and the failure would look exactly like a hallucination.
         package = a_package(
             provenance=PackageProvenance(
-                tsumugi_version="test", protection=redactor.as_protection()
+                tsumugi_version="test", protection=redactor.as_protection(reversible=True)
             )
         )
         with pytest.raises(ProtectedPackageError, match=redactor.scope):
@@ -135,7 +135,7 @@ class TestRestoreBeforeVerify:
     ) -> None:
         package = a_package(
             provenance=PackageProvenance(
-                tsumugi_version="test", protection=redactor.as_protection()
+                tsumugi_version="test", protection=redactor.as_protection(reversible=True)
             )
         )
         # What the model was actually shown, and what it would quote back.
@@ -151,7 +151,7 @@ class TestRestoreBeforeVerify:
         # `trace` can follow to a line in a file holding the real value.
         package = a_package(
             provenance=PackageProvenance(
-                tsumugi_version="test", protection=redactor.as_protection()
+                tsumugi_version="test", protection=redactor.as_protection(reversible=True)
             )
         )
         shown = protect_package(package.items[0].text, redactor)
@@ -175,7 +175,7 @@ class TestRestoreBeforeVerify:
 
         protected_package = a_package(
             provenance=PackageProvenance(
-                tsumugi_version="test", protection=redactor.as_protection()
+                tsumugi_version="test", protection=redactor.as_protection(reversible=True)
             )
         )
         through = verify_answer(
@@ -217,7 +217,7 @@ class TestTheBoundaryHolds:
 
         package = a_package(
             provenance=PackageProvenance(
-                tsumugi_version="test", protection=redactor.as_protection()
+                tsumugi_version="test", protection=redactor.as_protection(reversible=True)
             )
         )
         recorded = json.loads(package.to_json())["provenance"]["protection"]
@@ -357,3 +357,43 @@ class TestTheWholeLoopThroughProtection:
         # is never redacted.
         assert "田中太郎" in serialised
         connection.close()  # type: ignore[attr-defined]
+
+
+class TestReversibilityIsObservedNotAssumed:
+    """ADR-0020: mamori knows, so tsumugi asks instead of defaulting.
+
+    The default used to be `True`, which for this redactor in its own default
+    configuration was simply false -- `PrivacyPolicy` falls back to
+    `Action.BLOCK`, and a blocked value is gone.
+    """
+
+    def test_a_fresh_redactor_has_not_seen_anything_yet(self, session: object) -> None:
+        # Nothing protected, so nothing observed, so the pessimistic estimate
+        # from the policy. It is almost always False, which is the point.
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+        assert redactor.as_protection().reversible == redactor.policy_is_reversible()
+
+    def test_it_reports_what_mamori_actually_did(self, session: object) -> None:
+        # mamori answers this per protection: it knows which entities it
+        # anonymised and which it masked. That is better evidence than what
+        # its policy might have done to some other text.
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+        redactor.protect(TEXT)
+        observed = redactor.as_protection().reversible
+        assert isinstance(observed, bool)
+        # And it matches what the session reported for that same text.
+        assert observed == bool(session.protect(TEXT).reversible)  # type: ignore[attr-defined]
+
+    def test_a_caller_who_knows_still_wins(self, session: object) -> None:
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+        redactor.protect(TEXT)
+        assert redactor.as_protection(reversible=False).reversible is False
+
+    def test_one_irreversible_protection_taints_the_session(self, session: object) -> None:
+        # A conjunction, not a last-write-wins. One masked value makes the
+        # package unrestorable, and a later call that masked nothing does not
+        # undo that.
+        redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+        redactor._observed = False
+        redactor.protect("nothing sensitive here at all")
+        assert redactor.as_protection().reversible is False
