@@ -247,7 +247,46 @@ honest entry is a gap.
 
 ### Then
 
-**5. Term rarity in the confirmation stage.** ADR-0019 closed the near-miss
+**5. Term rarity in the confirmation stage.** — **withdrawn 2026-08-31.
+Measured: it separates nothing and mostly makes things worse.**
+
+`tools/measure_rarity.py`, over the 23 cases the lexical stage misses:
+
+| | |
+|---|---|
+| ties, where the answer and a rival cover exactly the same amount | 15 |
+| ...that rarity separates | **0** |
+| cases where they cover different amounts | 8 |
+| ...where the answer's margin improved | 1 |
+| ...where it **worsened** | 5 |
+
+**The first row is a proof, not a measurement, and that is the part worth
+keeping.** A tie means the two documents matched *the same set of terms*. Any
+per-term weighting applies the same weights to the same set on both sides, so
+the ratio moves identically for both. **No weighting scheme can break a tie
+that coverage produced** — not this one, not bm25's, not any. The case for item
+5 was exactly that rarity could separate `0.42 / 0.42`, and it cannot, for a
+reason that needed no experiment once the tie was stated properly.
+
+The second half is a measurement of one formulation — inverse document
+frequency over the case's own documents, weighting numerator and denominator
+alike, which is the natural way to add rarity to a coverage ratio. A different
+formulation might behave differently, and the honest claim is not *rarity
+cannot help* but *this way of adding it does not, and costs five cases to buy
+one*. The one it helped, `en-travel-paraphrase` at +0.12 to +0.17, was already
+ahead: **it improves margins that did not need improving and shrinks the thin
+ones.**
+
+Kept here rather than deleted, because the reasoning is the durable part and
+the next person to notice that bm25 knows which word is rare will otherwise
+have the same good idea.
+
+**What was right about it:** it named the constraint correctly — no stopword
+list, no per-language resource. The measurement obeyed that: IDF over the
+case's own documents needs no list at all. The idea was refused on evidence,
+not on principle.
+
+*The original entry follows.* ADR-0019 closed the near-miss
 gap with a *relative* rule, and noted what it does not have: bm25 knows that
 `warranty` is the rare word and `the coverage period of` is not, and
 confirmation still does not. Cheap, already computed, and the last piece of the
