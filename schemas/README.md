@@ -3,6 +3,15 @@
 `context-package-1.json` now lives at
 [`src/tsumugi/schemas/context-package-1.json`](../src/tsumugi/schemas/context-package-1.json).
 
+**There is one copy, and this directory is not it.** That is the decision, not
+a consequence of the move: two copies kept equal by a test is a weaker
+arrangement, because a test can hold two files identical and still not say
+which one is the contract when somebody is reading the wrong one. So there is
+nothing here to disagree with, and
+`test_there_is_exactly_one_copy_of_the_contract` fails if a `.json` reappears
+in this directory — which is the obvious repair when a link breaks, and the one
+that would quietly restore the ambiguity. The argument is `musubi`'s.
+
 It moved **into the package** on 2026-08-30, because that is where a file has to
 be to be packaged. The contract ships inside the wheel so that a consumer
 validating a ContextPackage does not have to fetch a schema from the internet —

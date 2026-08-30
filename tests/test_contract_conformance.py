@@ -19,7 +19,9 @@ producer, and are checked here against tsumugi as the reference producer.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -41,11 +43,14 @@ import jsonschema
 import pytest
 
 from tsumugi import contract_schema, contract_schema_text
+from tsumugi.contract import CONTRACT_SCHEMA_NAME
 from tsumugi.domain.anchor import Anchor
 from tsumugi.domain.budget import Budget
 from tsumugi.domain.hashing import ContentHash
 from tsumugi.domain.omission import Omission, OmissionRule
 from tsumugi.domain.package import (
+    CONTRACT,
+    SUPPORTED_CONTRACTS,
     BudgetReport,
     ContextPackage,
     PackageProvenance,
@@ -697,3 +702,109 @@ def test_the_contract_cannot_be_extended_and_says_so() -> None:
     assert not open_objects, (
         f"these accept unknown fields while the contract says nothing may be added: {open_objects}"
     )
+
+
+#: sha256 of `src/tsumugi/schemas/context-package-1.json`, as bytes.
+#:
+#: Updated only alongside a decision that changes the frozen contract. It is
+#: not a check that the schema is *correct* -- nothing here can be -- it is a
+#: check that a change to it was **meant**.
+FROZEN_SCHEMA_SHA256 = "6e0aa2e86f318b9bda862da7b145759da63a68ca6f00f20d46a15ec12095e0eb"
+
+
+def test_the_frozen_contract_is_byte_stable() -> None:
+    """The published bytes do not drift, including by reformatting.
+
+    ADR-0022 was committed with a 342-line diff to this file for a
+    one-sentence change: the edit went through ``json.dumps(indent=2)``, which
+    re-wrapped every array. The meaning was identical and every other test
+    passed -- the schema still validated the same packages, because a parser
+    does not care where the newlines are.
+
+    But ``contract_schema_text()`` is documented as *the bytes, to hash or to
+    vendor*, and consumers are told to vendor the file and record the commit.
+    A consumer who pinned a hash would have seen the frozen contract change
+    under them for no reason, in the same commit that added the sentence
+    saying v1 is closed.
+
+    So the hash is pinned. Editing the schema now means editing this line too,
+    which is a sentence in a diff rather than a silent reformat.
+    """
+    on_disk = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "tsumugi"
+        / "schemas"
+        / "context-package-1.json"
+    ).read_bytes()
+    assert hashlib.sha256(on_disk).hexdigest() == FROZEN_SCHEMA_SHA256
+
+    # And the accessor hands out those same bytes -- the route consumers are
+    # told to use, not a re-serialisation of them.
+    assert hashlib.sha256(contract_schema_text().encode("utf-8")).hexdigest() == (
+        FROZEN_SCHEMA_SHA256
+    )
+
+
+def test_the_identifier_the_schema_and_the_filename_name_the_same_contract() -> None:
+    """The three names for version 1 are held together, here and nowhere else.
+
+    `akashi` found this class: a contract identifier and its schema are joined
+    by convention, so moving one leaves a package declaring one thing while the
+    schema beside it describes another, and every other test passes because
+    each sees only its own half.
+
+    Measured before writing this: forging `$id` to a URL belonging to a
+    different project left the whole conformance suite green except the byte
+    pin, which fires on *any* edit. `$id` does not participate in validation --
+    it is for `$ref` resolution and registries -- so nothing was comparing it
+    to anything. akashi's blind spot was open here.
+
+    The comparison rule has to be written per project, because each joins the
+    names differently. tsumugi's join is: the identifier's version suffix, the
+    schema filename's version suffix, and `$id`'s last path segment are one
+    number, and the pattern the schema enforces is exactly the set of
+    identifiers the domain will emit.
+    """
+    schema = contract_schema()
+
+    assert schema["$id"].endswith(f"/{CONTRACT_SCHEMA_NAME}"), (
+        f"$id {schema['$id']} does not end in the file it names, "
+        f"{CONTRACT_SCHEMA_NAME}"
+    )
+
+    # `tsumugi.context-package/1` <-> `context-package-1.json`
+    family, _, version = CONTRACT.partition("/")
+    stem = CONTRACT_SCHEMA_NAME.removesuffix(".json")
+    assert stem == f"{family.removeprefix('tsumugi.')}-{version}", (
+        f"{CONTRACT} and {CONTRACT_SCHEMA_NAME} are not the same version"
+    )
+
+    # And the pattern admits exactly what the producer may stamp -- no more, so
+    # a retired identifier cannot quietly stay valid, and no less.
+    pattern = re.compile(schema["properties"]["contract"]["pattern"])
+    assert {c for c in SUPPORTED_CONTRACTS if pattern.fullmatch(c)} == SUPPORTED_CONTRACTS
+    for rejected in (f"{family}/2", "kiseki.context-package/1", f"{CONTRACT}-rc1"):
+        assert not pattern.fullmatch(rejected), f"the pattern admits {rejected}"
+
+
+def test_there_is_exactly_one_copy_of_the_contract() -> None:
+    """One schema file in the repository, and the root holds a signpost only.
+
+    `musubi` refused kiseki's two-copies-kept-equal shape with the sentence
+    this test exists to enforce: **a test can keep two copies equal, but it
+    cannot say which one is the contract** when someone is reading the wrong
+    one. Keeping them equal is the weaker property; having one is the decision.
+
+    So this is not "the copies agree". It is "there is nothing to disagree
+    with". `schemas/` at the root is a README pointing into the package, and a
+    `.json` reappearing there -- the obvious repair when a link breaks or a
+    build rule surprises someone -- is the failure this catches.
+    """
+    root = Path(__file__).resolve().parent.parent
+    copies = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("context-package-*.json")
+        if not {".git", ".venv", "dist", "build"} & set(path.parts)
+    )
+    assert copies == [f"src/tsumugi/schemas/{CONTRACT_SCHEMA_NAME}"], copies

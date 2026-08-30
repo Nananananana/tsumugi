@@ -4,14 +4,7 @@
   "title": "ContextPackage",
   "description": "Everything a language model needs for one question, plus an account of where it came from and what was left behind. tsumugi is the reference producer, not required to be the only one. See docs/context-package.md.",
   "type": "object",
-  "required": [
-    "contract",
-    "query",
-    "items",
-    "omissions",
-    "budget",
-    "provenance"
-  ],
+  "required": ["contract", "query", "items", "omissions", "budget", "provenance"],
   "additionalProperties": false,
   "properties": {
     "contract": {
@@ -23,117 +16,55 @@
       "description": "sha256 over everything that determined the package, excluding created_at. Identical inputs produce an identical id.",
       "$ref": "#/$defs/hash"
     },
-    "created_at": {
-      "type": "string"
-    },
-    "query": {
-      "type": "string",
-      "minLength": 1
-    },
+    "created_at": { "type": "string" },
+    "query": { "type": "string", "minLength": 1 },
     "instructions": {
       "type": "object",
       "properties": {
-        "role": {
-          "type": "string"
-        },
-        "rules": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "role": { "type": "string" },
+        "rules": { "type": "array", "items": { "type": "string" } }
       }
     },
     "items": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/item"
-      }
+      "items": { "$ref": "#/$defs/item" }
     },
     "omissions": {
       "description": "REQUIRED, and empty only when nothing was considered and dropped. Every candidate that was considered and not included appears here. See ADR-0005.",
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/omission"
-      }
+      "items": { "$ref": "#/$defs/omission" }
     },
-    "constraints": {
-      "type": "object"
-    },
-    "output_schema": {
-      "type": [
-        "object",
-        "null"
-      ]
-    },
-    "budget": {
-      "$ref": "#/$defs/budget"
-    },
-    "provenance": {
-      "$ref": "#/$defs/provenance"
-    }
+    "constraints": { "type": "object" },
+    "output_schema": { "type": ["object", "null"] },
+    "budget": { "$ref": "#/$defs/budget" },
+    "provenance": { "$ref": "#/$defs/provenance" }
   },
+
   "$defs": {
     "hash": {
       "type": "string",
       "pattern": "^(sha256|sha512|blake2b):[0-9a-f]+$"
     },
+
     "item": {
       "type": "object",
-      "required": [
-        "item_id",
-        "kind",
-        "text",
-        "anchor",
-        "provenance",
-        "cost"
-      ],
+      "required": ["item_id", "kind", "text", "anchor", "provenance", "cost"],
       "additionalProperties": false,
       "properties": {
-        "item_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "kind": {
-          "type": "string",
-          "minLength": 1
-        },
-        "text": {
-          "type": "string",
-          "minLength": 1
-        },
+        "item_id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
         "anchor": {
           "type": "object",
-          "required": [
-            "document_id",
-            "start",
-            "end",
-            "text_hash",
-            "document_hash"
-          ],
+          "required": ["document_id", "start", "end", "text_hash", "document_hash"],
           "additionalProperties": false,
           "properties": {
-            "document_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "source_path": {
-              "type": "string"
-            },
-            "section": {
-              "type": "string"
-            },
-            "start": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "end": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "text_hash": {
-              "$ref": "#/$defs/hash"
-            },
+            "document_id": { "type": "string", "minLength": 1 },
+            "source_path": { "type": "string" },
+            "section": { "type": "string" },
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 0 },
+            "text_hash": { "$ref": "#/$defs/hash" },
             "document_hash": {
               "description": "The whole document as it was when the anchor was taken. Without it, an anchor into an edited document silently resolves against different text.",
               "$ref": "#/$defs/hash"
@@ -142,95 +73,47 @@
         },
         "provenance": {
           "type": "object",
-          "required": [
-            "layer",
-            "producer"
-          ],
+          "required": ["layer", "producer"],
           "additionalProperties": false,
           "properties": {
             "layer": {
               "description": "Facts, measures and interpretations stay separate across the boundary. An interpretation does not become a fact by entering a package.",
-              "enum": [
-                "fact",
-                "measure",
-                "interpretation"
-              ]
+              "enum": ["fact", "measure", "interpretation"]
             },
-            "producer": {
-              "type": "string",
-              "minLength": 1
-            },
-            "observed_at": {
-              "type": "string"
-            },
-            "confidence": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            }
+            "producer": { "type": "string", "minLength": 1 },
+            "observed_at": { "type": "string" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
           },
           "allOf": [
             {
-              "if": {
-                "properties": {
-                  "layer": {
-                    "const": "interpretation"
-                  }
-                }
-              },
-              "then": {
-                "required": [
-                  "confidence"
-                ]
-              },
-              "else": {
-                "not": {
-                  "required": [
-                    "confidence"
-                  ]
-                }
-              }
+              "if": { "properties": { "layer": { "const": "interpretation" } } },
+              "then": { "required": ["confidence"] },
+              "else": { "not": { "required": ["confidence"] } }
             }
           ]
         },
         "selection": {
           "type": "object",
-          "required": [
-            "rank",
-            "score"
-          ],
+          "required": ["rank", "score"],
           "additionalProperties": false,
           "properties": {
-            "rank": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "score": {
-              "type": "number"
-            },
+            "rank": { "type": "integer", "minimum": 1 },
+            "score": { "type": "number" },
             "signals": {
               "description": "Why this scored what it did. A ranker that cannot say is a ranker nobody can debug.",
               "type": "array",
-              "items": {
-                "type": "string"
-              }
+              "items": { "type": "string" }
             }
           }
         },
-        "cost": {
-          "type": "integer",
-          "minimum": 0
-        }
+        "cost": { "type": "integer", "minimum": 0 }
       }
     },
+
     "omission": {
       "description": "Carries an anchor, a rule and a reason. Deliberately NOT the omitted text: copying what was withheld into the thing being sent would defeat the point.",
       "type": "object",
-      "required": [
-        "rule",
-        "reason",
-        "anchor"
-      ],
+      "required": ["rule", "reason", "anchor"],
       "additionalProperties": false,
       "properties": {
         "rule": {
@@ -250,70 +133,28 @@
         },
         "anchor": {
           "type": "object",
-          "required": [
-            "document_id",
-            "start",
-            "end"
-          ],
+          "required": ["document_id", "start", "end"],
           "additionalProperties": false,
           "properties": {
-            "document_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "source_path": {
-              "type": "string"
-            },
-            "start": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "end": {
-              "type": "integer",
-              "minimum": 0
-            }
+            "document_id": { "type": "string", "minLength": 1 },
+            "source_path": { "type": "string" },
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 0 }
           }
         },
-        "score": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "cost": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
-        }
+        "score": { "type": ["number", "null"] },
+        "cost": { "type": ["integer", "null"], "minimum": 0 }
       }
     },
+
     "budget": {
       "type": "object",
-      "required": [
-        "unit",
-        "limit",
-        "estimate",
-        "estimator"
-      ],
+      "required": ["unit", "limit", "estimate", "estimator"],
       "additionalProperties": false,
       "properties": {
-        "unit": {
-          "enum": [
-            "tokens",
-            "characters",
-            "bytes"
-          ]
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "estimate": {
-          "type": "integer",
-          "minimum": 0
-        },
+        "unit": { "enum": ["tokens", "characters", "bytes"] },
+        "limit": { "type": "integer", "minimum": 1 },
+        "estimate": { "type": "integer", "minimum": 0 },
         "estimator": {
           "description": "Versioned: a change to the estimator changes every budget decision, and therefore the package_id.",
           "type": "string",
@@ -322,82 +163,35 @@
         "measured_error": {
           "description": "How wrong the estimator was against a real tokenizer. REQUIRED when the unit is tokens and the estimator is a heuristic: a token count with no stated error is a number pretending to be a measurement.",
           "type": "object",
-          "required": [
-            "p50",
-            "p95",
-            "against",
-            "dataset"
-          ],
+          "required": ["p50", "p95", "against", "dataset"],
           "properties": {
-            "p50": {
-              "type": "number",
-              "minimum": 0
-            },
-            "p95": {
-              "type": "number",
-              "minimum": 0
-            },
-            "against": {
-              "type": "string",
-              "minLength": 1
-            },
-            "dataset": {
-              "type": "string",
-              "minLength": 1
-            }
+            "p50": { "type": "number", "minimum": 0 },
+            "p95": { "type": "number", "minimum": 0 },
+            "against": { "type": "string", "minLength": 1 },
+            "dataset": { "type": "string", "minLength": 1 }
           }
         }
       }
     },
+
     "provenance": {
       "type": "object",
-      "required": [
-        "tsumugi_version",
-        "providers",
-        "protection"
-      ],
+      "required": ["tsumugi_version", "providers", "protection"],
       "additionalProperties": false,
       "properties": {
-        "tsumugi_version": {
-          "type": "string",
-          "minLength": 1
-        },
-        "corpus_state": {
-          "$ref": "#/$defs/hash"
-        },
-        "settings_hash": {
-          "$ref": "#/$defs/hash"
-        },
-        "providers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
+        "tsumugi_version": { "type": "string", "minLength": 1 },
+        "corpus_state": { "$ref": "#/$defs/hash" },
+        "settings_hash": { "$ref": "#/$defs/hash" },
+        "providers": { "type": "array", "items": { "type": "string" } },
         "protection": {
           "description": "null when nothing has redacted this package. When set, a verifier that holds no restorer must refuse to verify rather than reporting every honest citation as unsupported. See ADR-0009.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "required": [
-            "by",
-            "scope",
-            "reversible"
-          ],
+          "type": ["object", "null"],
+          "required": ["by", "scope", "reversible"],
           "additionalProperties": false,
           "properties": {
-            "by": {
-              "type": "string",
-              "minLength": 1
-            },
-            "scope": {
-              "type": "string",
-              "minLength": 1
-            },
-            "reversible": {
-              "type": "boolean"
-            }
+            "by": { "type": "string", "minLength": 1 },
+            "scope": { "type": "string", "minLength": 1 },
+            "reversible": { "type": "boolean" }
           }
         }
       }
