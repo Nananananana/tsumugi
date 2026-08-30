@@ -526,7 +526,7 @@ class TestAsk:
                 for inner in ast.walk(node)
             )
         }
-        assert sending == {"_ask", "_answer_report", "_disagreements"}, (
+        assert sending == {"_ask", "_answer_report"}, (
             f"{sorted(sending)} can send. `tsumugi ask` and `tsumugi eval --model` "
             f"are the two commands that may; every other command is local, and the "
             f"threat model says so."
@@ -666,5 +666,14 @@ class TestComparingTwoModels:
 
         from tsumugi.interfaces.cli import main as module
 
-        source = inspect.getsource(module._eval)
-        assert '"," in args.model' in source
+        assert "if len(scored) > 1:" in inspect.getsource(module._eval)
+
+    def test_each_model_answers_every_case_once(self) -> None:
+        # The report and the comparison read the same scores. Asking twice
+        # would double the slowest part of the command to print a second view
+        # of one answer.
+        import inspect
+
+        from tsumugi.interfaces.cli import main as module
+
+        assert "answer_cases" not in inspect.getsource(module._disagreements)

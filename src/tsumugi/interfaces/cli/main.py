@@ -13,7 +13,7 @@ import contextlib
 import json
 import sqlite3
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -30,7 +30,7 @@ from ...config import TsumugiConfig
 from ...domain.budget import Budget, Unit
 from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
-from ...evaluation.answering import answer_cases, summarise_answers
+from ...evaluation.answering import AnswerScore, answer_cases, summarise_answers
 from ...evaluation.dataset import Case, load_cases
 from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
@@ -689,10 +689,16 @@ def _eval(args: argparse.Namespace, config: TsumugiConfig) -> int:
             f"budget and reproducibility exact"
         )
 
-    for model in [name.strip() for name in args.model.split(",")] if args.model else []:
-        _answer_report(cases, model, config)
-    if args.model and "," in args.model:
-        _disagreements(cases, args.model.split(","), config)
+    if args.model:
+        # Each model answers every case once. The report and the comparison
+        # both read the same scores: asking twice would double the slowest
+        # part of this command to print a second view of one answer.
+        scored = {
+            model: _answer_report(cases, model, config)
+            for model in (name.strip() for name in args.model.split(","))
+        }
+        if len(scored) > 1:
+            _disagreements(scored)
 
     print()
     print("The corpus is generated and tidier than anything anyone writes.")
@@ -722,7 +728,7 @@ def _forget(args: argparse.Namespace, config: TsumugiConfig) -> int:
     return 0 if removed else 1
 
 
-def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -> None:
+def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -> list[AnswerScore]:
     """The opt-in half: what a real model did with each package.
 
     Printed after the deterministic scores and never folded into them. The
@@ -768,8 +774,10 @@ def _answer_report(cases: Sequence[object], model: str, config: TsumugiConfig) -
         for score in wrong[:5]:
             print(f"    {score.case_id}")
 
+    return scores
 
-def _disagreements(cases: Sequence[object], models: Sequence[str], config: TsumugiConfig) -> None:
+
+def _disagreements(scored: Mapping[str, Sequence[AnswerScore]]) -> None:
     """Where two models did different things with the same package.
 
     The reason `--model` takes a list. Every model-facing defect this project
@@ -781,23 +789,18 @@ def _disagreements(cases: Sequence[object], models: Sequence[str], config: Tsumu
     Agreement is not correctness -- two models can be wrong together, and on a
     corpus this tidy they often will be. Disagreement is where to look.
     """
-    typed = cast("Sequence[Case]", cases)
-    outcomes: dict[str, dict[str, str]] = {}
-    for model in models:
-        provider = OllamaProvider(model=model.strip())
-        scored = answer_cases(typed, provider, candidate_limit=config.candidate_limit)
-        outcomes[provider.name] = {
-            score.case_id: (
-                "unreadable"
-                if score.unreadable
-                else "failed"
-                if not score.ran
-                else "grounded"
-                if score.grounded
-                else "ungrounded"
-            )
-            for score in scored
-        }
+
+    def outcome(score: AnswerScore) -> str:
+        if score.unreadable:
+            return "unreadable"
+        if not score.ran:
+            return "failed"
+        return "grounded" if score.grounded else "ungrounded"
+
+    outcomes = {
+        model: {score.case_id: outcome(score) for score in scores}
+        for model, scores in scored.items()
+    }
 
     names = list(outcomes)
     differing = [
