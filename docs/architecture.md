@@ -504,5 +504,7 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-741 tests, 92% line coverage. Every test runs with no network, no model and no
-third-party package beyond the test tools themselves.
+Every test runs with no network, no model and no third-party package beyond the
+test tools themselves. That is the property worth stating, and unlike a count
+it is enforced: `test_leakage.py` and the no-extras CI job both fail if it
+stops being true.

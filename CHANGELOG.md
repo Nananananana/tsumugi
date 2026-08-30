@@ -459,7 +459,8 @@ stable.
   into a clean environment.
 - CI checks the runner's SQLite has FTS5 before running anything, so a build
   without it fails with one sentence rather than forty confusing errors.
-- 305 tests, 93% coverage, no network and no model anywhere in the suite.
+- No network and no model anywhere in the suite, so it runs the same on a
+  laptop with the wifi off as it does in CI.
 
 ### Added — the documents
 
