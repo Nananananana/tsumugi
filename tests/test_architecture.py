@@ -231,6 +231,68 @@ def test_only_the_adapters_may_know_about_a_sibling_project(module: Path) -> Non
         )
 
 
+@pytest.mark.parametrize("module", ALL_MODULES, ids=lambda m: str(m.relative_to(SRC)))
+def test_an_adapter_imports_its_sibling_inside_a_function(module: Path) -> None:
+    """Named in `SIBLINGS`, and imported lazily even where it is allowed.
+
+    The rule above says nothing outside `infrastructure/adapters/` may name a
+    sibling. That leaves a gap the size of the adapter itself: a module-level
+    `import mamori` *inside* the adapter passes every static check, and
+    `interfaces/cli/main.py` imports that adapter unconditionally -- so
+    hoisting the import to the top of the file, which is what tidying up looks
+    like, breaks `import tsumugi.interfaces.cli.main` on any machine without
+    mamori.
+
+    Demonstrated rather than assumed: with the import hoisted, this file's
+    other tests and all five import-linter contracts still pass.
+
+    Raised by `iriguchi`, which had both halves of the answer: a property that
+    reduces to *who imports whom, and where* is worth proving statically, and
+    "importable without its optional dependencies" does not reduce to that --
+    so `test_leakage.py` proves that one directly, with the sibling blocked.
+    This test is the cheap half, and it is the half that fails on a developer's
+    machine, where the sibling is installed and nothing else would notice.
+    """
+    if not _is_adapter(module):
+        pytest.skip("only adapters may name a sibling at all")
+
+    tree = ast.parse(module.read_text(encoding="utf-8"))
+
+    def _is_type_checking(node: ast.AST) -> bool:
+        """An ``if TYPE_CHECKING:`` block, which never runs."""
+        if not isinstance(node, ast.If):
+            return False
+        test = node.test
+        return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+            isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+        )
+
+    # Inside a function, or inside `if TYPE_CHECKING:`. The second was found by
+    # this test on its first run: the adapter imports `PrivacySession` for an
+    # annotation, at module level, and that import does not execute.
+    allowed = {
+        node
+        for parent in ast.walk(tree)
+        if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef) or _is_type_checking(parent)
+        for node in ast.walk(parent)
+    }
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Import | ast.ImportFrom):
+            continue
+        names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else []
+        if isinstance(node, ast.ImportFrom) and node.module:
+            names.append(node.module)
+        if not any(name.split(".")[0] in SIBLINGS for name in names):
+            continue
+        assert node in allowed, (
+            f"{module.relative_to(SRC)}:{node.lineno} imports a sibling at module level. "
+            f"An adapter may name one -- that is what an adapter is for -- but importing "
+            f"it on import of the module makes every importer of this adapter require it, "
+            f"and the CLI imports this adapter unconditionally. Keep it inside the "
+            f"function that needs it."
+        )
+
+
 def test_every_layer_in_the_tree_is_in_the_table() -> None:
     """A new top-level package must be classified, not silently unchecked."""
     layers = {_layer_of(m) for m in ALL_MODULES}

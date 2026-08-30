@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import io
 import logging
+import subprocess
+import sys
 import traceback
 from pathlib import Path
 
@@ -147,3 +149,80 @@ class TestTracebacks:
         except ValueError:
             printed = traceback.format_exc()
         assert SECRET not in printed
+
+
+class TestItImportsWithoutItsOptionalSiblings:
+    """`pip install tsumugi` and import it. No mamori, no kiseki, no error.
+
+    The static rules next door prove *who imports whom, and where*, which is a
+    different thing. `iriguchi` drew the line: a property that reduces to the
+    import graph is worth proving statically and needs no environment; this one
+    does not reduce to that, because the guard sits where the static rules
+    already allow a sibling to be named -- inside the adapter.
+
+    So this proves it directly, by making the sibling absent. It costs eight
+    lines because the absence is faked in-process rather than by installing
+    anything.
+
+    CI covers this today as a side effect: the test job installs `[dev]` and
+    not `[dev,siblings]`, so mamori is missing there and a hoisted import fails
+    collection. That is real coverage and it is nobody's stated intent -- a
+    later commit adding `siblings` to that job, to run the integration tests in
+    CI, would remove it silently. This test says the intent out loud and fails
+    on a developer's machine, where the sibling *is* installed.
+    """
+
+    SIBLINGS = ("mamori", "kiseki")
+
+    def _without_siblings(self) -> str:
+        """A subprocess that cannot import any sibling, importing the world."""
+        program = (
+            "import sys\n"
+            "class Blocker:\n"
+            "    def find_spec(self, name, path=None, target=None):\n"
+            f"        if name.split('.')[0] in {self.SIBLINGS!r}:\n"
+            "            raise ModuleNotFoundError(name)\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, Blocker())\n"
+            # Everything a user touches: the package, the CLI, the MCP server,
+            # the use case that takes a redactor, and the adapter itself.
+            "import tsumugi\n"
+            "import tsumugi.interfaces.cli.main\n"
+            "import tsumugi.interfaces.mcp.server\n"
+            "import tsumugi.application.ask\n"
+            "import tsumugi.infrastructure.adapters.mamori\n"
+            "import tsumugi.infrastructure.adapters.kiseki\n"
+            "print('imported')\n"
+        )
+        finished = subprocess.run(  # noqa: S603
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        assert finished.returncode == 0, finished.stderr
+        return finished.stdout
+
+    def test_the_blocker_actually_blocks(self) -> None:
+        # First, because a check for absence that quietly stopped working
+        # would report success forever. The last one of these was written with
+        # `find_module`, removed in 3.12, and passed while doing nothing.
+        program = (
+            "import sys\n"
+            "class Blocker:\n"
+            "    def find_spec(self, name, path=None, target=None):\n"
+            "        if name == 'mamori':\n"
+            "            raise ModuleNotFoundError(name)\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, Blocker())\n"
+            "import mamori\n"
+        )
+        finished = subprocess.run(  # noqa: S603
+            [sys.executable, "-c", program], capture_output=True, text=True
+        )
+        assert finished.returncode != 0
+        assert "ModuleNotFoundError" in finished.stderr
+
+    def test_everything_a_user_touches_imports(self) -> None:
+        assert "imported" in self._without_siblings()

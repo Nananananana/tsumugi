@@ -80,6 +80,14 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - TDD. One issue, one PR, squash merge, close the issue after.
 - **All tests must pass before any commit.** One failure means stop and
   investigate, not proceed.
+- **An adapter may name a sibling; it may not import one at module level.**
+  `infrastructure/adapters/` is the only place allowed to know `mamori` or
+  `kiseki` exist, and the CLI imports those adapters unconditionally -- so a
+  module-level `import mamori`, which is what tidying up looks like, makes the
+  whole CLI require it. Both halves are checked: `test_architecture.py` proves
+  the import graph, and `test_leakage.py` proves the property it stands for by
+  importing everything with the siblings blocked. The first fails on a machine
+  that *has* the sibling, which is every developer's.
 - **`pytest.importorskip` is for genuinely optional dependencies, and nothing
   else.** `mamori` is optional and lives in its own `siblings` extra, so
   skipping is right. `jsonschema` is in `[dev]` beside `pytest`, so a file that
