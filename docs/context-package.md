@@ -17,7 +17,7 @@ Readers still accept it — refusing evidence over a version string would be the
 wrong trade — and nothing produces it any more.
 
 `tsumugi context --json` and the MCP `context` tool produce this. The schema is
-[`src/tsumugi/schemas/context-package-1.json`](../schemas/context-package-1.json) and ships
+[`src/tsumugi/schemas/context-package-1.json`](../src/tsumugi/schemas/context-package-1.json) and ships
 with the package; the conformance suite is
 `tests/test_contract_conformance.py`.
 

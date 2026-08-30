@@ -44,7 +44,7 @@ which is a test rather than an intention.
 a stated budget, and emits a **ContextPackage** — a portable JSON document that
 says what is being sent, where each piece came from, what was left out, and
 which rule dropped it. The contract is [context-package.md](context-package.md)
-and the schema is [`src/tsumugi/schemas/context-package-1.json`](../schemas/context-package-1.json).
+and the schema is [`src/tsumugi/schemas/context-package-1.json`](../src/tsumugi/schemas/context-package-1.json).
 
 ## Layers
 

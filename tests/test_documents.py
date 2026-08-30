@@ -1,0 +1,80 @@
+"""Promises the documents make that a reader can check by following them.
+
+Prompted by `musubi`, which found that `docs/contracts.md` told consumers to
+load the contract from a path that did not exist in a development checkout --
+true for anyone who had installed the wheel, false for everyone working on it,
+and **nothing in the repository ever ran the sentence.**
+
+tsumugi's equivalent instruction leads with `tsumugi.contract_schema()`, which
+the conformance suite calls, so the API half was already exercised. The file
+paths beside it were not, and two of them pointed at nothing.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+#: `[text](target)`, skipping URLs, mail and same-page anchors. The fragment is
+#: dropped: `file.md#section` is a claim about the file, and checking headings
+#: as well would make this fail on a renamed section, which is a different and
+#: much noisier promise.
+LINK = re.compile(r"\[[^\]]*\]\((?!https?:|mailto:|#)([^)#]+)(?:#[^)]*)?\)")
+
+
+def _documents() -> list[Path]:
+    return [
+        path
+        for path in ROOT.rglob("*.md")
+        if not {".git", ".venv", "node_modules"} & set(path.parts)
+    ]
+
+
+def test_every_local_link_in_every_document_resolves() -> None:
+    """A link to a file in this repository points at a file in this repository.
+
+    The failure this catches is not a typo. It is a file that **moved** while
+    the sentence describing it stayed, which is how both broken links here were
+    born: the schema went from `schemas/` to `src/tsumugi/schemas/` so that it
+    would ship inside the wheel, the link text was updated to say so, and the
+    href was not. The two disagreed inside the same line -- text naming the new
+    path, target still pointing at the old one -- and every rendering of the
+    document showed a confident link to nothing.
+
+    Documents are not exercised by anything else here. The demo runs, the
+    examples run, the fixtures are regenerated and compared; prose is read by
+    people, at a rate of about once. This is the cheapest thing that reads it
+    every time.
+    """
+    broken = [
+        f"{path.relative_to(ROOT).as_posix()} -> {target}"
+        for path in _documents()
+        for target in LINK.findall(path.read_text(encoding="utf-8"))
+        if not (path.parent / target.strip()).exists()
+    ]
+    assert not broken, "links to files that are not there:\n  " + "\n  ".join(broken)
+
+
+def test_the_documented_way_to_read_the_contract_is_the_one_that_is_tested() -> None:
+    """The instruction consumers are given is the one the suite exercises.
+
+    `docs/context-package.md` offers two routes to the schema: call
+    `tsumugi.contract_schema()`, or vendor the file. The first is named first
+    on purpose -- it is the one `test_contract_conformance.py` runs, so it
+    cannot rot without a test going red, and it is the reason the accessor
+    exists at all rather than a documented path into the package.
+
+    This asserts the ordering survives an edit. A version of that page leading
+    with the file path would be handing consumers the half of the instruction
+    that nothing executes.
+    """
+    page = (ROOT / "docs" / "context-package.md").read_text(encoding="utf-8")
+    accessor = page.index("contract_schema()")
+    vendoring = page.index("Vendoring the file directly")
+    assert accessor < vendoring, (
+        "docs/context-package.md describes vendoring the schema file before it "
+        "describes the accessor. The accessor is the route the conformance "
+        "suite exercises; the file path is not."
+    )
