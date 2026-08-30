@@ -213,8 +213,9 @@ stable.
 ### Added — the mamori adapter, and ADR-0009 tested for real
 
 - `MamoriRedactor` satisfies the `Redactor` port over a `PrivacySession`.
-  Optional: `pip install tsumugi[siblings]`, and the suite skips its tests when
-  the sibling is absent. Nothing outside `infrastructure/adapters/` imports it,
+  Optional, and installed from git because mamori is not on PyPI:
+  `pip install "mamori @ git+https://github.com/Nananananana/mamori@main"`. The
+  suite skips its tests when the sibling is absent. Nothing outside `infrastructure/adapters/` imports it,
   and an architecture test asserts that.
 - **ADR-0009's property now runs against the real redactor**, not only against
   a fake written to make the point: *privacy protection must not change a single

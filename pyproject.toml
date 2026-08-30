@@ -42,13 +42,31 @@ dev = [
     "jsonschema>=4",
 ]
 
-# The sibling projects, for the integration tests that need something real on
-# both sides of a seam. NOT a runtime dependency and not needed to develop:
-# `pytest` skips those tests when they are absent, and an architecture test
-# asserts nothing outside infrastructure/adapters/ imports them.
-siblings = [
-    "mamori>=0.14",
-]
+# There is deliberately no `siblings` extra. There was one -- `mamori>=0.14` --
+# and no resolver on earth could satisfy it, because mamori is not on PyPI:
+#
+#   ERROR: Could not find a version that satisfies the requirement mamori>=0.14
+#          (from versions: none)
+#
+# It was never used. CI installs the sibling from git and says why. So the
+# extra was a published instruction that failed for anyone who followed it --
+# this project's own failure class, in its own packaging metadata.
+#
+# **Do not "fix" it with a direct reference.** This is the trap, and it closes
+# quietly:
+#
+#   siblings = ["mamori @ git+https://github.com/Nananananana/mamori.git"]
+#
+# hatchling refuses that at build time -- and its error message tells you to
+# set `allow-direct-references`, after which the build succeeds and `twine
+# check` reports PASSED. What it does not tell you is that PyPI rejects a
+# `requires_dist` direct URL with a 400, so the distribution becomes
+# unpublishable while every local check goes green. `tests/test_packaging.py`
+# refuses the direct reference for that reason.
+#
+# To develop against a sibling, install it the way CI does:
+#
+#   pip install "mamori @ git+https://github.com/Nananananana/mamori@main"
 
 [project.urls]
 Homepage = "https://github.com/Nananananana/tsumugi"

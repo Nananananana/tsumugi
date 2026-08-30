@@ -165,10 +165,10 @@ class TestItImportsWithoutItsOptionalSiblings:
     anything.
 
     CI covers this today as a side effect: the test job installs `[dev]` and
-    not `[dev,siblings]`, so mamori is missing there and a hoisted import fails
+    nothing else, so mamori is missing there and a hoisted import fails
     collection. That is real coverage and it is nobody's stated intent -- a
-    later commit adding `siblings` to that job, to run the integration tests in
-    CI, would remove it silently. This test says the intent out loud and fails
+    later commit installing the sibling in that job, to run the integration
+    tests in CI, would remove it silently. This test says the intent out loud and fails
     on a developer's machine, where the sibling *is* installed.
     """
 
