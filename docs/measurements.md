@@ -463,6 +463,48 @@ smarter and confirmation may not be skipped, and why
 [proposal 0003](proposals/0003-what-running-it-taught.md) proposes carrying
 similarity-proposed items *marked* rather than silently.
 
+### ...and would confirmation keep any of them? *(added 2026-08-30)*
+
+The number above says similarity finds them. It does not say the pipeline could
+use them, and that is a separate measurement:
+
+| | |
+|---|---|
+| embeddings rank the answer first | **15 of 23** |
+| ...and survive confirmation unchanged | **0 of 23** |
+| answer covers more of the question than every rival | **6 of 23** |
+
+**The middle row retired a roadmap item.** Proposal 0003 led with *"an
+embedding candidate source, fused, with confirmation unchanged"* — and with
+confirmation unchanged it recovers nothing at all. Unconfirmed results never
+enter a package (`build_context` drops them with a declared omission), so a
+candidate recovered by similarity is recovered into the bin. The clause written
+as the item's safety guarantee was a description of the feature being absent.
+
+**Most of that row is tautology and is reported as such:** these are lexical
+misses and confirmation is lexical. But retrieval and confirmation are
+different rules — bm25 over bigrams against coverage of content terms — so a
+document can fail one and pass the other, and the result could have been 3 or
+5. It pins a number where reasoning would have said "near zero".
+
+**The third row is the one that was not predictable.** 6 of 23 is the *ceiling*
+for lowering `COVERAGE_THRESHOLD`, and the ceiling is not reachable, because in
+the other 17 the rival covers as much as the answer or more — often exactly:
+
+| case | answer | best rival |
+|---|---|---|
+| `zh-sports-club-logistics` | 0.42 | 0.42 |
+| `zh-warranty-terms` | 0.56 | 0.56 |
+| `zh-medical-appointment` | 0.00 | **0.18** |
+
+No threshold separates a tie. And the last row is a case embeddings get
+*right*, where relaxing the threshold would admit the adversary and still
+exclude the answer — the trap, bought with the fix.
+
+So the open question is not which threshold. It is whether a package may carry
+an item that nothing lexical confirms, and say so — a change to what a package
+means, and an ADR before it is a line of code.
+
 Reproduce: `tools/measure_embeddings.py` (needs ollama and an embedding model).
 
 ## What a real model does with a package

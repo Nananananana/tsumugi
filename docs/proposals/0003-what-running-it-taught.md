@@ -90,7 +90,14 @@ shipped*, both eras answered.
 
 ### Next — the residual has a name now
 
-**1. An embedding candidate source, fused, with confirmation unchanged.**
+**1. An embedding candidate source, and a fourth thing a package can say.**
+
+*Retitled 2026-08-30.* It read "...fused, **with confirmation unchanged**"
+until the clause was measured: **0 of 23.** Every document similarity recovers
+is dropped again by confirmation, so the phrase written as this item's safety
+guarantee described doing nothing. The body below already said so -- "makes the
+whole feature inert" -- and the heading claimed it as a feature anyway. The
+heading is what a reader skims.
 
 The one thing lexical retrieval provably cannot do here, and the literature
 agrees on both the technique and the fusion. The design question is not
@@ -102,7 +109,16 @@ document proposed by cosine similarity may share no substring with the
 question, so *nothing* confirms it in the current sense. Three options, and the
 third is the one worth proposing:
 
-- Drop unconfirmable candidates: makes the whole feature inert.
+- Drop unconfirmable candidates: makes the whole feature inert. **Measured,
+  not assumed: 0/23.** Mostly tautological -- these cases are lexical misses
+  and confirmation is lexical -- but retrieval and confirmation are different
+  rules, so it could have been 3 or 5, and now it is not a guess.
+- Relax the coverage threshold instead. **The ceiling is 6/23**, and it is not
+  reachable: in the other 17 the rival covers as much of the question as the
+  answer or more -- `answer 0.42 / rival 0.42`, `0.56 / 0.56` -- and no
+  threshold separates a tie. In `zh-medical-appointment` the rival covers
+  *more* (0.18 against 0.00) on a case embeddings get right, so relaxing admits
+  the adversary while still excluding the answer.
 - Confirm semantically: replaces exact evidence with a score, which is the
   thing this library exists not to do.
 - **Carry them, marked.** A package already reports *why* each item is there
@@ -113,8 +129,13 @@ third is the one worth proposing:
   not a promise** ([ADR 0005](../adr/0005-selection-is-a-report.md)), and this
   is what that sentence is for.
 
-**What would close this, and what would not.** It closes when an embedding
-source recovers the paraphrase residual **without raising the trap rate** --
+**What would close this, and what would not.** The question is no longer which
+threshold. It is whether a package may carry an item that nothing lexical
+confirms and say so plainly -- which is a change to what a package *means*, and
+therefore an ADR before it is a line of code.
+
+It closes when an embedding source recovers the paraphrase residual **without
+raising the trap rate** --
 both measured on train and confirmed held-out, as ADR-0018 and ADR-0019 were.
 
 It does **not** close on recall alone, and that is not a hypothetical caution:
