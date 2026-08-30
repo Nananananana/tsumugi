@@ -251,9 +251,15 @@ boundary is and what drawing it there cost.
 
 ## Zero dependencies, checked
 
-`pip install tsumugi` installs one thing. That is asserted on every push: CI
-installs the package without extras into a clean environment and fails if
-anything came with it.
+Installing this package without extras installs **one thing**. That is asserted
+on every push: CI installs it into a clean environment and fails if anything
+came with it.
+
+*(The sentence used to say `pip install tsumugi`, which is wrong in a way worth
+naming: `tsumugi` on PyPI is somebody else's project — a gene-network tool from
+the University of Tsukuba — and nothing here is published yet. The check CI
+runs is real; the name it was written around is not ours. The distribution name
+is undecided.)*
 
 The domain layer imports nothing outside the standard library, and the network
 lives in one named file that nothing else may import. Both are `import-linter`

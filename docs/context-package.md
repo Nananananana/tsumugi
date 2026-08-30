@@ -276,6 +276,29 @@ rather than a lie — the fixture carries the id these inputs really produce, so
 a consumer compares the whole document and skips nothing.
 `tsumugi context --json --at <ISO8601>` does the same from the command line.
 
+## What `document_hash` is a hash of
+
+A producer that wants its own hashes to agree with tsumugi's — a sync tool
+handing over a corpus, say — needs this stated, and it was not written down
+anywhere until a seam test asked.
+
+> **`document_hash` is `sha256` of the file's bytes, with a UTF-8 byte order
+> mark removed if one is present. Nothing else is normalised.**
+
+In particular **line endings are preserved**. tsumugi reads bytes and decodes
+them; it does not do universal-newline translation, so a CRLF file hashes as
+CRLF. A producer that hashes raw bytes agrees with tsumugi on every file that
+has no BOM, and on a BOM'd file iff it strips the BOM too.
+
+The BOM is removed because it is an encoding artefact rather than a character
+in the document, and leaving it in shifts every offset in the file by one. A
+consequence worth knowing: **the same content with and without a BOM has the
+same `document_hash`**, which is usually what you want and is a difference a
+byte-for-byte comparison would report.
+
+Measured, not asserted: `tests/test_ingest_and_search.py` pins all three cases
+against `hashlib.sha256` computed outside tsumugi.
+
 ## What the schema cannot say
 
 **`end >= start` is not expressible.** JSON Schema 2020-12 cannot compare two

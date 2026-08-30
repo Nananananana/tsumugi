@@ -7,6 +7,7 @@ folder (ADR-0005).
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -395,3 +396,59 @@ class TestAQuestionAskedInOtherWords:
         from tsumugi.application.search import COVERAGE_THRESHOLD
 
         assert COVERAGE_THRESHOLD == 1.0
+
+
+class TestWhatADocumentHashIsAHashOf:
+    """The statement a producer at the other end of a seam needs.
+
+    `document_hash` travels in every anchor of the published contract, and a
+    sync tool handing tsumugi a corpus has to be able to compute the same
+    number. Nothing said what it was a hash of until a seam test went looking,
+    found the two agreed, and could not say whether that was design or luck.
+
+    It is design, and narrower than it was assumed to be: **sha256 of the
+    file's bytes with a UTF-8 BOM removed, and nothing else normalised.**
+    """
+
+    def _ingested(self, tmp_path: Path, raw: bytes) -> str:
+        root = tmp_path / "notes"
+        root.mkdir(parents=True)
+        (root / "doc.md").write_bytes(raw)
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(root.glob("*.md")),
+            root=root,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+        version = str(next(iter(store.all_current())).version)
+        connection.close()
+        return version
+
+    def test_it_is_sha256_of_the_bytes(self, tmp_path: Path) -> None:
+        raw = "テントの重量は2.4kg。\n".encode()
+        assert self._ingested(tmp_path, raw) == f"sha256:{hashlib.sha256(raw).hexdigest()}"
+
+    def test_line_endings_are_not_normalised(self, tmp_path: Path) -> None:
+        # The one a producer is most likely to assume the other way. tsumugi
+        # reads bytes and decodes; it does not do universal-newline
+        # translation, so a CRLF file hashes as CRLF and a producer hashing
+        # raw bytes agrees without normalising anything.
+        raw = "テントの重量は2.4kg。\r\n二人用。\r\n".encode()
+        assert self._ingested(tmp_path, raw) == f"sha256:{hashlib.sha256(raw).hexdigest()}"
+
+    def test_a_byte_order_mark_is_removed_first(self, tmp_path: Path) -> None:
+        body = "テントの重量は2.4kg。\r\n".encode()
+        assert self._ingested(tmp_path, b"\xef\xbb\xbf" + body) == (
+            f"sha256:{hashlib.sha256(body).hexdigest()}"
+        )
+
+    def test_so_a_bom_does_not_change_the_hash(self, tmp_path: Path) -> None:
+        # Usually what you want, and a difference a byte-for-byte comparison
+        # on the other side of a seam would report as a mismatch.
+        body = "テントの重量は2.4kg。\n".encode()
+        assert self._ingested(tmp_path, body) == self._ingested(
+            tmp_path / "second", b"\xef\xbb\xbf" + body
+        )
