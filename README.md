@@ -25,7 +25,7 @@ Local-first. One named adapter may open a socket; nothing else can. **Zero runti
 > The ContextPackage contract is **frozen at version 1**.
 >
 > - **What the code does today** — [docs/architecture.md](docs/architecture.md)
-> - **What it is meant to become** — [docs/proposals/0001-the-design.md](docs/proposals/0001-the-design.md)
+> - **What it is meant to become** — [docs/proposals/0003-what-running-it-taught.md](docs/proposals/0003-what-running-it-taught.md)
 > - **The decisions** — [docs/adr/](docs/adr/README.md)
 > - **The threat model** — [docs/threat-model.md](docs/threat-model.md)
 >
