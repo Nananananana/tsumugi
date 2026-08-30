@@ -315,6 +315,29 @@ the tuning.
 documents look like; that is the axis the numbers above say is load-bearing.
 Nor by a corpus this project selects after seeing the scores.
 
+**Two constraints on procuring one, and both are unrecoverable afterwards.**
+Named here for the same reason the drafter was: `genres.json` recorded that a
+genre was drafted and not by what, and no amount of later care can put that
+back. A procured corpus has two facts of the same kind.
+
+*Its licence, recorded per document, at the moment it is acquired.* The
+fixtures are committed to an Apache-2.0 repository, so procured text is
+redistributed by this project. That narrows "outside" considerably -- to the
+public domain, to permissive licences, or to text whose author agrees -- and it
+is much narrower than "documents tsumugi did not write". A corpus assembled
+first and licence-checked afterwards is a corpus that may have to be deleted,
+taking its scores with it.
+
+*Whether the text is in the training data of the models it will be scored
+with.* This does not touch the retrieval floors, which are lexical and
+deterministic and would be unaffected if a model had memorised every word. It
+does touch `eval --model`, where a model that has seen a passage can answer
+from memory and score as though the package carried it. **The same corpus is
+therefore sound for one measurement and confounded for the other**, and that
+has to be recorded per corpus rather than discovered later -- a corpus known to
+be contaminated is still perfectly good for the floors, provided nothing
+quietly reuses it for the answer evaluation.
+
 **2. The public surface stops moving without notice.**
 
 Today anything may be renamed. 1.0 means `build_context`, `search`, `verify`,
