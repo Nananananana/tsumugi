@@ -397,6 +397,43 @@ Korean costs nothing is worse than one that guesses. The weight is set by
 analogy with kana and marked in the source as an assumption. The measured error
 above says nothing about Korean text.
 
+## Would embeddings close the residual? Measured before building anything
+
+[Proposal 0003](proposals/0003-what-running-it-taught.md) leads with an
+optional embedding candidate source, because the literature is consistent that
+dense retrieval wins exactly where lexical loses: paraphrases with no keyword
+overlap. That is a claim about tsumugi's residual, so it was measured against
+tsumugi's residual before any of it was built.
+
+For every case lexical retrieval **misses**, the question and each document
+were embedded and ranked by cosine. Does the answer document come first?
+
+| embedding model | recovered |
+|---|---|
+| `bge-m3` (multilingual, 1024-d) | **15 of 23** |
+| `nomic-embed-text` (English-first) | 13 of 23 |
+
+Two models, because [one model is a fixture with a bigger
+vocabulary](#what-a-real-model-does-with-a-package). They agree on the shape
+and differ on which cases, which is the useful part.
+
+**Where it works:** every English and Japanese paraphrase case. `bge-m3` ranks
+the answer first on all twelve.
+
+**Where it does not, and this is the finding:** Chinese and Korean, where the
+*near-miss* wins. `neighbour.md` states the same attribute about a different
+subject, and a sentence embedding of a short document scores that as more
+similar than the answer. Eight of the eight failures are this.
+
+So an embedding source dropped in without confirmation would recover a dozen
+paraphrase cases and **spring near-miss traps in the two languages that
+currently have none** — which is precisely why ADR-0007 says the index may get
+smarter and confirmation may not be skipped, and why
+[proposal 0003](proposals/0003-what-running-it-taught.md) proposes carrying
+similarity-proposed items *marked* rather than silently.
+
+Reproduce: `tools/measure_embeddings.py` (needs ollama and an embedding model).
+
 ## What a real model does with a package
 
 *Measured 2026-08-30 against `ollama/llama3.1:8b`, on the ten held-out cases.
