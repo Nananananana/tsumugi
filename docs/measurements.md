@@ -240,12 +240,32 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+**All 240 cases** — `tsumugi eval` with no `--tier`. Stated because it was not,
+and the omission cost an afternoon: reading this table beside the sentence
+below it, `--tier full` looks like the way to reproduce it, and `--tier full`
+reports **74.4%**. That is not a regression and never was — it is the 90 hard
+cases, where the 23 paraphrase misses land, and it has read 74.4% since the day
+this table was written. Confirmed by building a worktree at that commit and
+running it.
+
+A number without its population is a number that will be compared against the
+wrong thing, by whoever reads it next — including its author, four days later,
+who spent a bisect proving his own library had not broken.
+
 | | before | after |
 |---|---|---|
 | evidence recall | 82.6% | **87.2%** |
 | evidence precision | 93.9% | **97.4%** |
 | trap rate | 25.8% | **3.3%** |
 | omission correctness | 93.1% | **100%** |
+
+Reproduce: `tsumugi eval`. The three tiers, so a reader can pick the right one:
+
+| | cases | evidence recall |
+|---|---|---|
+| `tsumugi eval` (everything) | 240 | 87.2% |
+| `--tier ci` (the gated floor) | 150 | 100% |
+| `--tier full` (the hard cases) | 90 | 74.4% |
 
 The `ci` tier is 149 of 150 clean at 100% recall. The residual is the
 `-paraphrase` cases below, and Chinese, which has no script boundary between
