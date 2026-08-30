@@ -1,0 +1,104 @@
+{
+  "budget": {
+    "estimate": 34,
+    "estimator": "characters@1",
+    "limit": 40,
+    "unit": "characters"
+  },
+  "constraints": {},
+  "contract": "tsumugi.context-package/1",
+  "created_at": "2026-08-30T00:00:00+00:00",
+  "instructions": {
+    "role": "Answer the question using only the context provided below.",
+    "rules": [
+      "Quote the exact text you rely on. Do not report character offsets.",
+      "If the context does not answer the question, say so plainly.",
+      "Context marked as an interpretation is a reading, not a fact.",
+      "If two passages disagree, say so and cite both. Do not quietly pick one."
+    ]
+  },
+  "items": [
+    {
+      "anchor": {
+        "document_hash": "sha256:3c82b269bda5bdcdd44150987ff33e6c7d3711107758d2c3b4709e8cfc2d2760",
+        "document_id": "doc_57afc895314dba98",
+        "end": 25,
+        "section": "装備メモ",
+        "source_path": "gear.md",
+        "start": 8,
+        "text_hash": "sha256:6be1225ba91307e446d2bf349c57757c9e07ad10c36001ea183f76f1ab5acf9a"
+      },
+      "cost": 17,
+      "item_id": "itm_001",
+      "kind": "document_span",
+      "provenance": {
+        "layer": "fact",
+        "producer": "tsumugi.ingest/1"
+      },
+      "selection": {
+        "rank": 1,
+        "score": 0.09750514293378376,
+        "signals": [
+          "lexical_match",
+          "heading_match",
+          "confirmed_in_text"
+        ]
+      },
+      "text": "テントの重量は2.4kg、二人用。"
+    },
+    {
+      "anchor": {
+        "document_hash": "sha256:163d140d9dd9e6cd4f3a1397c78d031e8bce0c1d04898854c281bba389b299ce",
+        "document_id": "doc_f383146d8ce1ac16",
+        "end": 29,
+        "section": "装備メモ（6月）",
+        "source_path": "gear-older.md",
+        "start": 12,
+        "text_hash": "sha256:603fc81b0ab422e7b9ea5930c508a524ed3729e240763ffdaa818975e5c6cf63"
+      },
+      "cost": 17,
+      "item_id": "itm_002",
+      "kind": "document_span",
+      "provenance": {
+        "layer": "fact",
+        "producer": "tsumugi.ingest/1"
+      },
+      "selection": {
+        "rank": 2,
+        "score": 0.09750495316266858,
+        "signals": [
+          "lexical_match",
+          "heading_match",
+          "confirmed_in_text"
+        ]
+      },
+      "text": "テントの重量は3.1kg、二人用。"
+    }
+  ],
+  "omissions": [
+    {
+      "anchor": {
+        "document_id": "doc_c81dbfc1162c062d",
+        "end": 26,
+        "source_path": "tarp.md",
+        "start": 8
+      },
+      "cost": 18,
+      "reason": "ranked 3; 18 characters would exceed the limit of 40 with 6 left",
+      "rule": "budget_exhausted",
+      "score": 0.02000486725663717
+    }
+  ],
+  "output_schema": null,
+  "package_id": "sha256:111ba10a2a3ae513363ed5b795438e3b4247f2fa29eb56136ea60c7608bc4ee6",
+  "provenance": {
+    "corpus_state": "sha256:08d31f83049bdf18b1bcff62a1595f41cffc0233c9011754401c3de9a1893747",
+    "protection": null,
+    "providers": [
+      "filesystem",
+      "freshness/unchecked"
+    ],
+    "tsumugi_version": "fixture"
+  },
+  "query": "テントの重量は?"
+}

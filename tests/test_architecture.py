@@ -30,18 +30,43 @@ ALLOWED: dict[str, frozenset[str]] = {
     # ``errors``, which keeps this set genuinely empty.
     "domain": frozenset(),
     "errors": frozenset(),
+    # A string and nothing else. It is its own module rather than a constant in
+    # `__init__` because the published contract requires a non-empty
+    # `tsumugi_version`, so `build_context` has to default to it -- and the
+    # application layer may not import the public surface.
+    "version": frozenset(),
     "ports": frozenset({"domain", "errors"}),
-    "infrastructure": frozenset({"domain", "ports", "errors"}),
-    "application": frozenset({"domain", "ports", "errors"}),
-    "evaluation": frozenset({"domain", "ports", "application", "infrastructure", "errors"}),
-    "config": frozenset({"domain", "ports", "application", "infrastructure", "errors"}),
+    "infrastructure": frozenset({"domain", "ports", "errors", "version"}),
+    "application": frozenset({"domain", "ports", "errors", "version"}),
+    "evaluation": frozenset(
+        {"domain", "ports", "application", "infrastructure", "errors", "version"}
+    ),
+    "config": frozenset({"domain", "ports", "application", "infrastructure", "errors", "version"}),
     "interfaces": frozenset(
-        {"domain", "ports", "application", "infrastructure", "evaluation", "config", "errors"}
+        {
+            "domain",
+            "ports",
+            "application",
+            "infrastructure",
+            "evaluation",
+            "config",
+            "errors",
+            "version",
+        }
     ),
     # The package's own ``__init__`` is the public surface. It re-exports and
     # decides nothing.
     "public": frozenset(
-        {"domain", "ports", "application", "infrastructure", "evaluation", "config", "errors"}
+        {
+            "domain",
+            "ports",
+            "application",
+            "infrastructure",
+            "evaluation",
+            "config",
+            "errors",
+            "version",
+        }
     ),
 }
 
@@ -50,7 +75,7 @@ ALLOWED: dict[str, frozenset[str]] = {
 #: practice this holds everywhere -- but the domain is the one where it is a
 #: guarantee rather than a current fact, so it is asserted separately and
 #: loudly.
-STDLIB_ONLY = frozenset({"domain"})
+STDLIB_ONLY = frozenset({"domain", "version"})
 
 #: Nothing opens a socket except the interfaces layer and the adapters.
 #: ADR-0001 and ADR-0016, and the first line of the threat model.

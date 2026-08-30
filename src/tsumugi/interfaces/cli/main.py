@@ -115,6 +115,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
     context.add_argument(
+        "--at",
+        metavar="ISO8601",
+        help=(
+            "pin created_at, so `--json` output is byte-identical across runs. "
+            "It is the only field outside package_id, which is what makes pinning "
+            "it safe: the id stays the one these inputs really produce"
+        ),
+    )
+    context.add_argument(
         "--why", action="store_true", help="print what was left out, and under which rule"
     )
     context.set_defaults(run=_context)
@@ -457,6 +466,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         # check that is off, and offering a passage from an edited file as
         # current is the thing ADR-0010 exists to prevent.
         freshness=(FilesystemFreshness(args.corpus) if args.corpus else remembered_roots(store)),
+        created_at=args.at or "",
     )
 
     SqliteLedger(connection).open(package)

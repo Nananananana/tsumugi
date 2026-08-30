@@ -32,6 +32,7 @@ from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
 from ..ports.index import Index
 from ..ports.store import DocumentStore
+from ..version import __version__
 from .instructions import DEFAULT
 from .search import search
 
@@ -55,10 +56,11 @@ def build_context(
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
     context_characters: int = 400,
-    version: str = "",
+    version: str = __version__,
     freshness: FreshnessCheck | None = None,
     instructions: Mapping[str, Any] | None = None,
     output_schema: Mapping[str, Any] | None = None,
+    created_at: str = "",
 ) -> ContextPackage:
     """Select what bears on ``query``, fit it to ``budget``, and account for the rest."""
     results, truncation = search(
@@ -193,7 +195,10 @@ def build_context(
         # prompts, and an id that called them the same would be wrong.
         instructions=DEFAULT if instructions is None else instructions,
         output_schema=output_schema,
-        created_at=datetime.now(UTC).isoformat(),
+        # The one field deliberately outside `package_id` (ADR-0003), which is
+        # what makes it safe to pin: a fixture with a fixed timestamp still
+        # carries the id the same inputs really produce. Empty means now.
+        created_at=created_at or datetime.now(UTC).isoformat(),
     )
 
 

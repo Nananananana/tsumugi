@@ -20,6 +20,7 @@ producer, and are checked here against tsumugi as the reference producer.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,15 @@ from tsumugi.domain.span import Span  # noqa: E402
 from .helpers import build_document  # noqa: E402
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "context-package-1.json"
+
+#: The seam fixture, which is also this suite's corpus. One source of truth:
+#: a fixture published for consumers and a corpus used to check the producer
+#: should not be able to drift apart, because the drift would be invisible on
+#: both sides.
+SEAM = Path(__file__).resolve().parent.parent / "fixtures" / "seam"
+SEAM_CORPUS = SEAM / "corpus"
+SEAM_QUESTION = (SEAM / "question.txt").read_text(encoding="utf-8").strip()
+SEAM_PACKAGE = SEAM / "context-package.json"
 DOCUMENT = build_document("notes/budget.md", "予算の単位は呼び出し側で明示する。" * 12)
 ERROR = {
     "p50": 0.0495,
@@ -271,3 +281,220 @@ class TestTheSchemaAndTheCodeAgree:
 
         published = set(schema["$defs"]["budget"]["properties"]["unit"]["enum"])
         assert {unit.value for unit in Unit} == published
+
+
+class TestTheProducersOwnOutput:
+    """The contract, validated against what the producer actually emits.
+
+    Everything above this validates packages a *test* built. That checks the
+    schema against the dataclasses, which is worth doing and is not the same
+    thing: the schema's own description calls tsumugi the reference producer,
+    and a reference producer whose real output has never been validated is a
+    claim rather than a reference.
+
+    So: a corpus on disk, ingested, through ``build_context`` and through the
+    CLI, in every shape the pipeline emits.
+    """
+
+    def _corpus(self, tmp_path: Path) -> tuple[Any, Any, Any]:
+        from tsumugi.application.ingest import ingest_paths
+        from tsumugi.infrastructure.index.fts import FtsIndex
+        from tsumugi.infrastructure.parsers import parser_for
+        from tsumugi.infrastructure.storage.database import connect
+        from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
+
+        connection = connect(tmp_path / "index.db")
+        store, index = SqliteDocumentStore(connection), FtsIndex(connection)
+        ingest_paths(
+            sorted(SEAM_CORPUS.glob("*.md")),
+            root=SEAM_CORPUS,
+            store=store,
+            index=index,
+            parser_for=parser_for,
+        )
+        return store, index, connection
+
+    @pytest.mark.parametrize(
+        ("budget_text", "shape"),
+        [
+            ("characters:4000", "room for everything"),
+            # Tight enough to force omissions, which are the half of the
+            # contract a producer is most likely to emit wrongly.
+            ("characters:60", "budget exhausted"),
+            # A token budget carries measured_error, its own subtree.
+            ("tokens:2000", "an estimate with its error"),
+        ],
+    )
+    def test_a_built_package_validates(
+        self, tmp_path: Path, schema: dict[str, Any], budget_text: str, shape: str
+    ) -> None:
+        from tsumugi.application.build_context import build_context
+        from tsumugi.domain.budget import Budget, Unit
+        from tsumugi.infrastructure.cost.heuristic import CharacterCost, HeuristicTokenCost
+
+        store, index, connection = self._corpus(tmp_path)
+        budget = Budget.parse(budget_text)
+        cost = HeuristicTokenCost() if budget.unit is Unit.TOKENS else CharacterCost()
+        package = build_context(
+            SEAM_QUESTION,
+            store=store,
+            index=index,
+            cost_model=cost,
+            budget=budget,
+            version="0.1.0.dev0",
+        )
+        jsonschema.validate(json.loads(package.to_json()), schema)
+        assert package.items or package.omissions, shape
+        connection.close()
+
+    def test_the_answering_shape_validates(self, tmp_path: Path, schema: dict[str, Any]) -> None:
+        # `ask` builds with a different instruction set and an output_schema
+        # (ADR-0017), so it is a different document over the same corpus.
+        from tsumugi.application.build_context import build_context
+        from tsumugi.application.instructions import ANSWER_SCHEMA, ANSWERING
+        from tsumugi.domain.budget import Budget
+        from tsumugi.infrastructure.cost.heuristic import CharacterCost
+
+        store, index, connection = self._corpus(tmp_path)
+        package = build_context(
+            SEAM_QUESTION,
+            store=store,
+            index=index,
+            cost_model=CharacterCost(),
+            budget=Budget.characters(4000),
+            instructions=ANSWERING,
+            output_schema=ANSWER_SCHEMA,
+        )
+        jsonschema.validate(json.loads(package.to_json()), schema)
+        connection.close()
+
+    def test_a_protected_built_package_validates(
+        self, tmp_path: Path, schema: dict[str, Any]
+    ) -> None:
+        from dataclasses import replace as replace_field
+
+        from tsumugi.application.build_context import build_context
+        from tsumugi.domain.budget import Budget
+        from tsumugi.domain.package import Protection
+        from tsumugi.infrastructure.cost.heuristic import CharacterCost
+
+        store, index, connection = self._corpus(tmp_path)
+        package = build_context(
+            SEAM_QUESTION,
+            store=store,
+            index=index,
+            cost_model=CharacterCost(),
+            budget=Budget.characters(4000),
+        )
+        protected = replace_field(
+            package,
+            provenance=replace_field(
+                package.provenance,
+                protection=Protection(by="mamori@0.22.0", scope="session-1", reversible=True),
+            ),
+        )
+        jsonschema.validate(json.loads(protected.to_json()), schema)
+        connection.close()
+
+    def test_the_cli_emits_a_conforming_document(
+        self, tmp_path: Path, schema: dict[str, Any], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Through `main`, because the bytes a consumer receives come out of the
+        # CLI and not out of a Python object. A serialisation that were right
+        # in-process and wrong on stdout would be wrong where it counts.
+        from tsumugi.interfaces.cli.main import main
+
+        index_path = tmp_path / "index.db"
+        assert main(["--index", str(index_path), "ingest", str(SEAM_CORPUS)]) == 0
+        capsys.readouterr()
+        assert main(["--index", str(index_path), "context", SEAM_QUESTION, "--json"]) == 0
+
+        emitted = json.loads(capsys.readouterr().out)
+        jsonschema.validate(emitted, schema)
+        assert emitted["contract"] == "tsumugi.context-package/1"
+
+
+class TestTheSeamFixture:
+    """The published fixture, checked against the published schema.
+
+    `fixtures/seam/` is vendored by consumers that test against tsumugi's
+    output without importing tsumugi. A fixture that had drifted from its
+    producer would be worse than none, because it would look like agreement --
+    so the drift fails here, in this repository, before it reaches anyone.
+    """
+
+    def test_the_fixture_validates(self, schema: dict[str, Any]) -> None:
+        jsonschema.validate(json.loads(SEAM_PACKAGE.read_text(encoding="utf-8")), schema)
+
+    def test_it_is_what_the_producer_emits_today(self) -> None:
+        # Regenerate with `python tools/make_seam_fixture.py` and commit the
+        # diff. This failing means the producer changed, which is allowed --
+        # silently shipping a stale fixture is not.
+        sys.path.insert(0, str(SEAM.parents[1] / "tools"))
+        import make_seam_fixture
+
+        assert make_seam_fixture.build() + "\n" == SEAM_PACKAGE.read_text(encoding="utf-8")
+
+    def test_it_carries_an_omission_and_an_item(self) -> None:
+        # Both halves. `omissions[]` is the part a consumer is most likely to
+        # get wrong, and a fixture that never shows one never tests it.
+        payload = json.loads(SEAM_PACKAGE.read_text(encoding="utf-8"))
+        assert payload["items"], "nothing to cite"
+        assert payload["omissions"], "nothing left out, so nothing to account for"
+
+    def test_created_at_is_pinned_and_the_id_is_still_real(self) -> None:
+        # The one field outside package_id (ADR-0003), which is what makes
+        # pinning it safe rather than a lie.
+        payload = json.loads(SEAM_PACKAGE.read_text(encoding="utf-8"))
+        assert payload["created_at"] == "2026-08-30T00:00:00+00:00"
+        rebuilt = ContextPackage.from_json(SEAM_PACKAGE.read_text(encoding="utf-8"))
+        assert str(rebuilt.package_id) == payload["package_id"]
+
+
+class TestTheCounterExamples:
+    """What the schema refuses, and the one thing it cannot."""
+
+    def test_a_protection_missing_a_field_is_rejected(self, schema: dict[str, Any]) -> None:
+        # All three are required. A protection naming its redactor but not
+        # whether it can be undone would leave a verifier unable to tell
+        # "unknown" from "false", which is the distinction ADR-0009 is for.
+        payload = json.loads(a_package().to_json())
+        payload["provenance"]["protection"] = {"by": "mamori@0.22.0", "scope": "session-1"}
+        with pytest.raises(jsonschema.ValidationError, match="reversible"):
+            jsonschema.validate(payload, schema)
+
+    def test_an_unknown_field_on_a_protection_is_rejected(self, schema: dict[str, Any]) -> None:
+        payload = json.loads(a_package().to_json())
+        payload["provenance"]["protection"] = {
+            "by": "mamori@0.22.0",
+            "scope": "session-1",
+            "reversible": True,
+            "restorer_url": "https://example.com/restore",
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(payload, schema)
+
+    def test_the_schema_cannot_say_that_a_span_ends_after_it_starts(
+        self, schema: dict[str, Any]
+    ) -> None:
+        """And a consumer has to know that, which is why this is a test.
+
+        JSON Schema 2020-12 cannot compare two properties of the same object,
+        so ``end >= start`` is not expressible. A document with the two
+        reversed **validates**, and a consumer that slices text with them must
+        check for itself.
+
+        The producer cannot emit one -- ``Span`` refuses at construction --
+        so the invariant lives there. This test is what makes the division of
+        labour explicit instead of assumed, and it is the honest answer to
+        "does the schema reject an anchor whose end precedes its start": no,
+        and it never will.
+        """
+        payload = json.loads(a_package().to_json())
+        payload["items"][0]["anchor"]["start"] = 30
+        payload["items"][0]["anchor"]["end"] = 10
+        jsonschema.validate(payload, schema)  # accepted, and that is the point
+
+    def test_the_producer_refuses_to_build_one(self) -> None:
+        with pytest.raises(ValueError, match="ends before it starts"):
+            Span(30, 10)

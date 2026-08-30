@@ -29,8 +29,7 @@ from .errors import (
     TsumugiError,
     UnresolvableAnchorError,
 )
-
-__version__ = "0.1.0.dev0"
+from .version import __version__
 
 __all__ = [
     "Anchor",

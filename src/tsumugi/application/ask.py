@@ -39,6 +39,7 @@ from ..ports.ledger import LedgerStore
 from ..ports.llm import LLMProvider
 from ..ports.redactor import Redactor
 from ..ports.store import DocumentStore
+from ..version import __version__
 from .build_context import build_context
 from .instructions import ANSWER_SCHEMA, ANSWERING
 from .verify import verify_answer
@@ -90,7 +91,7 @@ def ask(
     freshness: FreshnessCheck | None = None,
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
-    version: str = "",
+    version: str = __version__,
 ) -> Asked:
     """Build context for ``question``, ask ``provider``, and check the answer."""
     package = build_context(
