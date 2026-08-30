@@ -22,20 +22,16 @@ from .domain.hashing import ContentHash
 from .domain.package import UnsupportedContractError
 from .domain.span import Span
 from .errors import (
-    AnchorError,
     ConfigurationError,
     IngestionError,
-    StaleAnchorError,
     StorageError,
     TsumugiError,
-    UnresolvableAnchorError,
 )
 from .version import __version__
 
 __all__ = [
     "CONTRACT_SCHEMA_NAME",
     "Anchor",
-    "AnchorError",
     "Block",
     "Budget",
     "ConfigurationError",
@@ -46,11 +42,9 @@ __all__ = [
     "ResolutionStatus",
     "Section",
     "Span",
-    "StaleAnchorError",
     "StorageError",
     "TsumugiError",
     "Unit",
-    "UnresolvableAnchorError",
     "UnsupportedContractError",
     "__version__",
     "contract_schema",

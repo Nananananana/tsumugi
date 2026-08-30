@@ -217,10 +217,17 @@ stable.
   two want opposite responses -- upgrade, or tell a human -- and both used to
   arrive as `ValueError`, separable only by matching on the message. Named by
   `musubi`, which hit the same thing in its own manifests.
-- **`ContractError` is removed.** It was exported and documented as covering
-  exactly that case, and nothing ever raised it: the only code that could is in
-  `domain`, which the layer table forbids from importing `errors`. It was a
-  promise the architecture would not let anything keep.
+- **Four exceptions are removed**, all exported, all documented, none ever
+  raised. `ContractError` covered exactly the case above and the only code that
+  could raise it is in `domain`, which the layer table forbids from importing
+  `errors` -- a promise the architecture would not let anything keep.
+  `AnchorError`, `StaleAnchorError` and `UnresolvableAnchorError` were a fossil
+  of a design decided against: the distinction is carried by `ResolutionStatus`
+  and **returned**, because ADR-0010's point is that evidence true in May is
+  historical rather than false, and a thing you return is not a thing you
+  raise. A test now fails on an exported exception nothing raises -- a consumer
+  writing `except StaleAnchorError:` got a branch that looked like handling and
+  could never run.
 - **The loader now rejects fields version 1 does not define**, as the published
   schema always did. Until now the reference implementation accepted packages
   its own contract rejects.

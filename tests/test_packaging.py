@@ -9,7 +9,8 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-PYPROJECT = Path(__file__).resolve().parent.parent / "pyproject.toml"
+ROOT = Path(__file__).resolve().parent.parent
+PYPROJECT = ROOT / "pyproject.toml"
 
 
 def test_no_dependency_is_a_direct_reference() -> None:
@@ -53,3 +54,45 @@ def test_the_runtime_has_no_dependencies() -> None:
     """
     metadata = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
     assert metadata.get("dependencies", []) == []
+
+
+def test_every_exception_this_library_exports_can_actually_be_raised() -> None:
+    """No exported exception describes a situation nothing produces.
+
+    Four did. `errors.ContractError` was documented as *raised on reading a
+    package whose contract version is unrecognised*, and the only code that
+    reads one is in `domain`, which the layer table forbids from importing
+    `errors` -- so it was a promise the architecture would not let anything
+    keep. `AnchorError` and its two subclasses were a fossil: the
+    stale-versus-unresolvable distinction is carried by `ResolutionStatus` and
+    **returned**, because ADR-0010's whole point is that evidence which was
+    true in May is historical rather than false, and a thing you return is not
+    a thing you raise.
+
+    An unraisable exception is worse than a missing one. A consumer writes
+    `except StaleAnchorError:` and gets a branch that looks like handling and
+    never runs -- the same shape as a check that cannot fail.
+
+    Base classes are exempt, and only when something actually subclasses them.
+    """
+    import tsumugi
+    from tsumugi import errors
+
+    exported = {
+        name: obj
+        for name, obj in vars(errors).items()
+        if isinstance(obj, type) and issubclass(obj, Exception) and not name.startswith("_")
+    }
+    source = "\n".join(path.read_text(encoding="utf-8") for path in (ROOT / "src").rglob("*.py"))
+    bases = {base.__name__ for obj in exported.values() for base in obj.__mro__[1:]}
+
+    unraisable = sorted(
+        name
+        for name in exported
+        if f"raise {name}" not in source and name not in bases and name in tsumugi.__all__
+    )
+    assert not unraisable, (
+        f"exported, documented, and never raised: {unraisable}. Either raise it "
+        "or delete it; a branch a consumer writes that can never run is worse "
+        "than no branch."
+    )
