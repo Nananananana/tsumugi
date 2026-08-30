@@ -179,6 +179,42 @@ packages were well-formed. It took a corpus that knew which document was right.
 The full account is
 [proposals/0002](proposals/0002-what-building-it-taught.md).
 
+### Ten genres was not a corpus, it was a mirror
+
+The corpus went from 10 genres to 30, in four languages instead of two, with
+eight document shapes instead of one. **No code changed**, and:
+
+| | 10 genres | 30 genres |
+|---|---|---|
+| evidence recall | 91.7% | 82.6% |
+| evidence precision | 99.1% | 93.9% |
+| trap rate | 6.0% | **25.8%** |
+
+Ten genres written by whoever was writing the ranker is ten genres whose
+vocabulary was chosen — without anyone intending it — to suit the ranker.
+Twenty more, drafted by a local model and reviewed rather than authored, are
+not. Everything above this line in this document was measured on the mirror.
+
+Recovering from it took four changes to the confirmation stage
+([ADR 0019](adr/0019-confirmation-is-relative.md)), the largest being that a
+match much weaker than the strongest found for the same query is no longer
+treated as evidence:
+
+| | before | after |
+|---|---|---|
+| evidence recall | 82.6% | **87.2%** |
+| evidence precision | 93.9% | **97.4%** |
+| trap rate | 25.8% | **3.3%** |
+| omission correctness | 93.1% | **100%** |
+
+The `ci` tier is 149 of 150 clean at 100% recall. The residual is the
+`-paraphrase` cases below, and Chinese, which has no script boundary between
+its content and its grammar and so cannot be helped by any rule that refuses a
+dictionary.
+
+**What this does not say:** that thirty genres is enough. It is three times
+what there was, and the last time the corpus tripled it found a 20-point defect.
+
 ### A question asked in other words: 0% to 100%
 
 Measured by asking one document three ways:

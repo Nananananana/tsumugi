@@ -84,6 +84,21 @@ stable.
 
 ### Fixed
 
+- **Ten genres was not a corpus, it was a mirror.** Tripling the evaluation
+  corpus — 30 genres across Japanese, English, Chinese and Korean, eight
+  document shapes instead of one — took the trap rate from **6.0% to 25.8%
+  with no code change at all**. A corpus written by whoever wrote the ranker
+  measures that hand. Recovering took four changes to confirmation
+  ([ADR 0019](docs/adr/0019-confirmation-is-relative.md)): a match reports how
+  much it matched and that is scored; a match much weaker than the strongest
+  found for the same query is no longer evidence; coverage says where the
+  terms *crowd* rather than where the first one sat (it had been pointing at
+  headings); and a stem match counts in full, which is what Korean's
+  particles needed and what English plurals get for free. Trap rate **25.8% →
+  3.3%**, precision 93.9% → 97.4%, recall 82.6% → 87.2%.
+- **`_widen` stopped at a line break** while its docstring said "sentence
+  boundary". Identical on one-sentence-per-line fixtures, which is why nobody
+  noticed until documents started carrying facts mid-paragraph.
 - **An answer of `{"claims": []}` verified clean.** `all()` over an empty list
   is true, so a model that asserted nothing passed the check: `tsumugi verify`
   exited 0 and `ask` reported it as trustworthy. It is reachable — a model told
