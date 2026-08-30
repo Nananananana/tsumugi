@@ -531,3 +531,35 @@ class TestAProtectionIsIrreversibleUntilItSaysOtherwise:
             "scope",
             "reversible",
         ]
+
+    @pytest.mark.parametrize("value", ["false", "true", 0, 1, "no", None, []])
+    def test_a_value_that_is_merely_truthy_is_refused(self, value: object) -> None:
+        """Found by `akashi`, which hit the same shape in its own reader.
+
+        `verify` branches on `not reversible`, so the string `"false"` --
+        which is what a producer that stringified its JSON sends -- is
+        *truthy* and takes the restore path. A package that cannot be restored
+        then reports its honest citations as fabrications, which is the exact
+        failure ADR-0020 is about, arriving through the type system instead of
+        through a default.
+
+        `0` and `1` are refused too, though they would land on the right
+        branch by accident. A producer sending them is not conforming, and
+        accepting them teaches that the field is loosely typed -- which is how
+        `"false"` arrives next.
+        """
+        with pytest.raises(ValueError, match="true or false"):
+            Protection(by="mamori@0.22.0", scope="s", reversible=value)  # type: ignore[arg-type]
+
+    def test_a_document_carrying_a_string_is_refused_on_read(self) -> None:
+        # The realistic route in: a non-conforming producer, read by a
+        # consumer that does not validate against the schema first.
+        payload = json.loads(a_package().to_json())
+        payload["provenance"]["protection"] = {
+            "by": "mamori@0.22.0",
+            "scope": "s",
+            "reversible": "false",
+        }
+        del payload["package_id"]
+        with pytest.raises(ValueError, match="true or false"):
+            ContextPackage.from_json(json.dumps(payload))

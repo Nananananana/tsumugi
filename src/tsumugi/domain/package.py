@@ -86,6 +86,22 @@ class Protection:
     def __post_init__(self) -> None:
         if not self.by or not self.scope:
             raise ValueError("a protection record must name its redactor and its scope")
+        # A real bool, and nothing that merely behaves like one. `verify`
+        # branches on `not reversible`, so the string "false" -- which is what
+        # a producer that stringified its JSON sends -- is *truthy* and takes
+        # the restore path: honest citations then report as fabrications, and
+        # ADR-0020 is about exactly how quiet that failure is.
+        #
+        # `0` and `1` are refused too, though they would land on the right
+        # branch by accident. A producer sending them is not conforming --
+        # the schema says boolean -- and accepting them teaches that this
+        # field is loosely typed, which is how "false" arrives next.
+        if not isinstance(self.reversible, bool):
+            raise ValueError(
+                f"reversible must be true or false, not {self.reversible!r}. The schema "
+                f"says boolean, and a value that is merely truthy would send a verifier "
+                f"down the restore path for a package that cannot be restored."
+            )
 
 
 @dataclass(frozen=True, slots=True)

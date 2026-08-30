@@ -82,6 +82,25 @@ degrades to `False` if the attribute is not there — but it is coupling, and a
 mamori that renames that attribute breaks it. Fail-closed on the way down, at
 least: the fallback is the safe verdict rather than the convenient one.
 
+## Amendment: the same failure through the type system
+
+`akashi` hit this from the other side. Its reader coerced the field with
+`bool()`, so the string `"false"` — what a producer that stringified its JSON
+sends — read as **true**, and a package that cannot be restored was audited as
+one that can.
+
+tsumugi had it too. `verify` branches on `not protection.reversible`, and
+`"false"`, `"0"` and `"no"` are all truthy, so all three took the restore path:
+honest citations reported as fabrications, quietly. Same failure as the wrong
+default, arriving through the type system instead.
+
+`Protection` now refuses anything that is not a real `bool`, including `0` and
+`1` — which would land on the right branch by accident. A producer sending
+those is not conforming, the schema says boolean, and accepting them teaches
+that the field is loosely typed, which is how `"false"` arrives next. A
+malformed value now fails loudly at construction rather than choosing the
+dangerous branch silently.
+
 ## What was not decided
 
 Whether a partially-reversible protection should exist — a package where some
