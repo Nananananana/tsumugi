@@ -59,128 +59,45 @@ class Genre:
     paraphrase: str = ""
 
 
-GENRES: tuple[Genre, ...] = (
-    Genre(
-        "mountaineering",
-        "ja",
-        "テント",
-        "重量",
-        "2.4kg、二人用",
-        "キャンプ用タープ",
-        "3.1kg、二人用",
-        "装備",
-        "テントの重量は",
-        paraphrase="テントはどれくらい重い",
-    ),
-    Genre(
-        "employment-rules",
-        "ja",
-        "有給休暇",
-        "付与日数",
-        "初年度は10日、以降1日ずつ加算",
-        "特別休暇",
-        "初年度は8日、以降1日ずつ加算",
-        "休暇",
-        "有給休暇の付与日数は",
-        paraphrase="有給は何日もらえる",
-    ),
-    Genre(
-        "research-notes",
-        "ja",
-        "サンプル",
-        "保存温度",
-        "マイナス80度で凍結保存",
-        "試薬",
-        "マイナス20度で凍結保存",
-        "保存条件",
-        "サンプルの保存温度は",
-        paraphrase="サンプルは何度で保管する",
-    ),
-    Genre(
-        "recipes",
-        "ja",
-        "生地",
-        "寝かせ時間",
-        "冷蔵庫で12時間",
-        "ソース",
-        "冷蔵庫で3時間",
-        "手順",
-        "生地の寝かせ時間は",
-        paraphrase="生地はどのくらい休ませる",
-    ),
-    Genre(
-        "meeting-minutes",
-        "ja",
-        "次回の会議",
-        "開催日",
-        "来月の第二火曜日",
-        "報告会",
-        "来月の第一金曜日",
-        "決定事項",
-        "次回の会議の開催日は",
-        paraphrase="次の会議はいつ",
-    ),
-    Genre(
-        "gardening",
-        "ja",
-        "球根",
-        "植え付け時期",
-        "10月下旬から11月上旬",
-        "種まき",
-        "3月下旬から4月上旬",
-        "作業予定",
-        "球根の植え付け時期は",
-        paraphrase="球根はいつ植える",
-    ),
-    Genre(
-        "infrastructure",
-        "en",
-        "the staging cluster",
-        "node count",
-        "six nodes across two zones",
-        "the build farm",
-        "four nodes in one zone",
-        "Capacity",
-        "how many nodes does the staging cluster have",
-        paraphrase="how big is the staging cluster",
-    ),
-    Genre(
-        "legal-memo",
-        "en",
-        "the notice period",
-        "length",
-        "sixty days in writing",
-        "the cure period",
-        "thirty days in writing",
-        "Termination",
-        "how long is the notice period",
-        paraphrase="how much warning must be given",
-    ),
-    Genre(
-        "travel",
-        "en",
-        "the ferry",
-        "first departure",
-        "06:40 from the north quay",
-        "the shuttle bus",
-        "07:15 from the north quay",
-        "Schedule",
-        "when is the first ferry departure",
-        paraphrase="what time does the earliest boat leave",
-    ),
-    Genre(
-        "code-review",
-        "en",
-        "the retry policy",
-        "backoff",
-        "exponential, capped at thirty seconds",
-        "the rate limiter",
-        "linear, capped at ten seconds",
-        "Behaviour",
-        "what backoff does the retry policy use",
-        paraphrase="how does the retry policy wait between attempts",
-    ),
-)
+#: The genres live in data rather than in this file, so that adding one is a
+#: data change a contributor can make without reading the generator -- and so
+#: that the vocabulary is not limited to whatever the person writing the
+#: generator happened to think of.
+#:
+#: `tools/draft_genres.py` drafts new ones with a local model and checks them
+#: against the properties the corpus depends on. A person reads them before
+#: they land here. **No model runs when cases are generated**, and none runs in
+#: CI (ADR-0013): the fixtures are committed and the generator is deterministic.
+GENRES_PATH = Path(__file__).resolve().parent / "genres.json"
+
+
+def load_genres(path: Path = GENRES_PATH) -> tuple[Genre, ...]:
+    """Every genre, in file order.
+
+    File order is the order, and the order matters: shapes and splits are
+    assigned from a genre's index, so reordering this file reshuffles the
+    corpus. That is a deliberate cost of keeping the assignment deterministic
+    without a seed -- adding a genre at the end changes nothing before it.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    version = payload.get("format_version")
+    if version != 1:
+        raise ValueError(f"{path}: unknown format_version {version!r}")
+
+    genres: list[Genre] = []
+    seen: set[str] = set()
+    for row in payload["genres"]:
+        genre = Genre(**row)
+        if genre.key in seen:
+            raise ValueError(f"{path}: two genres called {genre.key!r}")
+        seen.add(genre.key)
+        genres.append(genre)
+    if not genres:
+        raise ValueError(f"{path}: no genres")
+    return tuple(genres)
+
+
+GENRES: tuple[Genre, ...] = load_genres()
 
 #: Padding that is plausible prose and shares no vocabulary with any answer, so
 #: it cannot accidentally become the thing a query matches.
@@ -194,6 +111,12 @@ _FILLER = {
         "This entry was reviewed at the last stocktake.\n"
         "Ownership rotates, and is checked once at handover.\n"
         "The longer history is kept in a separate record.\n"
+    ),
+    "zh": ("这一条在上次盘点时复核过。\n负责人轮换，交接时确认一次。\n详细的经过另有记录。\n"),
+    "ko": (
+        "이 항목은 지난 재고 조사에서 검토했다.\n"
+        "담당은 돌아가며 맡고, 인수인계 때 한 번 확인한다.\n"
+        "자세한 경위는 별도 기록에 남겨 두었다.\n"
     ),
 }
 
@@ -342,6 +265,33 @@ def _near_miss_document(genre: Genre, fact_id: str, variant: int = 0) -> str:
     )
 
 
+#: Per language, and keyed rather than branched, so adding a language is a
+#: table entry and not an `if`. A missing key raises here rather than quietly
+#: producing an English document with a Korean subject in it.
+_COPY_HEAD = {
+    "ja": "（控え）\n\n過去の記録から転記。\n\n",
+    "en": " (copy)\n\nTranscribed from an earlier record.\n\n",
+    "zh": "（副本）\n\n从早前的记录转抄。\n\n",
+    "ko": " (사본)\n\n이전 기록에서 옮겨 적음.\n\n",
+}
+_APPENDIX = {
+    "ja": ("補足", "の運用について、過去の経緯を並べておく。"),
+    "en": (", appendix", " has been handled before, in outline."),
+    "zh": ("补充", "的运作情况，把过去的经过列在这里。"),
+    "ko": ("보충", "의 운용에 대해, 지난 경위를 적어 둔다."),
+}
+
+
+def _bulk_document(genre: Genre, n: int) -> str:
+    """Competition, so that a budget can actually bind."""
+    label, sentence = _APPENDIX[genre.language]
+    if genre.language == "en":
+        head = f"# {genre.heading}{label} {n}\n\nBackground on how {genre.subject}{sentence}\n"
+    else:
+        head = f"# {genre.heading} {label} {n}\n\n{genre.subject}{sentence}\n"
+    return f"{head}{_FILLER[genre.language] * 3}"
+
+
 def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
     """A verbatim copy of the answer, in another file.
 
@@ -350,10 +300,7 @@ def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
     measurement showed is not detectable by character overlap and is not what
     the rule means (ADR-0015).
     """
-    if genre.language == "ja":
-        head = f"# {genre.heading}（控え）\n\n過去の記録から転記。\n\n"
-    else:
-        head = f"# {genre.heading} (copy)\n\nTranscribed from an earlier record.\n\n"
+    head = f"# {genre.heading}{_COPY_HEAD[genre.language]}"
     return f"{head}{{{{F:{fact_id}}}}}{answer_text}{{{{/F}}}}\n\n{_FILLER[genre.language]}"
 
 
@@ -363,28 +310,15 @@ def _duplicate_document(genre: Genre, fact_id: str, answer_text: str) -> str:
 _UNANSWERABLE = {
     "ja": "の保証期間は何年か",
     "en": "what is the warranty period of ",
+    "zh": "的保修期是几年",
+    "ko": "의 보증 기간은 몇 년인가",
 }
 
 
 def _unanswerable_question(genre: Genre) -> str:
-    if genre.language == "ja":
-        return f"{genre.subject}{_UNANSWERABLE['ja']}"
-    return f"{_UNANSWERABLE['en']}{genre.subject}"
-
-
-def _bulk_document(genre: Genre, n: int) -> str:
-    """Competition, so that a budget can actually bind."""
-    if genre.language == "ja":
-        return (
-            f"# {genre.heading} 補足 {n}\n\n"
-            f"{genre.subject}の運用について、過去の経緯を並べておく。\n"
-            f"{_FILLER[genre.language] * 3}"
-        )
-    return (
-        f"# {genre.heading}, appendix {n}\n\n"
-        f"Background on how {genre.subject} has been handled before.\n"
-        f"{_FILLER[genre.language] * 3}"
-    )
+    if genre.language == "en":
+        return f"{_UNANSWERABLE['en']}{genre.subject}"
+    return f"{genre.subject}{_UNANSWERABLE[genre.language]}"
 
 
 #: Alternating, so that a threshold tuned on the train half can be reported on
@@ -575,7 +509,7 @@ def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
 #: confirmation looked for, and `tsumugi context "テントの重量は?"` returned an
 #: empty package. Applied by variant so that punctuated and bare questions both
 #: stay covered, and deterministically, because nothing here uses a seed.
-_QUESTION_MARK = {"ja": "？", "en": "?", "mixed": "?"}
+_QUESTION_MARK = {"ja": "？", "en": "?", "mixed": "?", "zh": "？", "ko": "?"}
 
 
 def _ask(genre: Genre, variant: int) -> str:

@@ -1,0 +1,125 @@
+{
+  "format_version": 1,
+  "genres": [
+    {
+      "key": "mountaineering",
+      "language": "ja",
+      "subject": "テント",
+      "attribute": "重量",
+      "answer": "2.4kg、二人用",
+      "neighbour": "キャンプ用タープ",
+      "superseded_answer": "3.1kg、二人用",
+      "heading": "装備",
+      "question": "テントの重量は",
+      "paraphrase": "テントはどれくらい重い"
+    },
+    {
+      "key": "employment-rules",
+      "language": "ja",
+      "subject": "有給休暇",
+      "attribute": "付与日数",
+      "answer": "初年度は10日、以降1日ずつ加算",
+      "neighbour": "特別休暇",
+      "superseded_answer": "初年度は8日、以降1日ずつ加算",
+      "heading": "休暇",
+      "question": "有給休暇の付与日数は",
+      "paraphrase": "有給は何日もらえる"
+    },
+    {
+      "key": "research-notes",
+      "language": "ja",
+      "subject": "サンプル",
+      "attribute": "保存温度",
+      "answer": "マイナス80度で凍結保存",
+      "neighbour": "試薬",
+      "superseded_answer": "マイナス20度で凍結保存",
+      "heading": "保存条件",
+      "question": "サンプルの保存温度は",
+      "paraphrase": "サンプルは何度で保管する"
+    },
+    {
+      "key": "recipes",
+      "language": "ja",
+      "subject": "生地",
+      "attribute": "寝かせ時間",
+      "answer": "冷蔵庫で12時間",
+      "neighbour": "ソース",
+      "superseded_answer": "冷蔵庫で3時間",
+      "heading": "手順",
+      "question": "生地の寝かせ時間は",
+      "paraphrase": "生地はどのくらい休ませる"
+    },
+    {
+      "key": "meeting-minutes",
+      "language": "ja",
+      "subject": "次回の会議",
+      "attribute": "開催日",
+      "answer": "来月の第二火曜日",
+      "neighbour": "報告会",
+      "superseded_answer": "来月の第一金曜日",
+      "heading": "決定事項",
+      "question": "次回の会議の開催日は",
+      "paraphrase": "次の会議はいつ"
+    },
+    {
+      "key": "gardening",
+      "language": "ja",
+      "subject": "球根",
+      "attribute": "植え付け時期",
+      "answer": "10月下旬から11月上旬",
+      "neighbour": "種まき",
+      "superseded_answer": "3月下旬から4月上旬",
+      "heading": "作業予定",
+      "question": "球根の植え付け時期は",
+      "paraphrase": "球根はいつ植える"
+    },
+    {
+      "key": "infrastructure",
+      "language": "en",
+      "subject": "the staging cluster",
+      "attribute": "node count",
+      "answer": "six nodes across two zones",
+      "neighbour": "the build farm",
+      "superseded_answer": "four nodes in one zone",
+      "heading": "Capacity",
+      "question": "how many nodes does the staging cluster have",
+      "paraphrase": "how big is the staging cluster"
+    },
+    {
+      "key": "legal-memo",
+      "language": "en",
+      "subject": "the notice period",
+      "attribute": "length",
+      "answer": "sixty days in writing",
+      "neighbour": "the cure period",
+      "superseded_answer": "thirty days in writing",
+      "heading": "Termination",
+      "question": "how long is the notice period",
+      "paraphrase": "how much warning must be given"
+    },
+    {
+      "key": "travel",
+      "language": "en",
+      "subject": "the ferry",
+      "attribute": "first departure",
+      "answer": "06:40 from the north quay",
+      "neighbour": "the shuttle bus",
+      "superseded_answer": "07:15 from the north quay",
+      "heading": "Schedule",
+      "question": "when is the first ferry departure",
+      "paraphrase": "what time does the earliest boat leave"
+    },
+    {
+      "key": "code-review",
+      "language": "en",
+      "subject": "the retry policy",
+      "attribute": "backoff",
+      "answer": "exponential, capped at thirty seconds",
+      "neighbour": "the rate limiter",
+      "superseded_answer": "linear, capped at ten seconds",
+      "heading": "Behaviour",
+      "question": "what backoff does the retry policy use",
+      "paraphrase": "how does the retry policy wait between attempts"
+    }
+  ]
+}
