@@ -167,7 +167,20 @@ and `qwen2.5:14b` answering fifty cases while `llama3.1:8b` answered none of
 them — on the same prompt — is what one model alone looks like when it looks
 fine.
 
-**3. Chinese, or an honest sentence about it.**
+**3. May a package carry an item that nothing lexical confirms?**
+*(promoted 2026-08-30, when item 1 was withdrawn)*
+
+The question item 1 left behind, and it outranks the rest because it is the
+only one that changes what a package *means*. An item proposed by similarity
+and confirmed by nothing is either declared -- in the JSON, the prompt and the
+rendering -- or it does not go in. **ADR before code**, and the ADR has to
+survive the trap measurement, not the recall one.
+
+**Closes** with an ADR that either states the rule or records the refusal.
+**Does not close** with an implementation; if a change to what a package means
+arrives as a diff, the decision was never made.
+
+**4. Chinese, or an honest sentence about it.**
 
 Japanese has kana and Korean has spaces; Chinese has neither, so a whole
 question is one content term and nothing can be dropped. Either something
@@ -177,7 +190,7 @@ the README rather than only in a measurement table.
 
 ### Then
 
-**4. Term rarity in the confirmation stage.** ADR-0019 closed the near-miss
+**5. Term rarity in the confirmation stage.** ADR-0019 closed the near-miss
 gap with a *relative* rule, and noted what it does not have: bm25 knows that
 `warranty` is the rare word and `the coverage period of` is not, and
 confirmation still does not. Cheap, already computed, and the last piece of the
@@ -191,7 +204,7 @@ that smuggled one in would be those three decisions reversed without an ADR
 saying so. bm25 already knows this and needs no list, which is the whole
 attraction.
 
-**5. Incremental ingestion.** Unchanged from 0002 and still not close: re-ingest
+**6. Incremental ingestion.** Unchanged from 0002 and still not close: re-ingest
 over an unchanged corpus is 5.5× cheaper than a cold build, so the ten-second
 threshold arrives near 12,000 documents.
 
@@ -222,6 +235,58 @@ sits beside, and a scope would be the first one pointing somewhere else.
   to maintain. Embeddings are the escape hatch that does not require one.
 
 ---
+
+## What v1.0 would mean
+
+*Asked across the family on 2026-08-30, and tsumugi was the one project from
+which it could not be read.* Fair: nothing here said it.
+
+**This project froze its contract at v0.1**, which is backwards from the usual
+order and makes the usual answer unavailable. `tsumugi.context-package/1` is
+already fixed; a consumer written against it today will keep working. So 1.0
+cannot mean *the format settles* -- that happened first, on purpose, because a
+context package is read by things outside this repository and a format that
+moves is worse than a format that is limited.
+
+What is left is a promise about the code that produces it, and there are two.
+
+**1. The floors hold on a corpus this project did not write.**
+
+Every number in [measurements.md](../measurements.md) comes from
+`tools/generate_cases.py` -- a generator in this repository, written by the
+same hand as the retrieval it scores. That is not a hypothetical conflict:
+
+- 10 genres to 30 moved the trap rate **6.0% to 25.8% with no code change**;
+- split by origin, handwritten genres trapped **4.0%** and genres drafted from
+  a model's vocabulary **28.0%**;
+- restricted to ja+en, to remove the script confound, the gap **widened** to
+  4.0% against 33.3%.
+
+The vocabulary I did not choose is the vocabulary that breaks it, every time it
+has been tried. A 1.0 whose evidence is entirely self-generated is a 1.0
+measured against its author's imagination.
+
+**Closes** when the `ci` tier floors are met on at least one corpus whose text
+came from outside this repository, scored without tuning against it -- the
+held-out discipline, one level up: held out from the *generator*, not just from
+the tuning.
+
+**Does not close** by generating more genres with the same tool, however many.
+30 genres from `draft_genres.py` is still one generator's idea of what
+documents look like; that is the axis the numbers above say is load-bearing.
+Nor by a corpus this project selects after seeing the scores.
+
+**2. The public surface stops moving without notice.**
+
+Today anything may be renamed. 1.0 means `build_context`, `search`, `verify`,
+`ask`, the ports and the CLI verbs carry a deprecation policy, and the
+architecture test's layer table gains the public names as a fourth column.
+
+**What 1.0 is deliberately not:** a distribution on PyPI. The name `tsumugi`
+there belongs to an unrelated project, the alternative is a distribution name
+that differs from the import name, and **that is the owner's decision and is
+open.** Tying 1.0 to it would make a packaging question into a correctness
+milestone. A library can be 1.0 in a repository.
 
 ## What this proposal is not
 
