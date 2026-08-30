@@ -235,6 +235,30 @@ that failure loud.
 
 ---
 
+## A worked example
+
+`fixtures/seam/` holds one corpus, one question, and the package tsumugi really
+emits for them — for a consumer that wants to test against this contract
+without importing tsumugi. Vendor it together with the schema: the schema says
+what the shape is, and the fixture is one instance a producer produced.
+
+It is byte-identical across runs. `created_at` is pinned, and it is the one
+field deliberately outside `package_id`, which is what makes pinning it safe
+rather than a lie — the fixture carries the id these inputs really produce, so
+a consumer compares the whole document and skips nothing.
+`tsumugi context --json --at <ISO8601>` does the same from the command line.
+
+## What the schema cannot say
+
+**`end >= start` is not expressible.** JSON Schema 2020-12 cannot compare two
+properties of the same object, so a package whose anchor ends before it starts
+**validates**. A consumer that slices text with those offsets has to check for
+itself.
+
+The producer cannot emit one — `Span` refuses at construction — so the
+invariant lives there, and `tests/test_contract_conformance.py` asserts both
+halves so the division of labour is stated rather than assumed.
+
 ## Conformance
 
 The conformance suite is `tests/test_contract_conformance.py`. It checks a
