@@ -252,6 +252,37 @@ The `ci` tier is 149 of 150 clean at 100% recall. The residual is the
 its content and its grammar and so cannot be helped by any rule that refuses a
 dictionary.
 
+### Split by who chose the vocabulary
+
+The headline above mixes two populations, and the split is the whole point.
+Every case now carries an `origin` — `handwritten` for the ten genres written
+by whoever was writing the ranker, `drafted` for the twenty a local model wrote
+and a person reviewed — and `tsumugi eval` reports the trap rate for each.
+
+With the ADR-0019 fix disabled, which reconstructs the state that produced the
+headline number:
+
+| | handwritten | drafted |
+|---|---|---|
+| all four languages | **4.0%** (2/50) | **28.0%** (28/100) |
+| Japanese and English only | **4.0%** (2/50) | **33.3%** (15/45) |
+
+**On the vocabulary its author chose, the ranker looked fine. On somebody
+else's, it was broken seven ways out of eight.** The second row removes the
+obvious confound — every Chinese and Korean genre is drafted, so the first row
+cannot separate "another person's words" from "a script the tokenizer had not
+met". Restricting to the two languages that have both origins makes the gap
+*wider*, so it is vocabulary and not script.
+
+With the fix in place both fall to roughly the same place — drafted 3.0%,
+handwritten 4.0% — which is what fixing it was supposed to mean.
+
+**What this is not.** It is a reconstruction, not the original run. The
+historical 6.0% → 25.8% was measured on a smaller corpus, before Chinese
+existed, and with document shapes changing at the same time. The numbers above
+are today's 240 cases with one constant flipped, which is the cleaner
+experiment and a different one.
+
 **What this does not say:** that thirty genres is enough. It is three times
 what there was, and the last time the corpus tripled it found a 20-point defect.
 
