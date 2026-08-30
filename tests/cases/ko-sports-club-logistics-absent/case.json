@@ -8,6 +8,7 @@
   "language": "ko",
   "must_include": [],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "스포츠 클럽의 보증 기간은 몇 년인가",
   "split": "train",
   "tier": "ci",

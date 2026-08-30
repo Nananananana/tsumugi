@@ -8,6 +8,7 @@
   "language": "zh",
   "must_include": [],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "体育俱乐部物流的保修期是几年",
   "split": "train",
   "tier": "ci",

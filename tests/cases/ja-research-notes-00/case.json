@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "サンプルの保存温度は",
   "split": "train",
   "tier": "ci",

@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "保修条款的保修期限是多少？",
   "split": "train",
   "tier": "full",

@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "次の会議はいつ？",
   "split": "train",
   "tier": "full",

@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "이 달에 얼마나 썼나요??",
   "split": "held_out",
   "tier": "full",

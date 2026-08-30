@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "how long is the notice period",
   "split": "train",
   "tier": "ci",

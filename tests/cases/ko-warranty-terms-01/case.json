@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "보증 조건의 보증 기간은?",
   "split": "train",
   "tier": "full",

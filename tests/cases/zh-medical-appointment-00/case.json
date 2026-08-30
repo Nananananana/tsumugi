@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "医疗预约的预约日期是多少",
   "split": "train",
   "tier": "ci",

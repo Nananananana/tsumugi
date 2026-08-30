@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "등록은 언제까지 가능하나요??",
   "split": "held_out",
   "tier": "full",

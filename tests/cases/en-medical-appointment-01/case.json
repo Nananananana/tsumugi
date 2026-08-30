@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "what is the date of appointment of next medical appointment?",
   "split": "train",
   "tier": "full",

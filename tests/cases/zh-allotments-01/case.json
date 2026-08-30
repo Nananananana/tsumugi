@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "菜园分配的菜园的大小是多少？",
   "split": "train",
   "tier": "full",

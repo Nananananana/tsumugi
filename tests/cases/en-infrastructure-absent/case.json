@@ -8,6 +8,7 @@
   "language": "en",
   "must_include": [],
   "must_not_include": [],
+  "origin": "handwritten",
   "question": "what is the warranty period of the staging cluster",
   "split": "train",
   "tier": "ci",

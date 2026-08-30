@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "家計の月間の支出は",
   "split": "held_out",
   "tier": "full",

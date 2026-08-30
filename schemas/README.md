@@ -19,8 +19,9 @@ From an installed tsumugi, with no network and no path:
 
 ```python
 import tsumugi
-schema = tsumugi.contract_schema()          # parsed
-raw    = tsumugi.contract_schema_text()     # the bytes, to hash or vendor
+
+schema = tsumugi.contract_schema()  # parsed
+raw = tsumugi.contract_schema_text()  # the bytes, to hash or vendor
 ```
 
 Vendoring the file directly is still fine and is what the sibling projects do —

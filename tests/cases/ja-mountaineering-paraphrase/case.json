@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "テントはどれくらい重い？",
   "split": "train",
   "tier": "full",

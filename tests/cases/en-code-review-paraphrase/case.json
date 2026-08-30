@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "how does the retry policy wait between attempts?",
   "split": "held_out",
   "tier": "full",

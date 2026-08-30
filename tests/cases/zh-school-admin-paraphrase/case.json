@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "新学期什么时候开始？？",
   "split": "held_out",
   "tier": "full",

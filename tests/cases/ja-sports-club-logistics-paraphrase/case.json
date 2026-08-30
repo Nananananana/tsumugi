@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "今月のスポーツクラブの費用はいくらですか？？",
   "split": "train",
   "tier": "full",

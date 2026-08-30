@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "我的菜园有多大？？",
   "split": "train",
   "tier": "full",

@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "handwritten",
   "question": "how many nodes does the staging cluster have?",
   "split": "train",
   "tier": "ci",

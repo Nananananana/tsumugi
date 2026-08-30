@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "스포츠 클럽의 훈련 시간은?",
   "split": "train",
   "tier": "full",

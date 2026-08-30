@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "ハードウェアの在庫の在庫数は？",
   "split": "train",
   "tier": "full",

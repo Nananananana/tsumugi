@@ -10,6 +10,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "when is the first ferry departure",
   "split": "train",
   "tier": "ci",

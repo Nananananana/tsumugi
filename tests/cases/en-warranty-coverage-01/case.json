@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "what is the coverage period of product warranty?",
   "split": "train",
   "tier": "full",

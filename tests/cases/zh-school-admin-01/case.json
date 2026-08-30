@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "学校管理的开学日期是多少？",
   "split": "train",
   "tier": "full",

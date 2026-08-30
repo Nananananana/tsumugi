@@ -87,6 +87,9 @@ class CaseScore:
     case_id: str
     genre: str
     language: str
+    #: ``handwritten`` or ``drafted``. Carried so the trap rate can be split
+    #: by who chose the vocabulary.
+    origin: str = "handwritten"
 
     #: Required facts that reached the package.
     found: tuple[str, ...] = ()
@@ -161,6 +164,10 @@ class Summary:
     answered_the_unanswerable: tuple[str, ...] = ()
     by_genre: dict[str, tuple[int, int]] = field(default_factory=dict)
     by_language: dict[str, tuple[int, int]] = field(default_factory=dict)
+    #: Sprung and forbidden, per ``handwritten`` / ``drafted``. Trap rate is
+    #: the metric worth splitting: it is the one that moved when vocabulary
+    #: somebody else chose entered the corpus.
+    traps_by_origin: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def _ratio(self, part: int, whole: int) -> float | None:
         return part / whole if whole else None
@@ -212,6 +219,15 @@ class Summary:
         if not self.over_budget and not self.unreproducible:
             lines.append("  budget adherence and reproducibility: held on every case")
 
+        if len(self.traps_by_origin) > 1:
+            # Split, and only when there is something to split. A corpus
+            # written by the same hand as the ranker is a mirror; a number
+            # that mixes the two cannot say which half it is reporting.
+            lines.append("  trap rate by who chose the vocabulary:")
+            for origin, (sprung, forbidden) in sorted(self.traps_by_origin.items()):
+                rate = f"{sprung / forbidden:.1%}" if forbidden else "n/a"
+                lines.append(f"    {origin:<12} {rate:>6}  ({sprung}/{forbidden})")
+
         for label, table in (("genre", self.by_genre), ("language", self.by_language)):
             if len(table) > 1:
                 lines.append(f"  by {label}:")
@@ -257,6 +273,7 @@ def score_case(
         case_id=case.case_id,
         genre=case.genre,
         language=case.language,
+        origin=case.origin,
         found=found,
         missed=missed,
         sprung=sprung,
@@ -296,6 +313,12 @@ def summarise(scores: Sequence[CaseScore]) -> Summary:
         for table, key in ((summary.by_genre, score.genre), (summary.by_language, score.language)):
             clean, total = table.get(key, (0, 0))
             table[key] = (clean + int(score.clean), total + 1)
+
+        sprung, forbidden = summary.traps_by_origin.get(score.origin, (0, 0))
+        summary.traps_by_origin[score.origin] = (
+            sprung + len(score.sprung),
+            forbidden + score.forbidden,
+        )
     return summary
 
 

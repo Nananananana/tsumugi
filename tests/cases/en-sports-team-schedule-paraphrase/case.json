@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "Where is the next game being played??",
   "split": "train",
   "tier": "full",

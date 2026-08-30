@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "家庭预算的每月的食品开支是多少",
   "split": "held_out",
   "tier": "full",

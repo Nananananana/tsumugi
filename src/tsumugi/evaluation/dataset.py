@@ -81,6 +81,10 @@ class Case:
     split: str
     #: ``ci`` (fast, every commit) or ``full`` (nightly, and before a release).
     tier: str
+    #: ``handwritten`` or ``drafted``: who chose this case's vocabulary. A
+    #: corpus written by the same hand as the thing it measures is a mirror,
+    #: and a score that mixes the two cannot say which half it is reporting.
+    origin: str = "handwritten"
     #: ``relative path -> stripped text``.
     documents: Mapping[str, str] = field(repr=False, default_factory=dict)
     #: Every planted fact, across every document.
@@ -115,6 +119,8 @@ class Case:
         return None
 
     def __post_init__(self) -> None:
+        if self.origin not in {"handwritten", "drafted"}:
+            raise ValueError(f"{self.case_id}: unknown origin {self.origin!r}")
         if self.split not in {"train", "held_out"}:
             raise ValueError(f"{self.case_id}: unknown split {self.split!r}")
         if self.tier not in {"ci", "full"}:
@@ -241,6 +247,7 @@ def load_case(directory: Path) -> Case:
         must_include=tuple(manifest.get("must_include", ())),
         must_not_include=tuple(manifest.get("must_not_include", ())),
         traps=traps,
+        origin=manifest.get("origin", "handwritten"),
         split=manifest.get("split", "train"),
         tier=manifest.get("tier", "full"),
         documents=documents,

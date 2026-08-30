@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "有給は何日もらえる？",
   "split": "held_out",
   "tier": "full",

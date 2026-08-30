@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "現在の在庫はどれくらいありますか？？",
   "split": "held_out",
   "tier": "full",

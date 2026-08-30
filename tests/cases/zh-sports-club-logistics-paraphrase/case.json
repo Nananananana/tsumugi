@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "我们下一次训练是什么时候？？",
   "split": "train",
   "tier": "full",

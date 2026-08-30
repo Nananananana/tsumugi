@@ -249,8 +249,9 @@ It ships **inside the package**, so a consumer does not need the network:
 
 ```python
 import tsumugi
-schema = tsumugi.contract_schema()          # parsed
-raw    = tsumugi.contract_schema_text()     # the bytes, to hash or to vendor
+
+schema = tsumugi.contract_schema()  # parsed
+raw = tsumugi.contract_schema_text()  # the bytes, to hash or to vendor
 ```
 
 That is not a convenience wrapper. The promise used to live in a comment in

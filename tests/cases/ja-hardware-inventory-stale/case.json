@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "ハードウェアの在庫の在庫数は？",
   "split": "train",
   "tier": "ci",

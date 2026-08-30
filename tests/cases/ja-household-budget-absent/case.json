@@ -8,6 +8,7 @@
   "language": "ja",
   "must_include": [],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "家計の保証期間は何年か",
   "split": "train",
   "tier": "ci",

@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "サンプルは何度で保管する？",
   "split": "train",
   "tier": "full",

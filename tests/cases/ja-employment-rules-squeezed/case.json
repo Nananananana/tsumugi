@@ -10,6 +10,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "有給休暇の付与日数は",
   "split": "train",
   "tier": "ci",

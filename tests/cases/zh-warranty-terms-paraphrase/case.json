@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "这个电视机保修多久？？",
   "split": "held_out",
   "tier": "full",

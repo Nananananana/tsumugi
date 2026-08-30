@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "When does the next semester begin??",
   "split": "train",
   "tier": "full",

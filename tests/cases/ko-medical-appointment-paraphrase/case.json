@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "언제 병원에 가야 하나요??",
   "split": "train",
   "tier": "full",

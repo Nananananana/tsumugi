@@ -51,6 +51,12 @@ class Genre:
     superseded_answer: str
     heading: str
     question: str = ""
+    #: Who chose this vocabulary: ``handwritten`` by whoever was writing the
+    #: ranker, or ``drafted`` by a local model and reviewed. Carried into every
+    #: case so a score can be split by it -- a corpus written by the same hand
+    #: as the thing it measures is a mirror, and a number that mixes the two
+    #: cannot say so.
+    origin: str = "handwritten"
     #: The same question asked the way a person asks it, sharing no contiguous
     #: phrase with the document. This is the shape the corpus had none of:
     #: every question in it was built from the subject and attribute the
@@ -400,6 +406,7 @@ def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, 
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
+        "origin": genre.origin,
         "question": genre.paraphrase + _QUESTION_MARK.get(genre.language, "?"),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": ["answer"],
@@ -428,6 +435,7 @@ def build_absent_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, obje
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
+        "origin": genre.origin,
         "question": _unanswerable_question(genre),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": [],
@@ -464,6 +472,7 @@ def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, objec
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
+        "origin": genre.origin,
         "question": _ask(genre, 1),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": ["answer"],
@@ -494,6 +503,7 @@ def build_squeezed_out_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
+        "origin": genre.origin,
         "question": _ask(genre, 0),
         # Smaller than the answer passage, so nothing at all fits.
         "budget": {"unit": "characters", "limit": 5},
@@ -637,6 +647,7 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
         "case_id": case_id,
         "genre": genre.key,
         "language": genre.language,
+        "origin": genre.origin,
         "question": _ask(genre, variant),
         "budget": budget,
         "must_include": [answer],

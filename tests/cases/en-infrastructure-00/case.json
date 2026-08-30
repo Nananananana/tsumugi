@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "how many nodes does the staging cluster have",
   "split": "train",
   "tier": "ci",

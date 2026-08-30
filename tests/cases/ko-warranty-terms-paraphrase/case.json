@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "제품은 얼마나 보장되나요??",
   "split": "train",
   "tier": "full",

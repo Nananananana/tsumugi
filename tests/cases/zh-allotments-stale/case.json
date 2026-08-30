@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "菜园分配的菜园的大小是多少？",
   "split": "train",
   "tier": "ci",

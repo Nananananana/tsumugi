@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "가계부의 월간 지출은",
   "split": "train",
   "tier": "ci",

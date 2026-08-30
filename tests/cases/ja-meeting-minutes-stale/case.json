@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "handwritten",
   "question": "次回の会議の開催日は？",
   "split": "train",
   "tier": "ci",

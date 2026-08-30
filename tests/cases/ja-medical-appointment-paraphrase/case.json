@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "次回の診察はいつですか？？",
   "split": "held_out",
   "tier": "full",

@@ -82,7 +82,6 @@ jobs:
   siblings:
     name: integration with mamori
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
@@ -90,15 +89,39 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install with the sibling adapters
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,siblings]"
+      # mamori is not on PyPI, so `pip install ".[siblings]"` could never
+      # resolve it -- and with `continue-on-error` on the *job*, the install
+      # failure was swallowed and this job reported success without ever
+      # having run. It had never run. Found by `iriguchi`, which inspected
+      # this job before copying it.
+      #
+      # Installed from git here rather than declared in the extra: a PEP 508
+      # direct reference in `pyproject.toml` makes the project unpublishable
+      # to PyPI, and the extra is part of what tsumugi ships.
+      - name: Install the sibling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "mamori @ git+https://github.com/Nananananana/mamori@main"
+          python -m pip install -e ".[dev]"
+
+      # Setup failing is not the same finding as the seam failing, and only
+      # one of them is allowed to be quiet. If mamori is not importable here,
+      # every test in the file below skips itself and pytest reports success
+      # over zero tests -- the silent-skip shape, one level up from the
+      # `importorskip` this repository removed from its contract suite.
+      - name: Assert the sibling is actually installed
+        run: python -c "import mamori; print('mamori', mamori.__version__)"
 
       # ADR-0009's restore-before-verify property, against the real redactor
-      # rather than a fake written to make the point. `continue-on-error`
-      # because a sibling's release should not turn this build red -- it should
-      # tell us, which is what the annotation does.
+      # rather than a fake written to make the point.
+      #
+      # `continue-on-error` belongs *here*, on the step, and not on the job: a
+      # sibling's release should tell us rather than turn an unrelated merge
+      # red. If mamori's releases ever start doing that in earnest, the lever
+      # is pinning the checkout to a ref -- not tolerance.
       - name: The seam
         run: python -m pytest tests/test_adapter_mamori.py -q
+        continue-on-error: true
         env:
           PYTHONUTF8: "1"
 

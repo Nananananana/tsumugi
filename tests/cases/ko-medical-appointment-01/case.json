@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "의사 약속의 진료 날짜은?",
   "split": "train",
   "tier": "full",

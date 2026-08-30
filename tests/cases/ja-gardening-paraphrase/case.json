@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "球根はいつ植える？",
   "split": "held_out",
   "tier": "full",

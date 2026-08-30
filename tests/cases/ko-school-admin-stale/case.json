@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "학교 행정의 등록 마감일은?",
   "split": "train",
   "tier": "ci",

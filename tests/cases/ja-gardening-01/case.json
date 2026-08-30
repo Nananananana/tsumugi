@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "球根の植え付け時期は？",
   "split": "train",
   "tier": "full",

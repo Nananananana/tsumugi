@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "医疗预约的预约日期是多少？",
   "split": "train",
   "tier": "ci",

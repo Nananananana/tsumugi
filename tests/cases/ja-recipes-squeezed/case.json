@@ -10,6 +10,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "handwritten",
   "question": "生地の寝かせ時間は",
   "split": "train",
   "tier": "ci",

@@ -13,6 +13,7 @@
     "answer"
   ],
   "must_not_include": [],
+  "origin": "drafted",
   "question": "what is the next game location of sports team schedule?",
   "split": "train",
   "tier": "ci",

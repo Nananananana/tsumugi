@@ -12,6 +12,7 @@
   "must_not_include": [
     "near-miss"
   ],
+  "origin": "drafted",
   "question": "这个月我们在食物上花了多少钱？？",
   "split": "train",
   "tier": "full",
