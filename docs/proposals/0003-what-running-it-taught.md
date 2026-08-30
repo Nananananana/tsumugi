@@ -338,6 +338,35 @@ has to be recorded per corpus rather than discovered later -- a corpus known to
 be contaminated is still perfectly good for the floors, provided nothing
 quietly reuses it for the answer evaluation.
 
+*What an outside writer has to supply, which is more than documents.* A genre
+in `genres.json` is not a document: it is a subject, an attribute, the answer,
+a superseded answer, a **neighbour**, a question and a paraphrase. Three of
+those decide what the corpus can measure, and if this project writes them the
+externality is lost while looking intact:
+
+- **the question**, because a question written by whoever built the ranker is
+  written by someone who knows which words confirm;
+- **the paraphrase**, which exists precisely to be a question that shares no
+  contiguous phrase with the document -- the arm that found the entire
+  paraphrase residual. Written here, it is this project's idea of how someone
+  else would phrase it, which is the thing it was invented to escape;
+- **the neighbour**, the near-miss subject. The trap rate is the number this
+  corpus is most proud of, and it is exactly a measure of *what an author
+  thought was confusable*. Choosing the neighbour here would leave the trap
+  measurement self-scored while the documents around it came from outside.
+
+**And what does not become external, said plainly so no one reads the number as
+more than it is.** The *structure* stays this project's: that a genre becomes a
+current document, a superseded one and a neighbour; which of them is the
+answer; the budget shapes. So a trap rate measured this way is **their
+vocabulary through this project's structure** -- better than today, where both
+are this project's, and not the same as an externally designed evaluation. If
+that distinction ever stops being stated, the number has quietly grown a claim.
+
+That is also why an outside writer is not asked to design the adversarial
+setup: it is measurement design, which is this project's half of the split, and
+handing it over would trade a known limitation for an unknown one.
+
 **2. The public surface stops moving without notice.**
 
 Today anything may be renamed. 1.0 means `build_context`, `search`, `verify`,
