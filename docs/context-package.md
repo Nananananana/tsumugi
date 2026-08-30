@@ -1,7 +1,7 @@
 # ContextPackage
 
 **Contract:** `tsumugi.context-package/1`
-**Status: frozen.** A field may be added; none will be removed or change
+**Status: frozen, and closed.** Nothing may be added, removed, or change
 meaning inside version 1. A change a consumer must notice takes a new version.
 
 It was frozen once a **second program had produced and consumed a package**,

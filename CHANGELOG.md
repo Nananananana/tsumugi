@@ -350,7 +350,7 @@ stable.
   error and the session continues. `params` must be absent or an object;
   positional parameters are refused rather than read as empty, because leniency
   there hides a client bug. Nothing but responses reaches stdout.
-- **ContextPackage v1 is frozen.** A field may be added; none will be removed
+- **ContextPackage v1 is frozen.** Nothing may be added; none will be removed
   or change meaning inside version 1. Frozen once a *second program* had
   produced and consumed a package — the MCP server builds one in one process
   and verifies it in another, through JSON, with no shared objects — rather than

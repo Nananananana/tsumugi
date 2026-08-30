@@ -177,7 +177,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
   `src/tsumugi/schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three
-  that assert the schema and the enums have not drifted apart. **Frozen at `1`.** A field may be added;
+  that assert the schema and the enums have not drifted apart. **Frozen at `1`, and closed** -- every object sets `additionalProperties: false`, so nothing may be added (ADR-0022);
   none will be removed or change meaning. Frozen once the MCP server had built a
   package in one process and verified it in another through JSON -- a second
   consumer, which is the evidence a freeze wants -- rather than when the

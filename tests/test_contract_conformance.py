@@ -668,3 +668,32 @@ class TestThisSuiteCannotVanish:
             encoding="utf-8"
         )
         assert "importorskip" in adapter
+
+
+def test_the_contract_cannot_be_extended_and_says_so() -> None:
+    """The compatibility promise matches what the schema enforces.
+
+    For the whole life of the contract the schema said *a field may be added*
+    while every object set ``additionalProperties: false``. A consumer
+    validating against the published schema rejected the extension the same
+    document told them to expect, in all three directions -- a new top-level
+    field, a new field on an item, a new value in the omission ``rule`` enum.
+
+    That could not be repaired by relaxing the schema, because consumers who
+    vendored the strict copy still hold it, so ADR-0022 corrected the wording
+    instead: v1 is closed, and evolution means ``/2``. This holds the two
+    together. If ``additionalProperties`` is ever relaxed, the sentence has to
+    move with it.
+    """
+    schema = contract_schema()
+    assert "closed" in schema["properties"]["contract"]["description"]
+
+    strict = [schema, *(schema["$defs"][name] for name in schema["$defs"])]
+    open_objects = [
+        obj.get("title", obj.get("description", "?"))[:40]
+        for obj in strict
+        if obj.get("type") == "object" and obj.get("additionalProperties") is not False
+    ]
+    assert not open_objects, (
+        f"these accept unknown fields while the contract says nothing may be added: {open_objects}"
+    )

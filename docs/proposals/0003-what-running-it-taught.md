@@ -167,8 +167,26 @@ and `qwen2.5:14b` answering fifty cases while `llama3.1:8b` answered none of
 them — on the same prompt — is what one model alone looks like when it looks
 fine.
 
-**3. May a package carry an item that nothing lexical confirms?**
-*(promoted 2026-08-30, when item 1 was withdrawn)*
+**3. May a package carry an item that nothing lexical confirms?** —
+**answered 2026-08-31, [ADR-0022](../adr/0022-an-unconfirmed-candidate-is-an-omission-not-an-item.md). No.**
+
+An unconfirmed candidate is reported as an omission, with its anchor, and never
+as an item — which is what the code already did, and now the reason is written
+down. Both routes tell the reader the same thing; they differ in what happens
+when the reader ignores it. **Ignoring an omission loses information; ignoring
+a mark on an item adds information that is false.** The reader is a model, and
+the measured fact about these models is that they honour a package's structure
+very unevenly.
+
+Answering it turned up the constraint that made the decision cheap:
+`properties.contract.description` promised *a field may be added* while every
+object in the schema sets `additionalProperties: false`. Measured — a new
+top-level field, a new field on an item, and a new `rule` value are all
+**rejected** by the schema tsumugi publishes. The promise was false from the
+day of the freeze and could not be repaired by relaxing the schema, because
+consumers were told to vendor the strict copy. The wording is corrected
+instead: **v1 is closed**, and carrying a marked item was never a small change
+to v1 — it was `/2` all along.
 
 The question item 1 left behind, and it outranks the rest because it is the
 only one that changes what a package *means*. An item proposed by similarity
