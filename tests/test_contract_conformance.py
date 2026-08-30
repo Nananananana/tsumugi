@@ -56,6 +56,7 @@ from tsumugi.domain.package import (
     ContextPackage,
     PackageProvenance,
     Protection,
+    UnsupportedContractError,
     corpus_state,
 )
 from tsumugi.domain.selection import ContextItem, ItemProvenance, Layer
@@ -828,3 +829,55 @@ def test_the_loader_and_the_schema_define_the_same_fields() -> None:
     top level when it lives inside `provenance`.
     """
     assert set(contract_schema()["properties"]) == KNOWN_FIELDS
+
+
+class TestTheSchemaCanBeFetchedByTheNameAPackageCarries:
+    """`contract_schema(package["contract"])`, without a mapping in between.
+
+    `seam` built that mapping to run its checks, and then asked for it to stop
+    existing. The argument is not convenience. A consumer's table saying
+    ``/1 -> context-package-1.json`` keeps saying it after ``/2`` ships, so a
+    ``/2`` package gets validated against ``/1``'s schema **and passes**,
+    because most of ``/2`` is ``/1``. The family rule -- refuse a name you do
+    not know -- switches itself off inside the consumer's own lookup.
+    """
+
+    def test_the_identifier_a_package_carries_resolves(self) -> None:
+        schema = contract_schema(CONTRACT)
+        assert schema["$id"].endswith(CONTRACT_SCHEMA_NAME)
+
+    def test_the_draft_suffix_finds_the_schema_that_describes_it(self) -> None:
+        """`-draft` is a state of the document, not a separate schema.
+
+        The pattern in `context-package-1.json` is `...1(-draft)?$`, so that
+        file covers both. Deriving `context-package-1-draft.json` would refuse
+        a pre-freeze package using the very schema that describes it -- and a
+        pre-freeze package is precisely the one still lying around.
+        """
+        draft = next(c for c in SUPPORTED_CONTRACTS if c.endswith("-draft"))
+        assert contract_schema(draft)["$id"].endswith(CONTRACT_SCHEMA_NAME)
+
+    def test_a_contract_this_library_does_not_publish_is_refused(self) -> None:
+        for unknown in ("tsumugi.context-package/2", "kiseki.context-package/1"):
+            with pytest.raises(UnsupportedContractError):
+                contract_schema(unknown)
+
+    def test_a_missing_filename_is_still_a_missing_file(self) -> None:
+        """Only an identifier is a contract situation.
+
+        A filename that is not there is a path mistake, and `FileNotFoundError`
+        names it better than anything this library could invent.
+        """
+        with pytest.raises(FileNotFoundError):
+            contract_schema("context-package-99.json")
+
+    def test_the_schema_returned_agrees_that_it_describes_the_request(self) -> None:
+        """Derivation is a guess until the file agrees with it.
+
+        This is the check `seam` wrote on the consumer side, moved to where
+        every consumer gets it. It is what makes it safe to pass a value read
+        out of a document: a `/2` identifier can never come back holding `/1`'s
+        schema, because `/1`'s own pattern refuses `/2`.
+        """
+        schema = contract_schema(CONTRACT)
+        assert re.fullmatch(schema["properties"]["contract"]["pattern"], CONTRACT)

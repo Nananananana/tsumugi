@@ -35,10 +35,17 @@ ALLOWED: dict[str, frozenset[str]] = {
     # `tsumugi_version`, so `build_context` has to default to it -- and the
     # application layer may not import the public surface.
     "version": frozenset(),
-    # Reads one data file out of the installed package and parses it. It has
-    # no layer below it to depend on, which is the point: a consumer holding
-    # only the wheel can get the schema.
-    "contract": frozenset(),
+    # Reads one data file out of the installed package and parses it. It used
+    # to depend on nothing, which was the point: a consumer holding only the
+    # wheel can get the schema. It now depends on `domain`, deliberately, and
+    # the reason is worth the entry: `contract_schema` accepts a contract
+    # identifier as well as a filename, so it has to be able to say "tsumugi
+    # does not publish that" -- and the loader in `domain` already says exactly
+    # that, with `UnsupportedContractError`. Defining a second exception here
+    # for the same situation is what four deleted exception classes taught
+    # against. `domain` is stdlib-only and imports nothing, so the wheel-only
+    # consumer is no worse off; what changed is the layering, not the reach.
+    "contract": frozenset({"domain"}),
     "ports": frozenset({"domain", "errors"}),
     "infrastructure": frozenset({"domain", "ports", "errors", "version"}),
     "application": frozenset({"domain", "ports", "errors", "version"}),

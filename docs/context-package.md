@@ -250,7 +250,8 @@ It ships **inside the package**, so a consumer does not need the network:
 ```python
 import tsumugi
 
-schema = tsumugi.contract_schema()  # parsed
+schema = tsumugi.contract_schema(package["contract"])  # by the name the package carries
+schema = tsumugi.contract_schema()  # parsed, the current version
 raw = tsumugi.contract_schema_text()  # the bytes, to hash or to vendor
 ```
 
