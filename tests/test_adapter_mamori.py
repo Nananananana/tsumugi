@@ -397,3 +397,55 @@ class TestReversibilityIsObservedNotAssumed:
         redactor._observed = False
         redactor.protect("nothing sensitive here at all")
         assert redactor.as_protection().reversible is False
+
+
+class TestSurrogateModeRoundTrips:
+    """ADR-0009's property under `mixed` mode, where nothing looks like a token.
+
+    `mamori.protection-scope/1` names the failure a consumer of a protection
+    record has to avoid: reading `placeholders` and concluding the
+    substitutions are fully enumerated. In `surrogate` and `mixed` modes a
+    value is replaced by a *plausible* one -- `田中太郎` becomes `山田一郎`,
+    not `<PERSON_001>` -- so a placeholder list under-reports, and an
+    implementation that restored by scanning for `<...>` would silently leave
+    a real-looking fake in the text it called restored.
+
+    tsumugi is safe from this by construction rather than by care: it never
+    reads the list and never looks for a token, it hands the text back to the
+    session. These tests are what stop that becoming an accident.
+    """
+
+    def _mixed_session(self) -> object:
+        return mamori.PrivacySession(surrogate_types=frozenset({"PERSON"}))
+
+    def test_a_surrogate_is_not_a_token(self) -> None:
+        with self._mixed_session() as session:
+            protected = MamoriRedactor(session).protect(TEXT)  # type: ignore[arg-type]
+        # The name is gone and nothing marks where it was.
+        assert "田中太郎" not in protected
+        assert "<PERSON" not in protected
+
+    def test_restoring_still_returns_the_original(self) -> None:
+        with self._mixed_session() as session:
+            redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+            assert redactor.restore(redactor.protect(TEXT)) == TEXT
+
+    def test_a_quoted_fragment_restores(self) -> None:
+        # What a model actually returns: part of what it was shown, not all
+        # of it. This is the shape ADR-0009 is about.
+        with self._mixed_session() as session:
+            redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+            protected = redactor.protect(TEXT)
+            fragment = protected[: protected.index("さん") + 2]
+            assert "田中太郎" in redactor.restore(fragment)
+
+    def test_the_adapter_never_looks_for_a_placeholder(self) -> None:
+        # The property that makes the three above hold for a reason rather
+        # than by luck. If restoration ever starts parsing tokens, it acquires
+        # the failure mode this class exists to document.
+        import inspect
+
+        from tsumugi.infrastructure.adapters import mamori as adapter
+
+        source = inspect.getsource(adapter.MamoriRedactor.restore)
+        assert "<" not in source and "placeholder" not in source.lower()

@@ -268,3 +268,78 @@ class TestItIsDerived:
         before = connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         ledger.forget()
         assert connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == before
+
+
+class TestItRecordsThatAPackageWasProtectedNotHow:
+    """ADR-0021. One boolean, and the reasons the rest is refused.
+
+    The ledger is durable and sits beside the index. Every field in it today is
+    derivable from that index, which is already a plaintext copy of the corpus
+    -- so the ledger adds no reach its neighbour does not have. A mamori scope
+    would be the first field pointing somewhere else: at the mapping tsumugi
+    deliberately never holds.
+    """
+
+    def test_an_unprotected_package_says_so(self, tmp_path: Path) -> None:
+        ledger, _ = ledger_for(tmp_path)
+        entry = ledger.open(a_package())
+        assert entry.protected is False
+
+    def test_a_protected_package_says_so(self, tmp_path: Path) -> None:
+        ledger, _ = ledger_for(tmp_path)
+        from dataclasses import replace
+
+        from tsumugi.domain.package import Protection
+
+        package = a_package()
+        protected = replace(
+            package,
+            provenance=replace(
+                package.provenance,
+                protection=Protection(by="mamori@0.26.0", scope="session-abc", reversible=True),
+            ),
+        )
+        assert ledger.open(protected).protected is True
+
+    def test_it_survives_a_round_trip(self, tmp_path: Path) -> None:
+        ledger, _ = ledger_for(tmp_path)
+        from dataclasses import replace
+
+        from tsumugi.domain.package import Protection
+
+        package = a_package()
+        protected = replace(
+            package,
+            provenance=replace(
+                package.provenance,
+                protection=Protection(by="mamori@0.26.0", scope="session-abc", reversible=True),
+            ),
+        )
+        ledger.open(protected)
+        assert [e.protected for e in ledger.entries()] == [True]
+
+    def test_the_scope_is_nowhere_in_the_database(self, tmp_path: Path) -> None:
+        # The point of the decision, checked the only way worth checking it:
+        # by looking at the bytes. A scope in a log that accumulates for months
+        # is a durable index of every session that ever protected anything out
+        # of this corpus, sitting next to the corpus.
+        ledger, connection = ledger_for(tmp_path)
+        from dataclasses import replace
+
+        from tsumugi.domain.package import Protection
+
+        package = a_package()
+        ledger.open(
+            replace(
+                package,
+                provenance=replace(
+                    package.provenance,
+                    protection=Protection(
+                        by="mamori@0.26.0", scope="session-5938403be5b4", reversible=True
+                    ),
+                ),
+            )
+        )
+        dumped = "\n".join(connection.iterdump())
+        assert "session-5938403be5b4" not in dumped
+        assert "mamori@0.26.0" not in dumped

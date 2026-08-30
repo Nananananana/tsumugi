@@ -42,6 +42,11 @@ class LedgerEntry:
     estimate: int
     items: int
     omissions: int
+    #: Whether a redactor had rewritten this package's text before it was sent.
+    #: A boolean and nothing more: not the scope, not the mode, not the kinds
+    #: or counts (ADR-0021). A reader who needs those has the package, and the
+    #: package is where they are.
+    protected: bool = False
     #: ``None`` until an answer has been verified against this package.
     verified_at: str | None = None
     cited_items: int | None = None

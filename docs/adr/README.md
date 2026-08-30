@@ -34,6 +34,7 @@ later ADR supersedes it and says so.
 | [0018](0018-confirm-a-paraphrase-by-coverage.md) | A paraphrase confirms by coverage, not by phrase |
 | [0019](0019-confirmation-is-relative.md) | Confirmation is relative, and it has to say where |
 | [0020](0020-a-protection-is-irreversible-until-it-says-otherwise.md) | A protection is irreversible until it says otherwise |
+| [0021](0021-the-ledger-records-that-a-package-was-protected-not-how.md) | The ledger records *that* a package was protected, not how |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

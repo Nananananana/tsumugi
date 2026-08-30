@@ -146,27 +146,18 @@ lexical story.
 over an unchanged corpus is 5.5× cheaper than a cold build, so the ten-second
 threshold arrives near 12,000 documents.
 
-### Open, and deliberately not answered yet
+### Answered since
 
-**Should the ledger record a protection scope?**
+**Should the ledger record a protection scope?** No — it records one boolean,
+`protected`, and not the scope, the mode, the kinds or the counts
+([ADR 0021](../adr/0021-the-ledger-records-that-a-package-was-protected-not-how.md)).
 
-Raised across the family. `mamori`'s ADR-0032 decided that a protection record
-*inherits the sensitivity of the text it describes*, and names the failure it
-is guarding: a record with no values in it looks harmless, so it flows into
-manifests, audit logs and headers.
-
-tsumugi's ledger holds a `query_hash`, `document_id`, `start`, `end` and
-counts — [ADR 0011](../adr/0011-record-what-was-sent-and-what-was-used.md)'s
-rule is identifiers and offsets, never text — so it is clear of that today.
-The question is what happens when `mamori.protection-scope/1` exists, because
-**"record it in the ledger" is the obvious next move and may be the wrong
-one.** The ledger was designed to answer *what did I send and what got used*.
-A scope identifier is not text, so it passes ADR-0011's letter; whether it
-passes mamori's rule is a different question, and the answer wants the schema
-in hand.
-
-Not decided here. Recorded so that the obvious move gets a moment's thought
-instead of a commit.
+Worth keeping the shape of the answer, because the question was left open here
+on purpose and the waiting paid: `mamori.protection-scope/1` shipped, and its
+ADR-0032 said to *borrow the criterion and redraw the prohibitions* rather than
+copy them. Redrawn for a ledger, the line fell in a place a copied list would
+have missed — every field the ledger holds today is derivable from the index it
+sits beside, and a scope would be the first one pointing somewhere else.
 
 ### Not planned, and why
 

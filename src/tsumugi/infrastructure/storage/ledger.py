@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS ledger (
     estimate     INTEGER NOT NULL,
     items        INTEGER NOT NULL,
     omissions    INTEGER NOT NULL,
+    -- Whether a redactor had rewritten the text before it went. Not the
+    -- scope: a scope identifies a *session*, and a session identifier kept
+    -- for months beside the corpus is a durable index of every session that
+    -- ever protected anything out of it (ADR-0021).
+    protected    INTEGER NOT NULL DEFAULT 0,
     verified_at  TEXT,
     cited_items  INTEGER
 );
@@ -82,12 +87,14 @@ class SqliteLedger:
             estimate=package.budget.estimate,
             items=len(package.items),
             omissions=len(package.omissions),
+            protected=package.provenance.protection is not None,
         )
 
         with self._connection:
             self._connection.execute(
                 "INSERT OR REPLACE INTO ledger (package_id, created_at, query_hash, unit, "
-                "budget_limit, estimate, items, omissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "budget_limit, estimate, items, omissions, protected) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.package_id,
                     entry.created_at,
@@ -97,6 +104,7 @@ class SqliteLedger:
                     entry.estimate,
                     entry.items,
                     entry.omissions,
+                    int(entry.protected),
                 ),
             )
             self._connection.execute("DELETE FROM ledger_items WHERE package_id = ?", (package_id,))
@@ -190,6 +198,7 @@ class SqliteLedger:
                 estimate=row["estimate"],
                 items=row["items"],
                 omissions=row["omissions"],
+                protected=bool(row["protected"]),
                 verified_at=row["verified_at"],
                 cited_items=row["cited_items"],
             )
