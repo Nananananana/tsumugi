@@ -93,5 +93,18 @@ files = ["src/tsumugi"]
 strict = true
 warn_unreachable = true
 
+# The siblings are optional and the lint job installs `[dev]` without them, so
+# mypy cannot find them there and said so -- for nine commits, behind a Ruff
+# failure that stopped the job before it got this far. Scoped to these two
+# modules rather than set globally: a missing import is a real error
+# everywhere else, and this says *which* imports are allowed to be absent.
+#
+# Where a sibling *is* installed -- a developer's machine, the siblings job --
+# mypy still type-checks against the real thing. `ignore_missing_imports` only
+# governs what happens when the module cannot be found at all.
+[[tool.mypy.overrides]]
+module = ["mamori.*", "mamori", "kiseki.*", "kiseki"]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["src/tsumugi"]

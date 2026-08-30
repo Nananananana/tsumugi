@@ -109,8 +109,27 @@ jobs:
       # every test in the file below skips itself and pytest reports success
       # over zero tests -- the silent-skip shape, one level up from the
       # `importorskip` this repository removed from its contract suite.
-      - name: Assert the sibling is actually installed
-        run: python -c "import mamori; print('mamori', mamori.__version__)"
+      # `import mamori` proves a module of that name imports, not that it is
+      # ours. It is free on PyPI today so nothing can go wrong here yet -- but
+      # `tsumugi`, `musubi` and `akashi` are all taken by unrelated real
+      # projects, so the same guard copied to a sibling would pass on a
+      # stranger's package. Found by `seam`.
+      #
+      # PEP 610 answers it: anything installed from a URL or a path leaves a
+      # `direct_url.json`, and a PyPI install leaves none.
+      - name: Assert the sibling is actually ours
+        run: |
+          python - <<'PY'
+          import importlib.metadata as metadata
+          import json
+
+          raw = metadata.distribution("mamori").read_text("direct_url.json")
+          assert raw, "mamori came from an index, not from the repository we asked for"
+          direct = json.loads(raw)
+          assert "Nananananana/mamori" in direct["url"], direct["url"]
+          commit = (direct.get("vcs_info") or {}).get("commit_id", "unknown")
+          print(f"mamori from {direct['url']} at {commit}")
+          PY
 
       # ADR-0009's restore-before-verify property, against the real redactor
       # rather than a fake written to make the point.

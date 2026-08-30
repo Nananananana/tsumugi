@@ -61,6 +61,19 @@ forbidden_modules =
 [importlinter:contract:siblings-are-optional]
 name = Only the adapters may know about kiseki or mamori
 type = forbidden
+# Direct imports only. The rule is that no module outside
+# `infrastructure/adapters/` *names* a sibling -- and the CLI does not: it
+# names the adapter, which is what an adapter is for. Without this the
+# contract followed `cli.main -> adapters.mamori -> mamori` and forbade the
+# `--protect` flag from existing at all.
+#
+# What the transitive reading was reaching for -- "the CLI does not require
+# mamori to be installed" -- is a runtime property that import-linter cannot
+# see, because it cannot tell a module-level import from one inside a
+# function. Two other checks hold it instead: `test_architecture.py` refuses
+# a module-level sibling import inside an adapter, and `test_leakage.py`
+# imports the whole surface in a subprocess with the siblings blocked.
+allow_indirect_imports = True
 source_modules =
     tsumugi.domain
     tsumugi.ports
