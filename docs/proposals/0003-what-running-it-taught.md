@@ -113,6 +113,23 @@ third is the one worth proposing:
   not a promise** ([ADR 0005](../adr/0005-selection-is-a-report.md)), and this
   is what that sentence is for.
 
+**What would close this, and what would not.** It closes when an embedding
+source recovers the paraphrase residual **without raising the trap rate** --
+both measured on train and confirmed held-out, as ADR-0018 and ADR-0019 were.
+
+It does **not** close on recall alone, and that is not a hypothetical caution:
+[the measurement](../measurements.md) says a naive embedding source would
+recover every English and Japanese paraphrase case *and* spring near-miss traps
+in Chinese and Korean, which have none today. All eight of its failures were
+the near-miss outranking the answer. A version of this that reported "+12
+paraphrase cases" and left the trap rate out would be the fourth wrong number
+this project has produced about its own retrieval.
+
+Nor does it close on one embedding model. `bge-m3` and `nomic-embed-text`
+recovered 15 and 13 of the same 23 cases -- close totals over *different*
+cases, which is the disagreement that item 2 exists for, arriving in the
+embedding half.
+
 Cost, stated up front: embeddings need a model, so this is opt-in like `ask`,
 and it belongs behind an `Embedder` port with the ollama adapter satisfying it
 (the endpoint exists; `bge-m3` and `nomic-embed-text` are the obvious local
@@ -120,11 +137,14 @@ choices). The index gains vectors, which is index size ADR-0007 already
 measured for terms. Fusion should be RRF rather than score arithmetic, because
 bm25 and cosine are not on the same scale.
 
-**2. Two models in the answer evaluation, not one.**
+**2. Two models in the answer evaluation, not one.** — **done, 2026-08-30.**
 
-`eval --model` runs one model. Every model-facing defect this project found was
-found by disagreement between two. A `--model a,b` that reports both and flags
-where they differ turns an anecdote into a signal.
+`eval --model a,b` runs each and names the cases where their outcomes differ.
+Left here rather than deleted because the reason is the durable part: every
+model-facing defect this project found was found by two models disagreeing,
+and `qwen2.5:14b` answering fifty cases while `llama3.1:8b` answered none of
+them — on the same prompt — is what one model alone looks like when it looks
+fine.
 
 **3. Chinese, or an honest sentence about it.**
 
@@ -141,6 +161,14 @@ gap with a *relative* rule, and noted what it does not have: bm25 knows that
 `warranty` is the rare word and `the coverage period of` is not, and
 confirmation still does not. Cheap, already computed, and the last piece of the
 lexical story.
+
+**Closes** when the residual near-miss rate falls with no recall cost, train
+and held-out agreeing. **Does not close** by way of a stopword list or any
+per-language resource: ADR-0007 refused a segmenter, ADR-0018 a stopword list
+and ADR-0019 a word list, each time for the same reason, and a rarity signal
+that smuggled one in would be those three decisions reversed without an ADR
+saying so. bm25 already knows this and needs no list, which is the whole
+attraction.
 
 **5. Incremental ingestion.** Unchanged from 0002 and still not close: re-ingest
 over an unchanged corpus is 5.5× cheaper than a cold build, so the ten-second
