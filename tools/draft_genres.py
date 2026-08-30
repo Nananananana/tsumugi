@@ -121,12 +121,22 @@ def problems(genre: dict[str, Any], language: str) -> list[str]:
     if _fold(genre["superseded_answer"]) == _fold(genre["answer"]):
         found.append("superseded_answer repeats answer")
 
-    # The property the paraphrase cases exist for. A paraphrase that shares a
-    # long run with the question confirms by phrase and measures nothing.
+    # The property the paraphrase cases exist for, stated the right way round.
+    #
+    # The first version of this check rejected every Chinese draft for sharing
+    # four characters with the question -- which was the *subject*. Keeping the
+    # subject is what a paraphrase does; a person asking about their tent still
+    # says "tent". What must move is the **attribute**: `重量` -> `どれくらい
+    # 重い`. Measuring the shared run measured the wrong half, and it rejected
+    # the corpus's own existing genres too.
+    attribute = _fold(genre["attribute"])
+    if attribute and attribute in _fold(genre["paraphrase"]):
+        found.append(f"paraphrase still uses the attribute {genre['attribute']!r}")
+
+    # And it must not simply be the question again with the punctuation moved.
     shared = _longest_shared(genre["paraphrase"], genre["question"])
-    limit = 3 if language in {"ja", "zh"} else 8
-    if shared > limit:
-        found.append(f"paraphrase shares {shared} characters with the question (limit {limit})")
+    if shared >= max(1, len(_fold(genre["question"])) - 2):
+        found.append("paraphrase is the question")
 
     # The answer has to be findable from the question by the words they share.
     if _longest_shared(genre["question"], genre["subject"]) < min(2, len(genre["subject"])):
