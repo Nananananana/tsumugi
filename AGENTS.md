@@ -80,6 +80,13 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - TDD. One issue, one PR, squash merge, close the issue after.
 - **All tests must pass before any commit.** One failure means stop and
   investigate, not proceed.
+- **`pytest.importorskip` is for genuinely optional dependencies, and nothing
+  else.** `mamori` is optional and lives in its own `siblings` extra, so
+  skipping is right. `jsonschema` is in `[dev]` beside `pytest`, so a file that
+  is running already has it — skipping there guarded a state that cannot happen
+  and hid one that can: the extra losing it, and the contract suite vanishing
+  green. The question is whether the suite is entitled to assume the
+  dependency.
 - Test file names are unique across the repository — tests are not a package and
   duplicate basenames break collection.
 - Any test that invokes the CLI isolates itself: chdir to `tmp_path` and strip

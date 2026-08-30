@@ -24,28 +24,38 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Imported, not `importorskip`ed. `jsonschema` and `pytest` are in the same
+# `[dev]` extra, so "this file is running" already means jsonschema is
+# installed -- the skip guarded a state that cannot legitimately happen, and
+# hid one that can: if jsonschema ever leaves the extra, this whole module
+# disappears and CI stays green with no schema validated at all.
+#
+# The reference producer's self-check is not a thing to lose quietly. It
+# caught a real defect the day it was written. Found by `akashi`, which had
+# the same shape (#56).
+#
+# `importorskip` is still right for the sibling adapters: `mamori` lives in a
+# separate `siblings` extra and is genuinely optional. The distinction is
+# whether the dependency is one this suite is entitled to assume.
+import jsonschema
 import pytest
 
-jsonschema = pytest.importorskip(
-    "jsonschema", reason="the schema check needs jsonschema, a development dependency"
-)
-
-from tsumugi import contract_schema, contract_schema_text  # noqa: E402
-from tsumugi.domain.anchor import Anchor  # noqa: E402
-from tsumugi.domain.budget import Budget  # noqa: E402
-from tsumugi.domain.hashing import ContentHash  # noqa: E402
-from tsumugi.domain.omission import Omission, OmissionRule  # noqa: E402
-from tsumugi.domain.package import (  # noqa: E402
+from tsumugi import contract_schema, contract_schema_text
+from tsumugi.domain.anchor import Anchor
+from tsumugi.domain.budget import Budget
+from tsumugi.domain.hashing import ContentHash
+from tsumugi.domain.omission import Omission, OmissionRule
+from tsumugi.domain.package import (
     BudgetReport,
     ContextPackage,
     PackageProvenance,
     Protection,
     corpus_state,
 )
-from tsumugi.domain.selection import ContextItem, ItemProvenance, Layer  # noqa: E402
-from tsumugi.domain.span import Span  # noqa: E402
+from tsumugi.domain.selection import ContextItem, ItemProvenance, Layer
+from tsumugi.domain.span import Span
 
-from .helpers import build_document  # noqa: E402
+from .helpers import build_document
 
 #: Read through the package's own accessor rather than off the repository
 #: floor. The contract is *published inside the wheel* so that a consumer does
@@ -605,3 +615,56 @@ class TestTheContractShipsWithTheLibrary:
     def test_an_unknown_schema_name_fails_rather_than_returning_nothing(self) -> None:
         with pytest.raises(FileNotFoundError):
             contract_schema("context-package-99.json")
+
+
+class TestThisSuiteCannotVanish:
+    """The suite that checks the contract must not be skippable.
+
+    It was. `pytest.importorskip("jsonschema")` meant that if jsonschema ever
+    left the `[dev]` extra, this whole module would disappear and CI would
+    stay green having validated no package against the published schema. The
+    reference producer's self-check is not a thing to lose quietly -- it
+    caught a real defect the day it was written.
+
+    Found by `akashi`, which had the same shape and fixed it in #56.
+    """
+
+    def test_jsonschema_is_imported_and_not_skipped(self) -> None:
+        # The call, not the word: this file discusses `importorskip` at
+        # length, and a substring check would fail on its own prose.
+        import ast
+
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        skipped = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "importorskip"
+        ]
+        assert not skipped, "this suite must not be able to skip itself away"
+        assert any(
+            isinstance(node, ast.Import) and any(a.name == "jsonschema" for a in node.names)
+            for node in ast.walk(tree)
+        )
+
+    def test_it_is_declared_where_pytest_is(self) -> None:
+        # The reason a plain import is safe: this file running already means
+        # the extra is installed. If jsonschema were ever moved to an extra of
+        # its own, the plain import would start failing for people who have
+        # pytest -- which is the loud version of the failure, and the right
+        # place to have this conversation again.
+        pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+        dev = pyproject.split("dev = [", 1)[1].split("]", 1)[0]
+        assert "pytest" in dev and "jsonschema" in dev
+
+    def test_an_optional_sibling_may_still_be_skipped(self) -> None:
+        # The distinction: `mamori` lives in a separate `siblings` extra and is
+        # genuinely optional, so skipping is right there. What matters is
+        # whether this suite is entitled to assume the dependency.
+        adapter = (Path(__file__).resolve().parent / "test_adapter_mamori.py").read_text(
+            encoding="utf-8"
+        )
+        assert "importorskip" in adapter

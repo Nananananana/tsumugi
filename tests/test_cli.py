@@ -12,6 +12,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Imported rather than `importorskip`ed: it is in the same `[dev]` extra as
+# pytest, so this file running already means it is installed. Skipping on its
+# absence would hide the extra losing it, and take the CLI's contract check
+# with it, green.
+import jsonschema
 import pytest
 
 from tsumugi.interfaces.cli.main import main
@@ -141,7 +146,6 @@ class TestContext:
     def test_the_json_package_validates_against_the_published_schema(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        jsonschema = pytest.importorskip("jsonschema")
         # Through the package's accessor, not a path walked up from this file.
         # A test that reads the repository floor passes in a checkout and says
         # nothing about what a consumer gets.
