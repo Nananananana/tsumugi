@@ -769,8 +769,7 @@ def test_the_identifier_the_schema_and_the_filename_name_the_same_contract() -> 
     schema = contract_schema()
 
     assert schema["$id"].endswith(f"/{CONTRACT_SCHEMA_NAME}"), (
-        f"$id {schema['$id']} does not end in the file it names, "
-        f"{CONTRACT_SCHEMA_NAME}"
+        f"$id {schema['$id']} does not end in the file it names, {CONTRACT_SCHEMA_NAME}"
     )
 
     # `tsumugi.context-package/1` <-> `context-package-1.json`
