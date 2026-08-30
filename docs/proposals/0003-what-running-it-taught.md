@@ -146,6 +146,28 @@ lexical story.
 over an unchanged corpus is 5.5× cheaper than a cold build, so the ten-second
 threshold arrives near 12,000 documents.
 
+### Open, and deliberately not answered yet
+
+**Should the ledger record a protection scope?**
+
+Raised across the family. `mamori`'s ADR-0032 decided that a protection record
+*inherits the sensitivity of the text it describes*, and names the failure it
+is guarding: a record with no values in it looks harmless, so it flows into
+manifests, audit logs and headers.
+
+tsumugi's ledger holds a `query_hash`, `document_id`, `start`, `end` and
+counts — [ADR 0011](../adr/0011-record-what-was-sent-and-what-was-used.md)'s
+rule is identifiers and offsets, never text — so it is clear of that today.
+The question is what happens when `mamori.protection-scope/1` exists, because
+**"record it in the ledger" is the obvious next move and may be the wrong
+one.** The ledger was designed to answer *what did I send and what got used*.
+A scope identifier is not text, so it passes ADR-0011's letter; whether it
+passes mamori's rule is a different question, and the answer wants the schema
+in hand.
+
+Not decided here. Recorded so that the obvious move gets a moment's thought
+instead of a commit.
+
 ### Not planned, and why
 
 - **A model judge for groundedness.** The field's answer to "is this claim

@@ -51,15 +51,27 @@ configuration.
 
 ### So the adapter stops defaulting at all
 
-`MamoriRedactor.as_protection()` now **derives** the answer from the session's
-policy: a protection is reversible only when no action in force can destroy a
-value — every category, every rule and the fallback resolve to `ANONYMIZE` or
-`ALLOW`. A caller who knows better can still pass the flag explicitly.
+`MamoriRedactor.as_protection()` **observes** rather than defaults, falling
+back in three steps, each safer than the last:
 
-Derivation beats a good default. It is also conservative in the right
-direction: a policy that *could* mask something is reported irreversible even
-if this particular text contained nothing to mask, because the alternative is
-deciding after the fact that the accusation was fine.
+1. what a caller states explicitly;
+2. what mamori reported about the text this session actually protected —
+   `ProtectionResult.reversible`, which knows which entities it anonymised and
+   which it masked, taken as a **conjunction** across the session: one masked
+   value makes the package unrestorable, and a later call that masked nothing
+   does not undo that;
+3. what the policy *could* do, which is nearly always `False`, because
+   `default_action` falls back to `BLOCK`.
+
+The first version of this stopped at step 3, deriving from the policy alone.
+That was wrong in the useful direction but too blunt to ship: mamori's default
+policy anonymises PII and blocks secrets, so a text containing only a name
+would be reported irreversible when restoring it works perfectly. What mamori
+*did* is better evidence than what it might have done.
+
+**Which reordered `ask`.** It recorded the protection before protecting, so the
+record could only ever have been the estimate — and the ledger opened on a
+package that was not the one sent. Protect, then record, then open.
 
 ## What it costs
 
@@ -75,12 +87,18 @@ required there.
 non-conforming — the schema requires the field — so this only decides how
 loudly a malformed input fails, and loudly is the answer.
 
-**Derivation reads a sibling's internals.** `MamoriRedactor` now looks at
-`session.policy`, which is more of mamori's shape than the adapter needed
-before. It is confined to the one file allowed to know mamori exists, and it
-degrades to `False` if the attribute is not there — but it is coupling, and a
-mamori that renames that attribute breaks it. Fail-closed on the way down, at
-least: the fallback is the safe verdict rather than the convenient one.
+**Observation reads more of a sibling than the adapter used to.**
+`MamoriRedactor` now looks at `ProtectionResult.reversible` and, failing that,
+`session.policy`. Both are confined to the one file allowed to know mamori
+exists, and both degrade to `False` when absent — but it is coupling, and a
+mamori that renames either breaks it. Fail-closed on the way down, at least:
+the fallback is the safe verdict rather than the convenient one.
+
+**A redactor now has state.** `MamoriRedactor` remembers what it has
+protected, so two packages built from one session share a verdict. That is
+correct — one scope is one conversation — and it means the adapter is no
+longer a pure function of its arguments, which is a thing to know when
+reading it.
 
 ## Amendment: the same failure through the type system
 
