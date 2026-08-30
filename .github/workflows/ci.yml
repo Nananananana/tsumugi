@@ -130,3 +130,18 @@ jobs:
           assert not extra, f"tsumugi pulled in runtime dependencies: {extra}"
           print("runtime dependencies:", len(extra))
           PY
+
+      # And the other half of that promise: the contract ships *inside* the
+      # package, so a consumer validating a ContextPackage does not have to
+      # fetch a schema from the internet. This step is the only place that
+      # proves it -- the test suite runs against an editable install, where
+      # the file is on disk whether it was packaged or not.
+      - name: Assert the contract shipped with it
+        run: |
+          cd "${{ runner.temp }}"
+          python - <<'PY'
+          import tsumugi
+          schema = tsumugi.contract_schema()
+          assert schema["$defs"]["item"]["type"] == "object", schema
+          print("contract:", tsumugi.CONTRACT_SCHEMA_NAME, len(tsumugi.contract_schema_text()), "bytes")
+          PY

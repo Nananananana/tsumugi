@@ -35,6 +35,10 @@ ALLOWED: dict[str, frozenset[str]] = {
     # `tsumugi_version`, so `build_context` has to default to it -- and the
     # application layer may not import the public surface.
     "version": frozenset(),
+    # Reads one data file out of the installed package and parses it. It has
+    # no layer below it to depend on, which is the point: a consumer holding
+    # only the wheel can get the schema.
+    "contract": frozenset(),
     "ports": frozenset({"domain", "errors"}),
     "infrastructure": frozenset({"domain", "ports", "errors", "version"}),
     "application": frozenset({"domain", "ports", "errors", "version"}),
@@ -52,6 +56,7 @@ ALLOWED: dict[str, frozenset[str]] = {
             "config",
             "errors",
             "version",
+            "contract",
         }
     ),
     # The package's own ``__init__`` is the public surface. It re-exports and
@@ -66,6 +71,7 @@ ALLOWED: dict[str, frozenset[str]] = {
             "config",
             "errors",
             "version",
+            "contract",
         }
     ),
 }
@@ -75,7 +81,7 @@ ALLOWED: dict[str, frozenset[str]] = {
 #: practice this holds everywhere -- but the domain is the one where it is a
 #: guarantee rather than a current fact, so it is asserted separately and
 #: loudly.
-STDLIB_ONLY = frozenset({"domain", "version"})
+STDLIB_ONLY = frozenset({"domain", "version", "contract"})
 
 #: Nothing opens a socket except the interfaces layer and the adapters.
 #: ADR-0001 and ADR-0016, and the first line of the threat model.

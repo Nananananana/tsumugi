@@ -30,6 +30,7 @@ jsonschema = pytest.importorskip(
     "jsonschema", reason="the schema check needs jsonschema, a development dependency"
 )
 
+from tsumugi import contract_schema, contract_schema_text  # noqa: E402
 from tsumugi.domain.anchor import Anchor  # noqa: E402
 from tsumugi.domain.budget import Budget  # noqa: E402
 from tsumugi.domain.hashing import ContentHash  # noqa: E402
@@ -46,7 +47,14 @@ from tsumugi.domain.span import Span  # noqa: E402
 
 from .helpers import build_document  # noqa: E402
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "context-package-1.json"
+#: Read through the package's own accessor rather than off the repository
+#: floor. The contract is *published inside the wheel* so that a consumer does
+#: not need the network to validate a package -- and until this suite read it
+#: that way, the promise lived in a comment in `pyproject.toml` and nothing
+#: would have noticed it breaking.
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "src" / "tsumugi" / "schemas"
+) / "context-package-1.json"
 
 #: The seam fixture, which is also this suite's corpus. One source of truth:
 #: a fixture published for consumers and a corpus used to check the producer
@@ -67,7 +75,7 @@ ERROR = {
 
 @pytest.fixture(scope="module")
 def schema() -> dict[str, Any]:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return contract_schema()
 
 
 def a_package(**overrides: Any) -> ContextPackage:
@@ -563,3 +571,37 @@ class TestAProtectionIsIrreversibleUntilItSaysOtherwise:
         del payload["package_id"]
         with pytest.raises(ValueError, match="true or false"):
             ContextPackage.from_json(json.dumps(payload))
+
+
+class TestTheContractShipsWithTheLibrary:
+    """`pyproject.toml` promised this and no code checked it.
+
+    The schema is packaged so that a consumer validating a package does not
+    have to fetch anything from the internet. That promise lived in a build
+    comment: nothing imported the packaged copy, so removing the line that
+    shipped it would have broken the promise permanently, silently, with every
+    test still green. Found by `musubi`, which hit the same shape.
+
+    It has an API now, and these are the tests that make the API load-bearing.
+    """
+
+    def test_it_is_readable_from_the_installed_package(self) -> None:
+        # `importlib.resources`, not a path relative to this file. A test that
+        # walks up to the repository root passes in a checkout and proves
+        # nothing about a wheel.
+        assert contract_schema()["$defs"]["item"]["type"] == "object"
+
+    def test_the_bytes_are_available_too(self) -> None:
+        # For a caller that wants to hash it, vendor it, or hand it to a
+        # validator written in another language.
+        assert json.loads(contract_schema_text()) == contract_schema()
+
+    def test_the_packaged_copy_is_the_one_this_suite_validates_against(self) -> None:
+        # One copy. Two would drift, and the drift would be invisible: the
+        # tests would keep passing against the one in the repository while
+        # consumers got the other.
+        assert contract_schema_text() == SCHEMA_PATH.read_text(encoding="utf-8")
+
+    def test_an_unknown_schema_name_fails_rather_than_returning_nothing(self) -> None:
+        with pytest.raises(FileNotFoundError):
+            contract_schema("context-package-99.json")

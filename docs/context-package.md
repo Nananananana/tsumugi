@@ -17,7 +17,7 @@ Readers still accept it — refusing evidence over a version string would be the
 wrong trade — and nothing produces it any more.
 
 `tsumugi context --json` and the MCP `context` tool produce this. The schema is
-[`schemas/context-package-1.json`](../schemas/context-package-1.json) and ships
+[`src/tsumugi/schemas/context-package-1.json`](../schemas/context-package-1.json) and ships
 with the package; the conformance suite is
 `tests/test_contract_conformance.py`.
 
@@ -243,6 +243,25 @@ that failure loud.
 
 ---
 
+## Getting the schema
+
+It ships **inside the package**, so a consumer does not need the network:
+
+```python
+import tsumugi
+schema = tsumugi.contract_schema()          # parsed
+raw    = tsumugi.contract_schema_text()     # the bytes, to hash or to vendor
+```
+
+That is not a convenience wrapper. The promise used to live in a comment in
+`pyproject.toml`, kept by a build rule no code exercised and which did not
+apply to editable installs at all — so deleting it would have broken the
+promise silently and permanently with every test still green. It has an API
+because an API is a thing tests can hold on to.
+
+Vendoring the file directly is fine and is what the sibling projects do. Take
+it from `src/tsumugi/schemas/`, and record the commit.
+
 ## A worked example
 
 `fixtures/seam/` holds one corpus, one question, and the package tsumugi really
@@ -272,7 +291,7 @@ halves so the division of labour is stated rather than assumed.
 The conformance suite is `tests/test_contract_conformance.py`. It checks a
 package against:
 
-1. The JSON Schema in `schemas/context-package-1.json`
+1. The JSON Schema in `src/tsumugi/schemas/context-package-1.json`
 2. `sum(item.cost) <= budget.limit`
 3. Every `anchor` resolves in the corpus it names, and `text_hash` matches `text`
 4. Every omission names a defined `rule` and a non-empty `reason`

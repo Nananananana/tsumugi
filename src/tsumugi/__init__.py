@@ -14,6 +14,7 @@ surface will change.
 
 from __future__ import annotations
 
+from .contract import CONTRACT_SCHEMA_NAME, contract_schema, contract_schema_text
 from .domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
 from .domain.budget import Budget, Unit
 from .domain.document import Block, Document, Section, register_block_kind
@@ -32,6 +33,7 @@ from .errors import (
 from .version import __version__
 
 __all__ = [
+    "CONTRACT_SCHEMA_NAME",
     "Anchor",
     "AnchorError",
     "Block",
@@ -51,6 +53,8 @@ __all__ = [
     "Unit",
     "UnresolvableAnchorError",
     "__version__",
+    "contract_schema",
+    "contract_schema_text",
     "register_block_kind",
     "resolve",
 ]

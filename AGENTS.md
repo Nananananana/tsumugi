@@ -159,7 +159,7 @@ Taken from `kiseki` and `mamori`, which paid for them.
   staleness is checked without a flag. A check the caller has to remember to
   turn on is a check that is off.
 - Contract: ContextPackage `1-draft`. `tsumugi context --json` emits it,
-  `schemas/context-package-1.json` publishes it, and
+  `src/tsumugi/schemas/context-package-1.json` publishes it, and
   `tests/test_contract_conformance.py` checks six rules against it plus three
   that assert the schema and the enums have not drifted apart. **Frozen at `1`.** A field may be added;
   none will be removed or change meaning. Frozen once the MCP server had built a

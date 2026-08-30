@@ -1,7 +1,7 @@
 # The seam fixture
 
 One corpus, one question, and one real `ContextPackage` — for consumers of the
-[ContextPackage contract](../../schemas/context-package-1.json) that want to
+[ContextPackage contract](../../src/tsumugi/schemas/context-package-1.json) that want to
 test against tsumugi's output **without importing tsumugi**.
 
 ```
@@ -10,7 +10,7 @@ question.txt          the question, one line
 context-package.json  what `tsumugi context --json` emits for them
 ```
 
-Vendor `context-package.json` and `schemas/context-package-1.json` together,
+Vendor `context-package.json` and `src/tsumugi/schemas/context-package-1.json` together,
 with a note saying where they came from and at what version. They are a pair:
 the schema says what the shape is, and the fixture is one instance of it that a
 producer really produced.

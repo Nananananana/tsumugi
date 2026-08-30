@@ -142,11 +142,12 @@ class TestContext:
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         jsonschema = pytest.importorskip("jsonschema")
-        schema = json.loads(
-            (Path(__file__).parent.parent / "schemas" / "context-package-1.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        # Through the package's accessor, not a path walked up from this file.
+        # A test that reads the repository floor passes in a checkout and says
+        # nothing about what a consumer gets.
+        from tsumugi import contract_schema
+
+        schema = contract_schema()
         run("ingest", str(corpus), index=index_path)
         capsys.readouterr()
 

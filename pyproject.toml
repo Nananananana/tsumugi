@@ -62,11 +62,6 @@ tsumugi = "tsumugi.interfaces.cli.main:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/tsumugi"]
 
-# The contract ships with the library: a consumer validating a package should
-# not have to fetch a schema from the internet.
-[tool.hatch.build.targets.wheel.force-include]
-"schemas" = "tsumugi/schemas"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
