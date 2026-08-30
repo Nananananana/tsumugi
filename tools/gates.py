@@ -36,6 +36,14 @@ To reproduce an environment difference, build the environment:
 What this removes is one class of mistake -- running something *nearly* like
 the gate and reading the output instead of the exit code. It does not remove
 "green here" being mistaken for "green there".
+
+**And a gate that has never been seen to fail is not yet evidence.** Each of
+the seven here has been broken deliberately and watched to fail; the workflow
+steps this cannot run were checked the same way, one at a time, and the one
+that could not be falsified on this machine is recorded as unfalsified rather
+than as passing. `iriguchi` put it best, after finding a checker that had
+checked nothing for a project's whole life: *an exit code is evidence only
+once something has been shown to make it non-zero.*
 """
 
 from __future__ import annotations
