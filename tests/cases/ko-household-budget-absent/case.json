@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-household-budget-absent",
+  "genre": "household-budget",
+  "language": "ko",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "가계부의 보증 기간은 몇 년인가",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "zh-warranty-terms-00",
+  "genre": "warranty-terms",
+  "language": "zh",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "保修条款的保修期限是多少",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "duplicate": {
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

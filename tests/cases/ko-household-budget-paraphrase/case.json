@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-household-budget-paraphrase",
+  "genre": "household-budget",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "이 달에 얼마나 썼나요??",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

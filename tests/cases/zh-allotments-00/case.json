@@ -1,0 +1,29 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "zh-allotments-00",
+  "genre": "allotments",
+  "language": "zh",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "菜园分配的菜园的大小是多少",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "duplicate": {
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-sports-club-logistics-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# 스포츠 클럽 훈련 일정\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
+  },
+  "genre": "sports-club-logistics",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "스포츠 클럽의 훈련 시간은?",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-household-budget-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# 2023년 10월 가계부\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
+  },
+  "genre": "household-budget",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "가계부의 월간 지출은?",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

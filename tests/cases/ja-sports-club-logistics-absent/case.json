@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-sports-club-logistics-absent",
+  "genre": "sports-club-logistics",
+  "language": "ja",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "スポーツクラブのスケジュールの保証期間は何年か",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}

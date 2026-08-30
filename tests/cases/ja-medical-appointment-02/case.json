@@ -1,0 +1,29 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-medical-appointment-02",
+  "genre": "medical-appointment",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "医療の予約の診察日時は",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

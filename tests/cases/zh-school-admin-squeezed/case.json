@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "zh-school-admin-squeezed",
+  "genre": "school-admin",
+  "language": "zh",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "学校管理的开学日期是多少",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-sports-club-logistics-00",
+  "genre": "sports-club-logistics",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "스포츠 클럽의 훈련 시간은",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "duplicate": {
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

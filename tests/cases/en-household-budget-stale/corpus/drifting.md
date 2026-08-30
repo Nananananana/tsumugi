@@ -1,0 +1,13 @@
+# Monthly Household Budget Overview
+
+## Detail
+
+This entry was reviewed at the last stocktake.
+Ownership rotates, and is checked once at handover.
+The longer history is kept in a separate record.
+
+### Current
+
+{{F:drifted}}The total monthly expenses of monthly household budget is 2000 dollars{{/F}}.
+
+NOTE: this record is out of date; see the revision.

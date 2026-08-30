@@ -10,9 +10,9 @@ owner = "rotating"
 
 {{F:answer}}The first departure of the ferry is 06:40 from the north quay{{/F}}。See also the appendix for background.
 
-この項目は前回の棚卸しで見直した。
-担当は持ち回りで、引き継ぎ時に一度確認する。
-細かい経緯は別の記録に残してある。
+This entry was reviewed at the last stocktake.
+Ownership rotates, and is checked once at handover.
+The longer history is kept in a separate record.
 
 This entry was reviewed at the last stocktake.
 Ownership rotates, and is checked once at handover.

@@ -191,6 +191,40 @@ objective one.
 
 ---
 
+## Thirty genres in four languages, and how they got there
+
+The corpus began with ten genres, six Japanese and four English, written by
+whoever was writing the ranker. That is ten genres whose vocabulary was chosen
+— without anyone intending it — to suit the thing being measured.
+
+`tools/genres.json` now holds **thirty, across Japanese, English, Chinese and
+Korean.** The twenty new ones were drafted by a local model
+(`tools/draft_genres.py`), checked mechanically against the properties the
+corpus depends on, and read by a person before they landed. Two were dropped on
+review for leaning on the attribute in their paraphrase.
+
+**No model runs when cases are generated, and none runs in CI.** The fixtures
+are committed and the generator is deterministic (ADR-0013). The model supplies
+vocabulary; it is trusted with nothing else.
+
+Adding them cost the library **six points of trap rate to twenty-six** with no
+code change at all, which is the clearest statement of what a ten-genre corpus
+was worth. Recovering from that is
+[ADR 0019](adr/0019-confirmation-is-relative.md).
+
+Korean and Chinese were chosen deliberately, not for coverage:
+
+- **Korean** exercises the cost estimator's Hangul class, which
+  [measurements.md](measurements.md) had flagged as *unfitted* — an assumption
+  with no case behind it. It also glues particles to nouns in the same script,
+  which is what asked for the stem rule in ADR-0019.
+- **Chinese** has no script boundary between content and grammar at all: 的 and
+  是 are Han characters like every noun. It is where the no-dictionary
+  constraint bites hardest, and its paraphrase cases fail today. The corpus now
+  says so instead of not asking.
+
+---
+
 ## Eight document shapes, because one shape measures one shape
 
 Every document in this corpus used to be the same thing: front matter, one

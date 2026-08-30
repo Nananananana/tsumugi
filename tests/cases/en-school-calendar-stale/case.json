@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-school-calendar-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# Academic Calendar\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
+  },
+  "genre": "school-calendar",
+  "language": "en",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "what is the start date of next semester of school academic calendar?",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

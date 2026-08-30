@@ -50,7 +50,7 @@ class Genre:
     #: What the superseded version said before it was corrected.
     superseded_answer: str
     heading: str
-    question: str
+    question: str = ""
     #: The same question asked the way a person asks it, sharing no contiguous
     #: phrase with the document. This is the shape the corpus had none of:
     #: every question in it was built from the subject and attribute the
@@ -85,12 +85,15 @@ def load_genres(path: Path = GENRES_PATH) -> tuple[Genre, ...]:
         raise ValueError(f"{path}: unknown format_version {version!r}")
 
     genres: list[Genre] = []
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     for row in payload["genres"]:
         genre = Genre(**row)
-        if genre.key in seen:
-            raise ValueError(f"{path}: two genres called {genre.key!r}")
-        seen.add(genre.key)
+        # Language and key together, because a case id is built from both and
+        # `medical-appointment` is a reasonable genre in every language.
+        identity = (genre.language, genre.key)
+        if identity in seen:
+            raise ValueError(f"{path}: two {genre.language} genres called {genre.key!r}")
+        seen.add(identity)
         genres.append(genre)
     if not genres:
         raise ValueError(f"{path}: no genres")
@@ -119,13 +122,6 @@ _FILLER = {
         "자세한 경위는 별도 기록에 남겨 두었다.\n"
     ),
 }
-
-
-def _answer_sentence(genre: Genre) -> str:
-    """The sentence the answer document states, without its markup."""
-    if genre.language == "ja":
-        return f"{genre.subject}の{genre.attribute}は{genre.answer}"
-    return f"The {genre.attribute} of {genre.subject} is {genre.answer}"
 
 
 #: The shapes a document can take. Every document in this corpus used to be
@@ -216,13 +212,69 @@ def _shape_for(genre: Genre, variant: int, role: str) -> str:
     return SHAPES[(GENRES.index(genre) + variant * 2 + offset) % len(SHAPES)]
 
 
+#: How a claim is written, per language. Keyed rather than branched: the first
+#: version treated Chinese as Japanese and would have emitted
+#: ``家庭预算の每月的食品开支は1500元`` -- Japanese particles around Chinese
+#: words, which is not a sentence in either language and would have measured
+#: a tokenizer against text no corpus contains.
+_CLAIM = {
+    "ja": "{subject}の{attribute}は{value}",
+    "zh": "{subject}的{attribute}是{value}",
+    "ko": "{subject}의 {attribute}은 {value}",
+    "en": "The {attribute} of {subject} is {value}",
+}
+
+#: The full stop that ends a sentence in each script.
+_STOP = {"ja": "。", "zh": "。", "ko": ".", "en": "."}
+
+
+def _claim(genre: Genre, subject: str, value: str) -> str:
+    """One factual sentence, without markup. Also the shape of a question."""
+    return _CLAIM[genre.language].format(subject=subject, attribute=genre.attribute, value=value)
+
+
+def _answer_sentence(genre: Genre) -> str:
+    """The sentence the answer document states, without its markup.
+
+    Left behind when `_claim` arrived, and still wrapping every non-Japanese
+    genre in an English frame: a Chinese case stated
+    ``The 每月的食品开支 of 家庭预算 is 1500元``, which is not a sentence
+    anybody writes and which no Chinese question can phrase-match. The
+    mixed-script case is about scripts meeting inside a *document*, not inside
+    a sentence nobody would write.
+    """
+    return _claim(genre, genre.subject, genre.answer)
+
+
 def _sentence(genre: Genre, fact_id: str, subject: str, value: str) -> str:
     """One marked claim, in the genre's language. The unit every shape places."""
-    if genre.language in {"ja", "zh"}:
-        return f"{{{{F:{fact_id}}}}}{subject}の{genre.attribute}は{value}{{{{/F}}}}。"
-    if genre.language == "ko":
-        return f"{{{{F:{fact_id}}}}}{subject}의 {genre.attribute}은 {value}{{{{/F}}}}."
-    return f"{{{{F:{fact_id}}}}}The {genre.attribute} of {subject} is {value}{{{{/F}}}}."
+    return f"{{{{F:{fact_id}}}}}{_claim(genre, subject, value)}{{{{/F}}}}{_STOP[genre.language]}"
+
+
+#: A question that uses the document's own words, per language. Derived rather
+#: than authored, because it has to phrase-match the claim above -- and a
+#: drafted question that does not is an accidental paraphrase case, which
+#: measures the wrong thing while looking like it measures the right one.
+_ASKING = {
+    "ja": "{subject}の{attribute}は",
+    "zh": "{subject}的{attribute}是多少",
+    "ko": "{subject}의 {attribute}은",
+    "en": "what is the {attribute} of {subject}",
+}
+
+
+def _exact_question(genre: Genre) -> str:
+    """The question that shares the document's phrasing.
+
+    A genre may state its own instead -- the English genres do, because
+    "how many nodes does the staging cluster have" is what somebody would type
+    and still confirms on word runs. Where the field is empty this is used, so
+    a genre drafted by a model cannot accidentally ship a question its own
+    document does not answer.
+    """
+    return genre.question or _ASKING[genre.language].format(
+        subject=genre.subject, attribute=genre.attribute
+    )
 
 
 def _answer_document(genre: Genre, fact_id: str, variant: int = 0) -> str:
@@ -481,7 +533,7 @@ def build_mixed_script_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
             "",
             f"{{{{F:answer}}}}{answer}{{{{/F}}}}。See also the appendix for background.",
             "",
-            _FILLER["ja"],
+            _FILLER[genre.language],
             _FILLER["en"],
         ]
     )
@@ -514,9 +566,10 @@ _QUESTION_MARK = {"ja": "？", "en": "?", "mixed": "?", "zh": "？", "ko": "?"}
 
 def _ask(genre: Genre, variant: int) -> str:
     """The genre's question, punctuated on every other variant."""
+    asked = _exact_question(genre)
     if variant % 2 == 0:
-        return genre.question
-    return genre.question + _QUESTION_MARK.get(genre.language, "?")
+        return asked
+    return asked + _QUESTION_MARK.get(genre.language, "?")
 
 
 def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[str, object]]:

@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-household-budget-paraphrase",
+  "genre": "household-budget",
+  "language": "en",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "How much does the household spend each month??",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

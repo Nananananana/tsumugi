@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "zh-allotments-paraphrase",
+  "genre": "allotments",
+  "language": "zh",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "我的菜园有多大？？",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

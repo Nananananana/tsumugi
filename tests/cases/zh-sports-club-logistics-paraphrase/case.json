@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "zh-sports-club-logistics-paraphrase",
+  "genre": "sports-club-logistics",
+  "language": "zh",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "我们下一次训练是什么时候？？",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

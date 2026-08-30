@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-medical-appointment-absent",
+  "genre": "medical-appointment",
+  "language": "en",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "what is the warranty period of next medical appointment",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}

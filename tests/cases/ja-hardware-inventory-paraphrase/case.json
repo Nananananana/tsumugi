@@ -1,0 +1,23 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-hardware-inventory-paraphrase",
+  "genre": "hardware-inventory",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "現在の在庫はどれくらいありますか？？",
+  "split": "held_out",
+  "tier": "full",
+  "traps": {
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

@@ -120,6 +120,226 @@
       "heading": "Behaviour",
       "question": "what backoff does the retry policy use",
       "paraphrase": "how does the retry policy wait between attempts"
+    },
+    {
+      "key": "household-budget",
+      "language": "ja",
+      "subject": "家計",
+      "attribute": "月間の支出",
+      "answer": "10万円",
+      "neighbour": "旅行の計画",
+      "superseded_answer": "8万円",
+      "heading": "2023年1月の家計",
+      "paraphrase": "今月の生活費はどれくらいですか？"
+    },
+    {
+      "key": "medical-appointment",
+      "language": "ja",
+      "subject": "医療の予約",
+      "attribute": "診察日時",
+      "answer": "2023年5月15日午後3時",
+      "neighbour": "スポーツクラブの予約",
+      "superseded_answer": "2023年5月10日午後3時",
+      "heading": "内科の予約",
+      "paraphrase": "次回の診察はいつですか？"
+    },
+    {
+      "key": "sports-club-logistics",
+      "language": "ja",
+      "subject": "スポーツクラブのスケジュール",
+      "attribute": "月会費",
+      "answer": "5,000円",
+      "neighbour": "家電製品の在庫",
+      "superseded_answer": "4,500円",
+      "heading": "2023年6月のスポーツクラブ料金",
+      "paraphrase": "今月のスポーツクラブの費用はいくらですか？"
+    },
+    {
+      "key": "hardware-inventory",
+      "language": "ja",
+      "subject": "ハードウェアの在庫",
+      "attribute": "在庫数",
+      "answer": "100個",
+      "neighbour": "スポーツクラブのスケジュール",
+      "superseded_answer": "80個",
+      "heading": "2023年4月の在庫状況",
+      "paraphrase": "現在の在庫はどれくらいありますか？"
+    },
+    {
+      "key": "household-budget",
+      "language": "en",
+      "subject": "monthly household budget",
+      "attribute": "total monthly expenses",
+      "answer": "2500 dollars",
+      "neighbour": "weekly grocery shopping list",
+      "superseded_answer": "2000 dollars",
+      "heading": "Monthly Household Budget Overview",
+      "paraphrase": "How much does the household spend each month?"
+    },
+    {
+      "key": "medical-appointment",
+      "language": "en",
+      "subject": "next medical appointment",
+      "attribute": "date of appointment",
+      "answer": "March 15, 2023",
+      "neighbour": "upcoming dental checkup",
+      "superseded_answer": "February 28, 2023",
+      "heading": "Upcoming Medical Appointments",
+      "paraphrase": "When is the next doctor's visit?"
+    },
+    {
+      "key": "sports-team-schedule",
+      "language": "en",
+      "subject": "sports team schedule",
+      "attribute": "next game location",
+      "answer": "Central Park Stadium",
+      "neighbour": "fitness center membership",
+      "superseded_answer": "Northside Arena",
+      "heading": "Sports Team Schedule",
+      "paraphrase": "Where is the next game being played?"
+    },
+    {
+      "key": "warranty-coverage",
+      "language": "en",
+      "subject": "product warranty",
+      "attribute": "coverage period",
+      "answer": "2 years",
+      "neighbour": "product return policy",
+      "superseded_answer": "1 year",
+      "heading": "Product Warranty Information",
+      "paraphrase": "How long is the warranty valid for?"
+    },
+    {
+      "key": "school-calendar",
+      "language": "en",
+      "subject": "school academic calendar",
+      "attribute": "start date of next semester",
+      "answer": "September 5, 2023",
+      "neighbour": "school cafeteria menu",
+      "superseded_answer": "August 28, 2023",
+      "heading": "Academic Calendar",
+      "paraphrase": "When does the next semester begin?"
+    },
+    {
+      "key": "household-budget",
+      "language": "ko",
+      "subject": "가계부",
+      "attribute": "월간 지출",
+      "answer": "100만 원",
+      "neighbour": "투자 계획",
+      "superseded_answer": "80만 원",
+      "heading": "2023년 10월 가계부",
+      "paraphrase": "이 달에 얼마나 썼나요?"
+    },
+    {
+      "key": "medical-appointment",
+      "language": "ko",
+      "subject": "의사 약속",
+      "attribute": "진료 날짜",
+      "answer": "2023년 11월 15일",
+      "neighbour": "약국 방문",
+      "superseded_answer": "2023년 10월 15일",
+      "heading": "2023년 11월 의사 약속",
+      "paraphrase": "언제 병원에 가야 하나요?"
+    },
+    {
+      "key": "sports-club-logistics",
+      "language": "ko",
+      "subject": "스포츠 클럽",
+      "attribute": "훈련 시간",
+      "answer": "매주 월요일 오후 7시",
+      "neighbour": "레저 클럽",
+      "superseded_answer": "매주 월요일 오후 6시",
+      "heading": "스포츠 클럽 훈련 일정",
+      "paraphrase": "훈련은 언제 시작하나요?"
+    },
+    {
+      "key": "warranty-terms",
+      "language": "ko",
+      "subject": "보증 조건",
+      "attribute": "보증 기간",
+      "answer": "1년",
+      "neighbour": "환불 정책",
+      "superseded_answer": "6개월",
+      "heading": "제품 보증 조건",
+      "paraphrase": "제품은 얼마나 보장되나요?"
+    },
+    {
+      "key": "school-admin",
+      "language": "ko",
+      "subject": "학교 행정",
+      "attribute": "등록 마감일",
+      "answer": "2023년 9월 1일",
+      "neighbour": "학교 교육",
+      "superseded_answer": "2023년 8월 15일",
+      "heading": "2023년 학교 등록 정보",
+      "paraphrase": "등록은 언제까지 가능하나요?"
+    },
+    {
+      "key": "household-budget",
+      "language": "zh",
+      "subject": "家庭预算",
+      "attribute": "每月的食品开支",
+      "answer": "1500元",
+      "neighbour": "家庭旅行计划",
+      "superseded_answer": "1200元",
+      "heading": "2023年家庭预算",
+      "paraphrase": "这个月我们在食物上花了多少钱？"
+    },
+    {
+      "key": "medical-appointment",
+      "language": "zh",
+      "subject": "医疗预约",
+      "attribute": "预约日期",
+      "answer": "2023年10月15日",
+      "neighbour": "健身房会员",
+      "superseded_answer": "2023年9月20日",
+      "heading": "李医生的预约",
+      "paraphrase": "我下次看医生是什么时候？"
+    },
+    {
+      "key": "sports-club-logistics",
+      "language": "zh",
+      "subject": "体育俱乐部物流",
+      "attribute": "下一次训练的时间",
+      "answer": "每周三晚上7点",
+      "neighbour": "社区活动",
+      "superseded_answer": "每周二晚上7点",
+      "heading": "篮球俱乐部训练安排",
+      "paraphrase": "我们下一次训练是什么时候？"
+    },
+    {
+      "key": "warranty-terms",
+      "language": "zh",
+      "subject": "保修条款",
+      "attribute": "保修期限",
+      "answer": "两年",
+      "neighbour": "产品使用手册",
+      "superseded_answer": "一年",
+      "heading": "电视机保修条款",
+      "paraphrase": "这个电视机保修多久？"
+    },
+    {
+      "key": "allotments",
+      "language": "zh",
+      "subject": "菜园分配",
+      "attribute": "菜园的大小",
+      "answer": "10平方米",
+      "neighbour": "社区花园",
+      "superseded_answer": "8平方米",
+      "heading": "社区菜园分配",
+      "paraphrase": "我的菜园有多大？"
+    },
+    {
+      "key": "school-admin",
+      "language": "zh",
+      "subject": "学校管理",
+      "attribute": "开学日期",
+      "answer": "2023年9月1日",
+      "neighbour": "学校活动",
+      "superseded_answer": "2023年8月25日",
+      "heading": "2023-2024学年开学通知",
+      "paraphrase": "新学期什么时候开始？"
     }
   ]
 }

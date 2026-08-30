@@ -32,6 +32,7 @@ later ADR supersedes it and says so.
 | [0016](0016-the-network-lives-in-one-place.md) | The network lives in one place |
 | [0017](0017-the-instruction-set-is-a-parameter.md) | The instruction set is a parameter, and the prompt is the package |
 | [0018](0018-confirm-a-paraphrase-by-coverage.md) | A paraphrase confirms by coverage, not by phrase |
+| [0019](0019-confirmation-is-relative.md) | Confirmation is relative, and it has to say where |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

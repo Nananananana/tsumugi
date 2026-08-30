@@ -1,0 +1,30 @@
+{
+  "budget": {
+    "limit": 54,
+    "unit": "characters"
+  },
+  "case_id": "ko-warranty-terms-01",
+  "genre": "warranty-terms",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "보증 조건의 보증 기간은?",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

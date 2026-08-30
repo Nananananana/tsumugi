@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ko-warranty-terms-absent",
+  "genre": "warranty-terms",
+  "language": "ko",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "보증 조건의 보증 기간은 몇 년인가",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}

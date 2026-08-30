@@ -382,7 +382,11 @@ class TestAQuestionAskedInOtherWords:
         from tsumugi.application import search as module
 
         source = inspect.getsource(module.search)
-        assert "_confirm(document.content, needles) or _confirm_by_coverage" in source
+        assert "spans, matched = _confirm(document.content, needles)" in source
+        # Coverage is reached only after the phrase rule came back empty.
+        assert source.index("_confirm(document.content, needles)") < source.index(
+            "_confirm_by_coverage(document.content, terms)"
+        )
 
     def test_every_content_term_has_to_be_there(self) -> None:
         # At 1.0 the rule reads plainly. Chosen rather than measured: the

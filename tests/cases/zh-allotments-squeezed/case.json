@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "zh-allotments-squeezed",
+  "genre": "allotments",
+  "language": "zh",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "菜园分配的菜园的大小是多少",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

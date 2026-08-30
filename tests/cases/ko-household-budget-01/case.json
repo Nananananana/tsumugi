@@ -1,0 +1,30 @@
+{
+  "budget": {
+    "limit": 61,
+    "unit": "characters"
+  },
+  "case_id": "ko-household-budget-01",
+  "genre": "household-budget",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "가계부의 월간 지출은?",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

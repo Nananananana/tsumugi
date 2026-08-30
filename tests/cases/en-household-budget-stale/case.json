@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "en-household-budget-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# Monthly Household Budget Overview\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
+  },
+  "genre": "household-budget",
+  "language": "en",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "what is the total monthly expenses of monthly household budget?",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

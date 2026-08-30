@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "ja-household-budget-squeezed",
+  "genre": "household-budget",
+  "language": "ja",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "家計の月間の支出は",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

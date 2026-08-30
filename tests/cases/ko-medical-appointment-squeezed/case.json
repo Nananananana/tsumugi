@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "ko-medical-appointment-squeezed",
+  "genre": "medical-appointment",
+  "language": "ko",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "의사 약속의 진료 날짜은",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

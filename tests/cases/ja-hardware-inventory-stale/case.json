@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-hardware-inventory-stale",
+  "edit_after_ingest": {
+    "drifting.md": "# 2023年4月の在庫状況\n\nこの記録は全面的に書き直された。以前の内容は残っていない。\n"
+  },
+  "genre": "hardware-inventory",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [],
+  "question": "ハードウェアの在庫の在庫数は？",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "drifted": {
+      "expect_omission_rule": "stale_anchor",
+      "kind": "stale_anchor"
+    }
+  }
+}

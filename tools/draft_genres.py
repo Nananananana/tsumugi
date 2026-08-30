@@ -37,6 +37,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from tsumugi.errors import TsumugiError
 from tsumugi.infrastructure.adapters.ollama import DEFAULT_MODEL, OllamaProvider
 
+#: What a genre needs from a draft. **`question` is not here**: the question
+#: that shares the document's phrasing is derived from the subject and the
+#: attribute by `generate_cases.py`, because it has to phrase-match a sentence
+#: that generator writes. A drafted one that does not is an accidental
+#: paraphrase case, which measures the wrong thing while looking like it
+#: measures the right one -- and it is what most first-round drafts produced.
 FIELDS = (
     "key",
     "language",
@@ -46,9 +52,18 @@ FIELDS = (
     "neighbour",
     "superseded_answer",
     "heading",
-    "question",
     "paraphrase",
 )
+
+#: Mirrors ``_ASKING`` in ``generate_cases.py``. Duplicated on purpose: this
+#: tool must not import the generator, or a genre could pass a check that used
+#: the same wrong assumption twice.
+_ASKING = {
+    "ja": "{subject}の{attribute}は",
+    "zh": "{subject}的{attribute}是多少",
+    "ko": "{subject}의 {attribute}은",
+    "en": "what is the {attribute} of {subject}",
+}
 
 _LANGUAGE_NAMES = {
     "ja": "Japanese",
@@ -75,15 +90,15 @@ Return JSON and nothing else:
   "neighbour": "a DIFFERENT thing that shares the subject's vocabulary, in {language}",
   "superseded_answer": "an older, different value of the same property, in {language}",
   "heading": "a short document heading, in {language}",
-  "question": "a question for the attribute, using the same words as subject and attribute",
-  "paraphrase": "the SAME question asked as a person would, sharing as few words as it can"
+  "paraphrase": "how a person would ask for that attribute, WITHOUT using the attribute's own words"
 }}]}}
 
 Rules:
 - Everything invented. No real people, companies, addresses or numbers.
 - `neighbour` must be a different subject, not a synonym of `subject`.
 - `superseded_answer` must be a different value from `answer`.
-- `paraphrase` must not repeat the whole of `question`.
+- `paraphrase` must ask for `attribute` without containing `attribute`. If the
+  attribute is "weight", the paraphrase says "how heavy", not "what weight".
 """
 
 
@@ -133,14 +148,10 @@ def problems(genre: dict[str, Any], language: str) -> list[str]:
     if attribute and attribute in _fold(genre["paraphrase"]):
         found.append(f"paraphrase still uses the attribute {genre['attribute']!r}")
 
-    # And it must not simply be the question again with the punctuation moved.
-    shared = _longest_shared(genre["paraphrase"], genre["question"])
-    if shared >= max(1, len(_fold(genre["question"])) - 2):
+    # And it must not simply be the derived question with punctuation moved.
+    asked = _ASKING[language].format(subject=genre["subject"], attribute=genre["attribute"])
+    if _longest_shared(genre["paraphrase"], asked) >= max(1, len(_fold(asked)) - 2):
         found.append("paraphrase is the question")
-
-    # The answer has to be findable from the question by the words they share.
-    if _longest_shared(genre["question"], genre["subject"]) < min(2, len(genre["subject"])):
-        found.append("question does not contain the subject")
     return found
 
 

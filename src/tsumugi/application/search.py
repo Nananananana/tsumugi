@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final
 
 from ..domain.anchor import Anchor
@@ -41,6 +41,9 @@ class SearchResult:
     #: how the over-generation of the index becomes visible instead of
     #: mysterious.
     unconfirmed: bool = False
+    #: How many characters of the query confirmed here. Zero when the match
+    #: came from coverage rather than a phrase.
+    matched: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +91,12 @@ def search(
             # `tsumugi doctor` is where drift gets reported.
             continue
 
-        spans = _confirm(document.content, needles) or _confirm_by_coverage(document.content, terms)
+        spans, matched = _confirm(document.content, needles)
+        if not spans:
+            # Coverage confirms without a phrase, so there is no matched run to
+            # score. It ranks on bm25 and occurrence count alone, which is the
+            # right order of preference: a phrase is stronger evidence.
+            spans, matched = _confirm_by_coverage(document.content, terms), 0
         if not spans:
             results.append(
                 SearchResult(
@@ -109,10 +117,34 @@ def search(
                 anchor=Anchor.into(document, widened),
                 text=widened.slice(document.content),
                 source_path=document.source_path,
-                score=hit.score + len(spans) * 0.01,
+                # Two bonuses, and the second is the one that matters. How
+                # *much* of the question was confirmed separates the answer
+                # from a near-miss that shares everything but the subject;
+                # how many times it occurred is a much weaker signal.
+                score=(
+                    hit.score
+                    + len(spans) * 0.01
+                    + (matched / len(query) if query else 0.0) * MATCH_WEIGHT
+                ),
                 section=_section_name(document, best.start),
+                matched=matched,
             )
         )
+
+    # Relevance is relative to the best evidence this query found. A document
+    # containing five words of a six-word question, where the missing word is
+    # the subject, is a document about something else -- and no absolute
+    # threshold can say that, because five words is a lot in one corpus and
+    # nothing in another.
+    strongest = max((result.matched for result in results), default=0)
+    if strongest:
+        floor = strongest * RELATIVE_MATCH_FLOOR
+        results = [
+            r
+            if r.unconfirmed or r.matched >= floor or not r.matched
+            else replace(r, unconfirmed=True)
+            for r in results
+        ]
 
     # Ties break on the anchor, never on iteration order: a package has to be
     # reproducible (ADR-0003).
@@ -243,6 +275,19 @@ def _content_terms(query: str) -> list[str]:
     return terms
 
 
+#: How much of a term may be inflection. A term whose stem is present and whose
+#: tail is no longer than this counts as present in full.
+#:
+#: Korean is what asked for it. ``가계부의`` and ``가계부`` are the same word
+#: with a particle attached, and the particle is Hangul like the stem, so the
+#: script segmentation that separates ``テント`` from ``の`` cannot separate
+#: them. Every Korean case in the corpus failed until this existed. English
+#: plurals and Japanese okurigana fall out of the same rule, and it needs no
+#: word list -- which is the constraint that ruled out a segmenter in ADR-0007
+#: and a stopword list in ADR-0018.
+INFLECTION_TAIL: Final = 2
+
+
 def _longest_present(term: str, folded: str) -> tuple[int, str]:
     """The longest substring of ``term`` that occurs in ``folded``.
 
@@ -261,31 +306,87 @@ def _longest_present(term: str, folded: str) -> tuple[int, str]:
     return -1, ""
 
 
+def _counted(term: str, piece: str) -> int:
+    """How much of ``term`` a match on ``piece`` is worth.
+
+    A stem match counts as the whole term, so a language that glues its grammar
+    to its nouns is not permanently below the coverage threshold. The stem has
+    to be most of the word: a prefix, at least two characters, and no more than
+    ``INFLECTION_TAIL`` short of the whole.
+    """
+    missing = len(term) - len(piece)
+    if missing and (missing > INFLECTION_TAIL or len(piece) < 2 or not term.startswith(piece)):
+        return len(piece)
+    return len(term)
+
+
+#: How many occurrences of one term are considered when locating the evidence.
+#: A term that appears more often than this in one document is a term whose
+#: exact position stopped mattering.
+_OCCURRENCE_CAP: Final = 32
+
+
+def _occurrences(piece: str, folded: str) -> list[int]:
+    """Every position of ``piece``, up to the cap."""
+    found: list[int] = []
+    at = folded.find(piece)
+    while at != -1 and len(found) < _OCCURRENCE_CAP:
+        found.append(at)
+        at = folded.find(piece, at + 1)
+    return found
+
+
 def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
-    """Confirm when enough of the question's content is present.
+    """Confirm when enough of the question's content is present, and say where.
 
     **A fallback, never a replacement.** It runs only where the phrase rule
     found nothing -- which today means the candidate is rejected outright -- so
     it can turn a rejection into a result and never the other way round. That
     is what keeps ADR-0007's guarantee intact: the index still over-generates
     and confirmation still decides.
+
+    The *where* is half the job and used to be wrong. Taking each term's first
+    occurrence pointed the item at whichever line mentioned the subject
+    earliest -- reliably the heading, because a heading is a document's first
+    mention of what it is about. The package then carried a title where the
+    evidence should have been. Terms are located together instead: the answer
+    is where they crowd, not where the first one happens to sit.
     """
     total = sum(len(term) for term in terms)
     if not total:
         return []
 
     folded = unicodedata.normalize("NFKC", content).casefold()
-    matched, spans = 0, []
+    located: list[tuple[str, list[int]]] = []
+    matched = 0
     for term in terms:
         at, piece = _longest_present(term, folded)
         if at == -1:
             continue
-        matched += len(piece)
-        spans.append(Span(min(at, len(content)), min(at + len(piece), len(content))))
+        matched += _counted(term, piece)
+        located.append((piece, _occurrences(piece, folded)))
 
-    if matched / total < COVERAGE_THRESHOLD:
+    if matched / total < COVERAGE_THRESHOLD or not located:
         return []
-    return sorted(spans, key=lambda span: span.start)
+
+    # Anchor on the longest term -- the most specific one -- and take each
+    # other term's occurrence nearest to it. Ties resolve to the earlier
+    # position, so the result does not depend on iteration order (ADR-0003).
+    piece, positions = max(located, key=lambda pair: (len(pair[0]), -pair[1][0]))
+    best_spans: list[Span] | None = None
+    best_spread = -1
+    for anchor in positions:
+        spans = [
+            Span(min(at, len(content)), min(at + len(text), len(content)))
+            for text, occurrences in located
+            for at in [min(occurrences, key=lambda p: (abs(p - anchor), p))]
+        ]
+        spread = max(s.end for s in spans) - min(s.start for s in spans)
+        if best_spans is None or spread < best_spread:
+            best_spans, best_spread = spans, spread
+
+    assert best_spans is not None  # `positions` is non-empty by construction.
+    return sorted(best_spans, key=lambda span: span.start)
 
 
 def _trim_punctuation(text: str) -> str:
@@ -303,8 +404,42 @@ def _trim_punctuation(text: str) -> str:
     return text[start:end]
 
 
-def _confirm(content: str, needles: Sequence[str]) -> list[Span]:
-    """Every exact occurrence of a needle, longest needles first."""
+#: How much a longer confirmation is worth. Multiplied by the fraction of the
+#: query that was matched, so a document confirming on the whole question
+#: outranks one confirming on part of it. Measured, not chosen: see
+#: ``docs/adr/0019-how-much-of-the-question-was-confirmed.md``.
+MATCH_WEIGHT: Final = 0.1
+
+#: A confirmation this much weaker than the best one found for the same query
+#: is not evidence. Relative rather than absolute, because "how much of the
+#: question a document contains" only means something next to what the rest of
+#: the corpus managed: five words is a lot in one corpus and nothing in
+#: another.
+#:
+#: Swept on train and confirmed held-out. Every value from 0.8 to 1.0 scores
+#: identically -- train 88.9% / 96.5% / 3.6%, held-out 72.2% / 98.6% / 2.8% --
+#: and **costs no recall at all** against the floor turned off, while taking
+#: the trap rate from 21.4% to 3.6% on train and 30.6% to 2.8% held-out.
+#:
+#: The corpus cannot separate 0.8 from 1.0, so this is chosen. It is chosen
+#: *permissive*, which is the opposite of ADR-0018's choice and for a reason
+#: that fits both: at 1.0 a document is discarded unless its evidence is the
+#: strongest found, and every case in this corpus has exactly one answer, so
+#: the corpus cannot show the cost of that. A real notes folder holds two files
+#: that both answer a question constantly. Picking 1.0 would be optimising for
+#: a property of the fixtures.
+RELATIVE_MATCH_FLOOR: Final = 0.8
+
+
+def _confirm(content: str, needles: Sequence[str]) -> tuple[list[Span], int]:
+    """Every occurrence of the longest needle present, and how long it was.
+
+    The length is the second half of the answer and used not to be returned at
+    all. Confirmation was a yes or no, so a document that matched five words of
+    a six-word question ranked level with one that matched all six -- and where
+    the sixth word is the *subject*, that is the difference between the right
+    document and a near-miss about something else.
+    """
     folded = unicodedata.normalize("NFKC", content).casefold()
     # Per-character normalization keeps lengths aligned for the common case;
     # where it does not, the span is still inside the document and the anchor
@@ -317,8 +452,8 @@ def _confirm(content: str, needles: Sequence[str]) -> list[Span]:
             found.append(Span(min(start, len(content)), end))
             start = folded.find(needle, start + 1)
         if found:
-            break
-    return found
+            return found, len(needle)
+    return [], 0
 
 
 #: Characters that end a sentence outright. CJK punctuation is unambiguous:

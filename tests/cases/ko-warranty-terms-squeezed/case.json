@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "ko-warranty-terms-squeezed",
+  "genre": "warranty-terms",
+  "language": "ko",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "보증 조건의 보증 기간은",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

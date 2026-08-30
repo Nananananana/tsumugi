@@ -1,0 +1,30 @@
+{
+  "budget": {
+    "limit": 61,
+    "unit": "characters"
+  },
+  "case_id": "ja-hardware-inventory-01",
+  "genre": "hardware-inventory",
+  "language": "ja",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "ハードウェアの在庫の在庫数は？",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

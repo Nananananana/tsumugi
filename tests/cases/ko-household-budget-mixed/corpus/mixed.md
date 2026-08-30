@@ -1,0 +1,19 @@
+# 2023년 10월 가계부 / Notes
+
+運用メモ。The current setting is recorded below, in `config.toml`.
+
+```toml
+[household-budget]
+reviewed = true
+owner = "rotating"
+```
+
+{{F:answer}}가계부의 월간 지출은 100만 원{{/F}}。See also the appendix for background.
+
+이 항목은 지난 재고 조사에서 검토했다.
+담당은 돌아가며 맡고, 인수인계 때 한 번 확인한다.
+자세한 경위는 별도 기록에 남겨 두었다.
+
+This entry was reviewed at the last stocktake.
+Ownership rotates, and is checked once at handover.
+The longer history is kept in a separate record.

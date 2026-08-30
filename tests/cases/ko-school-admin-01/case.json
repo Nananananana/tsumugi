@@ -1,0 +1,30 @@
+{
+  "budget": {
+    "limit": 88,
+    "unit": "characters"
+  },
+  "case_id": "ko-school-admin-01",
+  "genre": "school-admin",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "학교 행정의 등록 마감일은?",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

@@ -106,8 +106,12 @@ class TestTheFixtures:
                 assert (root / relative).read_bytes().decode("utf-8") == expected
 
     def test_the_ci_tier_is_small_enough_to_run_always(self) -> None:
-        # A suite too slow to run is a suite that decays.
-        assert 0 < len(load_cases(CASES, tier="ci")) <= 80
+        # A suite too slow to run is a suite that decays. The number is a
+        # proxy for that, and the proxy was set when a case cost more than it
+        # does: 120 cases run in about two and a half seconds, so the cap is
+        # nowhere near what actually matters. Raised rather than removed --
+        # something has to notice if a case starts costing a second.
+        assert 0 < len(load_cases(CASES, tier="ci")) <= 300
 
     def test_some_cases_are_held_out(self) -> None:
         # A ranker tuned against every case it will be scored on is a ranker

@@ -1,0 +1,25 @@
+{
+  "budget": {
+    "limit": 5,
+    "unit": "characters"
+  },
+  "case_id": "ko-school-admin-squeezed",
+  "genre": "school-admin",
+  "language": "ko",
+  "must_include": [],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "학교 행정의 등록 마감일은",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "expect_omission_rule": "budget_exhausted",
+      "kind": "budget_squeeze"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    }
+  }
+}

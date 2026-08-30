@@ -1,0 +1,30 @@
+{
+  "budget": {
+    "limit": 91,
+    "unit": "characters"
+  },
+  "case_id": "ko-medical-appointment-01",
+  "genre": "medical-appointment",
+  "language": "ko",
+  "must_include": [
+    "answer"
+  ],
+  "must_not_include": [
+    "near-miss"
+  ],
+  "question": "의사 약속의 진료 날짜은?",
+  "split": "train",
+  "tier": "full",
+  "traps": {
+    "duplicate": {
+      "expect_omission_rule": "redundant_candidate",
+      "kind": "near_duplicate"
+    },
+    "near-miss": {
+      "kind": "lexical_near_miss"
+    },
+    "superseded": {
+      "kind": "superseded"
+    }
+  }
+}

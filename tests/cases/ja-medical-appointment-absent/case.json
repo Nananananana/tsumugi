@@ -1,0 +1,19 @@
+{
+  "budget": {
+    "limit": 1200,
+    "unit": "characters"
+  },
+  "case_id": "ja-medical-appointment-absent",
+  "genre": "medical-appointment",
+  "language": "ja",
+  "must_include": [],
+  "must_not_include": [],
+  "question": "医療の予約の保証期間は何年か",
+  "split": "train",
+  "tier": "ci",
+  "traps": {
+    "answer": {
+      "kind": "absent_answer"
+    }
+  }
+}
