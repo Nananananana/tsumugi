@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "en-code-review-absent",
+  "drafter": "",
   "genre": "code-review",
   "language": "en",
   "must_include": [],

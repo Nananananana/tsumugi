@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "zh-allotments-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 社区菜园分配\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

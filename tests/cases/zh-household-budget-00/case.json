@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "zh-household-budget-00",
+  "drafter": "unrecorded",
   "genre": "household-budget",
   "language": "zh",
   "must_include": [

@@ -57,6 +57,14 @@ class Genre:
     #: as the thing it measures is a mirror, and a number that mixes the two
     #: cannot say so.
     origin: str = "handwritten"
+    #: Which model drafted it. Empty when handwritten, and ``unrecorded`` for
+    #: the twenty that predate this field -- nothing named the model at the
+    #: time, so they are marked unknown rather than reconstructed from the
+    #: tool's default. Carried into every case for the same reason ``origin``
+    #: is: a corpus drafted by one model is that model's dialect, and a score
+    #: that cannot be split by drafter cannot tell "this language is hard"
+    #: from "this drafter writes it oddly".
+    drafter: str = ""
     #: The same question asked the way a person asks it, sharing no contiguous
     #: phrase with the document. This is the shape the corpus had none of:
     #: every question in it was built from the subject and attribute the
@@ -87,13 +95,17 @@ def load_genres(path: Path = GENRES_PATH) -> tuple[Genre, ...]:
     """
     payload = json.loads(path.read_text(encoding="utf-8"))
     version = payload.get("format_version")
-    if version != 1:
+    if version != 2:
         raise ValueError(f"{path}: unknown format_version {version!r}")
 
     genres: list[Genre] = []
     seen: set[tuple[str, str]] = set()
     for row in payload["genres"]:
         genre = Genre(**row)
+        if genre.origin == "drafted" and not genre.drafter:
+            raise ValueError(f"{path}: drafted genre {genre.key!r} names no drafter")
+        if genre.origin == "handwritten" and genre.drafter:
+            raise ValueError(f"{path}: handwritten genre {genre.key!r} names a drafter")
         # Language and key together, because a case id is built from both and
         # `medical-appointment` is a reasonable genre in every language.
         identity = (genre.language, genre.key)
@@ -407,6 +419,7 @@ def build_paraphrase_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, 
         "genre": genre.key,
         "language": genre.language,
         "origin": genre.origin,
+        "drafter": genre.drafter,
         "question": genre.paraphrase + _QUESTION_MARK.get(genre.language, "?"),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": ["answer"],
@@ -436,6 +449,7 @@ def build_absent_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, obje
         "genre": genre.key,
         "language": genre.language,
         "origin": genre.origin,
+        "drafter": genre.drafter,
         "question": _unanswerable_question(genre),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": [],
@@ -473,6 +487,7 @@ def build_stale_case(genre: Genre) -> tuple[str, dict[str, str], dict[str, objec
         "genre": genre.key,
         "language": genre.language,
         "origin": genre.origin,
+        "drafter": genre.drafter,
         "question": _ask(genre, 1),
         "budget": {"unit": "characters", "limit": 1200},
         "must_include": ["answer"],
@@ -504,6 +519,7 @@ def build_squeezed_out_case(genre: Genre) -> tuple[str, dict[str, str], dict[str
         "genre": genre.key,
         "language": genre.language,
         "origin": genre.origin,
+        "drafter": genre.drafter,
         "question": _ask(genre, 0),
         # Smaller than the answer passage, so nothing at all fits.
         "budget": {"unit": "characters", "limit": 5},
@@ -648,6 +664,7 @@ def build_case(genre: Genre, variant: int) -> tuple[str, dict[str, str], dict[st
         "genre": genre.key,
         "language": genre.language,
         "origin": genre.origin,
+        "drafter": genre.drafter,
         "question": _ask(genre, variant),
         "budget": budget,
         "must_include": [answer],

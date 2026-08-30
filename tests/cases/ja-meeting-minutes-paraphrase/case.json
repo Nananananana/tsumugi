@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ja-meeting-minutes-paraphrase",
+  "drafter": "",
   "genre": "meeting-minutes",
   "language": "ja",
   "must_include": [

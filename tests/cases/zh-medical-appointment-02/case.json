@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "zh-medical-appointment-02",
+  "drafter": "unrecorded",
   "genre": "medical-appointment",
   "language": "zh",
   "must_include": [

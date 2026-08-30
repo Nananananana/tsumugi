@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "en-infrastructure-stale",
+  "drafter": "",
   "edit_after_ingest": {
     "drifting.md": "# Capacity\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

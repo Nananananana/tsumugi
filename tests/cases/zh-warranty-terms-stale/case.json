@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "zh-warranty-terms-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 电视机保修条款\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

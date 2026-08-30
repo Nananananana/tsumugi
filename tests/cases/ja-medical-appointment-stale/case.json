@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ja-medical-appointment-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 内科の予約\n\nこの記録は全面的に書き直された。以前の内容は残っていない。\n"
   },

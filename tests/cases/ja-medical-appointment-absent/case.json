@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ja-medical-appointment-absent",
+  "drafter": "unrecorded",
   "genre": "medical-appointment",
   "language": "ja",
   "must_include": [],

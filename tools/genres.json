@@ -1,5 +1,5 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "genres": [
     {
       "key": "mountaineering",
@@ -12,7 +12,8 @@
       "heading": "装備",
       "question": "テントの重量は",
       "paraphrase": "テントはどれくらい重い",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "employment-rules",
@@ -25,7 +26,8 @@
       "heading": "休暇",
       "question": "有給休暇の付与日数は",
       "paraphrase": "有給は何日もらえる",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "research-notes",
@@ -38,7 +40,8 @@
       "heading": "保存条件",
       "question": "サンプルの保存温度は",
       "paraphrase": "サンプルは何度で保管する",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "recipes",
@@ -51,7 +54,8 @@
       "heading": "手順",
       "question": "生地の寝かせ時間は",
       "paraphrase": "生地はどのくらい休ませる",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "meeting-minutes",
@@ -64,7 +68,8 @@
       "heading": "決定事項",
       "question": "次回の会議の開催日は",
       "paraphrase": "次の会議はいつ",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "gardening",
@@ -77,7 +82,8 @@
       "heading": "作業予定",
       "question": "球根の植え付け時期は",
       "paraphrase": "球根はいつ植える",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "infrastructure",
@@ -90,7 +96,8 @@
       "heading": "Capacity",
       "question": "how many nodes does the staging cluster have",
       "paraphrase": "how big is the staging cluster",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "legal-memo",
@@ -103,7 +110,8 @@
       "heading": "Termination",
       "question": "how long is the notice period",
       "paraphrase": "how much warning must be given",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "travel",
@@ -116,7 +124,8 @@
       "heading": "Schedule",
       "question": "when is the first ferry departure",
       "paraphrase": "what time does the earliest boat leave",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "code-review",
@@ -129,7 +138,8 @@
       "heading": "Behaviour",
       "question": "what backoff does the retry policy use",
       "paraphrase": "how does the retry policy wait between attempts",
-      "origin": "handwritten"
+      "origin": "handwritten",
+      "drafter": ""
     },
     {
       "key": "household-budget",
@@ -141,7 +151,8 @@
       "superseded_answer": "8万円",
       "heading": "2023年1月の家計",
       "paraphrase": "今月の生活費はどれくらいですか？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "medical-appointment",
@@ -153,7 +164,8 @@
       "superseded_answer": "2023年5月10日午後3時",
       "heading": "内科の予約",
       "paraphrase": "次回の診察はいつですか？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "sports-club-logistics",
@@ -165,7 +177,8 @@
       "superseded_answer": "4,500円",
       "heading": "2023年6月のスポーツクラブ料金",
       "paraphrase": "今月のスポーツクラブの費用はいくらですか？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "hardware-inventory",
@@ -177,7 +190,8 @@
       "superseded_answer": "80個",
       "heading": "2023年4月の在庫状況",
       "paraphrase": "現在の在庫はどれくらいありますか？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "household-budget",
@@ -189,7 +203,8 @@
       "superseded_answer": "2000 dollars",
       "heading": "Monthly Household Budget Overview",
       "paraphrase": "How much does the household spend each month?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "medical-appointment",
@@ -201,7 +216,8 @@
       "superseded_answer": "February 28, 2023",
       "heading": "Upcoming Medical Appointments",
       "paraphrase": "When is the next doctor's visit?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "sports-team-schedule",
@@ -213,7 +229,8 @@
       "superseded_answer": "Northside Arena",
       "heading": "Sports Team Schedule",
       "paraphrase": "Where is the next game being played?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "warranty-coverage",
@@ -225,7 +242,8 @@
       "superseded_answer": "1 year",
       "heading": "Product Warranty Information",
       "paraphrase": "How long is the warranty valid for?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "school-calendar",
@@ -237,7 +255,8 @@
       "superseded_answer": "August 28, 2023",
       "heading": "Academic Calendar",
       "paraphrase": "When does the next semester begin?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "household-budget",
@@ -249,7 +268,8 @@
       "superseded_answer": "80만 원",
       "heading": "2023년 10월 가계부",
       "paraphrase": "이 달에 얼마나 썼나요?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "medical-appointment",
@@ -261,7 +281,8 @@
       "superseded_answer": "2023년 10월 15일",
       "heading": "2023년 11월 의사 약속",
       "paraphrase": "언제 병원에 가야 하나요?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "sports-club-logistics",
@@ -273,7 +294,8 @@
       "superseded_answer": "매주 월요일 오후 6시",
       "heading": "스포츠 클럽 훈련 일정",
       "paraphrase": "훈련은 언제 시작하나요?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "warranty-terms",
@@ -285,7 +307,8 @@
       "superseded_answer": "6개월",
       "heading": "제품 보증 조건",
       "paraphrase": "제품은 얼마나 보장되나요?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "school-admin",
@@ -297,7 +320,8 @@
       "superseded_answer": "2023년 8월 15일",
       "heading": "2023년 학교 등록 정보",
       "paraphrase": "등록은 언제까지 가능하나요?",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "household-budget",
@@ -309,7 +333,8 @@
       "superseded_answer": "1200元",
       "heading": "2023年家庭预算",
       "paraphrase": "这个月我们在食物上花了多少钱？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "medical-appointment",
@@ -321,7 +346,8 @@
       "superseded_answer": "2023年9月20日",
       "heading": "李医生的预约",
       "paraphrase": "我下次看医生是什么时候？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "sports-club-logistics",
@@ -333,7 +359,8 @@
       "superseded_answer": "每周二晚上7点",
       "heading": "篮球俱乐部训练安排",
       "paraphrase": "我们下一次训练是什么时候？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "warranty-terms",
@@ -345,7 +372,8 @@
       "superseded_answer": "一年",
       "heading": "电视机保修条款",
       "paraphrase": "这个电视机保修多久？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "allotments",
@@ -357,7 +385,8 @@
       "superseded_answer": "8平方米",
       "heading": "社区菜园分配",
       "paraphrase": "我的菜园有多大？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     },
     {
       "key": "school-admin",
@@ -369,7 +398,9 @@
       "superseded_answer": "2023年8月25日",
       "heading": "2023-2024学年开学通知",
       "paraphrase": "新学期什么时候开始？",
-      "origin": "drafted"
+      "origin": "drafted",
+      "drafter": "unrecorded"
     }
-  ]
+  ],
+  "provenance_note": "`drafter` names the model that drafted a genre. The twenty marked 'unrecorded' predate the field: nothing in the file, the commit, or the working log names the model that wrote them, so they are marked unknown rather than guessed from the tool's default. Every score split by origin before 2026-08-30 therefore compares handwritten against drafted-by-something-unnamed. New drafted genres record the model."
 }

@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ko-sports-club-logistics-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 스포츠 클럽 훈련 일정\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

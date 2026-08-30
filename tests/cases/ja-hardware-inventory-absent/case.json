@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ja-hardware-inventory-absent",
+  "drafter": "unrecorded",
   "genre": "hardware-inventory",
   "language": "ja",
   "must_include": [],

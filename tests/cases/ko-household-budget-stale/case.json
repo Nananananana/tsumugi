@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ko-household-budget-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 2023년 10월 가계부\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

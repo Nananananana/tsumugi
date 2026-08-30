@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ko-medical-appointment-00",
+  "drafter": "unrecorded",
   "genre": "medical-appointment",
   "language": "ko",
   "must_include": [

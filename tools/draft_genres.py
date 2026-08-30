@@ -193,7 +193,15 @@ def main() -> int:
         if found:
             print(f"# REJECTED {genre.get('key')}: {'; '.join(found)}", file=sys.stderr)
             continue
-        kept.append({field: genre[field] for field in FIELDS})
+        # Stamped here rather than by whoever pastes the output in. The
+        # twenty genres already in `genres.json` are marked `unrecorded`
+        # because this line did not exist: the tool that drafted them left no
+        # trace of itself, and marking them `drafted` was something a person
+        # had to remember. Provenance that depends on remembering is provenance
+        # that is one distraction from being wrong.
+        kept.append(
+            {field: genre[field] for field in FIELDS} | {"origin": "drafted", "drafter": args.model}
+        )
 
     print(json.dumps(kept, ensure_ascii=False, indent=2))
     print(f"# {len(kept)} of {len(drafted)} drafts passed the checks", file=sys.stderr)

@@ -188,6 +188,45 @@ structural exists that is not a dictionary — character-level coverage with a
 threshold, which the corpus can now measure — or the limitation gets stated in
 the README rather than only in a measurement table.
 
+**Two decisions taken before any corpus exists**, because neither can be added
+afterwards. Raised by `bench`, whose charter refuses to own another project's
+measurement and who therefore handed this back rather than take it — correctly:
+what tsumugi supports is tsumugi's decision, and the corpus follows the
+decision rather than the other way round.
+
+*Some Chinese genres are written by hand.* Not because handwritten genres are
+the good ones — they are the **control**, and they are the flattering arm: 4.0%
+trap against drafted genres' 28.0%. Without them Chinese can only ever be
+scored drafted-against-drafted, and the single most informative cut this corpus
+has — the one that widened to 4.0% against 33.3% when the script confound was
+removed — becomes permanently impossible in the language that most needs it.
+The Chinese and Korean genres are 100% drafted today, which is exactly why line
+one of that measurement could not separate "someone else's words" from "a
+script the tokenizer does not segment".
+
+Worth stating plainly: *handwritten* here means written by the same author as
+the ranker, not by a human elsewhere. That is the point of the arm. It measures
+the author's imagination, which is the thing the drafted arm is there to escape.
+
+*At least two drafting lineages*, which is akashi's rule and it is right: one
+drafter makes the corpus that model's dialect, and a good score stops meaning
+more than "this handles that model's phrasing".
+
+**This turned out to be unimplementable, and fixing it was the first work.**
+`genres.json` recorded `origin: drafted` and nothing else. Which model drafted
+them is not in the file, not in the commit, and not in the working log — so
+every origin split quoted in this repository, including the 4.0%/28.0% above,
+compares handwritten against **drafted-by-something-unnamed**, and no record
+can say what. Worse, `draft_genres.py` never wrote `origin` at all: a person
+marked the output by hand after pasting it in. Provenance that depends on
+remembering is one distraction from being wrong.
+
+The field now exists, the tool stamps itself, the loader refuses a drafted
+genre with no drafter and a handwritten one that names one, and the twenty
+existing genres are marked `unrecorded` rather than back-filled with the tool's
+default — the value is not known, and guessing it would put a name where the
+honest entry is a gap.
+
 ### Then
 
 **5. Term rarity in the confirmation stage.** ADR-0019 closed the near-miss

@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "en-medical-appointment-paraphrase",
+  "drafter": "unrecorded",
   "genre": "medical-appointment",
   "language": "en",
   "must_include": [

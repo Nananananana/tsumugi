@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "en-code-review-stale",
+  "drafter": "",
   "edit_after_ingest": {
     "drifting.md": "# Behaviour\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },

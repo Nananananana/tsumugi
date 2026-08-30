@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ko-medical-appointment-squeezed",
+  "drafter": "unrecorded",
   "genre": "medical-appointment",
   "language": "ko",
   "must_include": [],

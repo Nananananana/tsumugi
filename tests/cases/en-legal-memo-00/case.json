@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "en-legal-memo-00",
+  "drafter": "",
   "genre": "legal-memo",
   "language": "en",
   "must_include": [

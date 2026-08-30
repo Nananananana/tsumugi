@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ja-gardening-stale",
+  "drafter": "",
   "edit_after_ingest": {
     "drifting.md": "# 作業予定\n\nこの記録は全面的に書き直された。以前の内容は残っていない。\n"
   },

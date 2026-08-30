@@ -4,6 +4,7 @@
     "unit": "characters"
   },
   "case_id": "ko-school-admin-stale",
+  "drafter": "unrecorded",
   "edit_after_ingest": {
     "drifting.md": "# 2023년 학교 등록 정보\n\nThis record was rewritten. Nothing of the earlier text remains here.\n"
   },
