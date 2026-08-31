@@ -178,6 +178,15 @@ jobs:
       # fetch a schema from the internet. This step is the only place that
       # proves it -- the test suite runs against an editable install, where
       # the file is on disk whether it was packaged or not.
+      - name: Assert the type information shipped with it
+        run: |
+          python - <<'PY'
+          import importlib.resources as r
+          marker = r.files("tsumugi") / "py.typed"
+          assert marker.is_file(), "py.typed did not ship; consumers see an untyped package"
+          print("py.typed ok")
+          PY
+
       - name: Assert the contract shipped with it
         run: |
           cd "${{ runner.temp }}"

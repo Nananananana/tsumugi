@@ -23,6 +23,7 @@ import math
 import sys
 import unicodedata
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 sys.path.insert(0, "src")
@@ -38,7 +39,7 @@ def present(term: str, folded: str) -> int:
     return 0 if at == -1 else _counted(term, piece)
 
 
-def coverage(text: str, terms, weights=None) -> float:
+def coverage(text: str, terms: Sequence[str], weights: dict[str, float] | None = None) -> float:
     """Share of the question the document carries, optionally rarity-weighted."""
     folded = unicodedata.normalize("NFKC", text).casefold()
     weight = weights or {}
@@ -46,10 +47,10 @@ def coverage(text: str, terms, weights=None) -> float:
     if not total:
         return 0.0
     found = sum(present(t, folded) * weight.get(t, 1.0) for t in terms)
-    return found / total
+    return float(found / total)
 
 
-def rarity(terms, documents) -> dict:
+def rarity(terms: Sequence[str], documents: Mapping[str, str]) -> dict[str, float]:
     """Inverse document frequency over the documents of one case.
 
     No corpus statistics, no list, no language resource: a term that appears in
@@ -69,8 +70,8 @@ def rarity(terms, documents) -> dict:
 
 
 ties = separated = reversed_wrongly = 0
-nonties: list = []
-verdicts: Counter = Counter()
+nonties: list[tuple[str, float, float]] = []
+verdicts: Counter[str] = Counter()
 
 for case in load_cases(Path("tests/cases")):
     if not case.must_include:

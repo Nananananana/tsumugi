@@ -96,3 +96,23 @@ def test_every_exception_this_library_exports_can_actually_be_raised() -> None:
         "or delete it; a branch a consumer writes that can never run is worse "
         "than no branch."
     )
+
+
+def test_the_library_ships_its_type_information() -> None:
+    """PEP 561: without `py.typed`, every consumer's type checker ignores us.
+
+    This library runs `mypy --strict` over itself and shipped as **untyped**.
+    A consumer importing it got `Skipping analyzing "tsumugi": module is
+    installed, but missing library stubs or py.typed marker`, and with that one
+    line silenced -- which is the usual response -- the annotations stopped
+    existing:
+
+        schema: int = contract_schema(123)   # no error, before
+        schema: int = contract_schema(123)   # two errors, after
+
+    Strictest possible checking inside, nothing delivered outside, silently.
+    The marker must also reach the wheel: `.github/workflows/ci.yml` asserts
+    that on an installed copy, the way it does for the schema.
+    """
+    marker = ROOT / "src" / "tsumugi" / "py.typed"
+    assert marker.exists(), "PEP 561 marker missing; consumers see an untyped package"

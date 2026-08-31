@@ -107,7 +107,19 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src/tsumugi"]
+# `src` and `tools`, because a checker narrower than the thing it protects
+# fails silently by construction (mamori's CONTRIBUTING; measured on six
+# repositories by `iriguchi`, which found its own corpus generator unchecked).
+# `tools/` writes the committed fixtures and produces every number in
+# `docs/measurements.md`; nothing else looks at it.
+#
+# `tests/` is **not** in scope yet and that is a gap, not a decision: 33 errors,
+# mostly deliberate `object` annotations and `type: ignore` comments that
+# stopped being needed the moment `py.typed` was added. One is real -- the
+# example parser in `test_a_new_format_needs_no_change_to_the_library` does not
+# satisfy the `Parser` protocol it demonstrates, so the test claims an
+# extensibility a typed user would not get.
+files = ["src/tsumugi", "tools"]
 strict = true
 warn_unreachable = true
 

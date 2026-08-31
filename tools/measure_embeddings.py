@@ -55,6 +55,7 @@ import math
 import sys
 import unicodedata
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, "src")
@@ -73,7 +74,7 @@ from tsumugi.evaluation.runner import cost_model_for, prepared_case
 MODEL = sys.argv[1] if len(sys.argv) > 1 else "bge-m3"
 
 
-def embed(texts):
+def embed(texts: list[str]) -> list[list[float]]:
     body = json.dumps({"model": MODEL, "input": texts}).encode()
     req = urllib.request.Request(
         "http://127.0.0.1:11434/api/embed", data=body, headers={"Content-Type": "application/json"}
@@ -81,10 +82,11 @@ def embed(texts):
     # S310: a literal loopback URL, three lines above. Nothing here takes a
     # host from anywhere.
     with urllib.request.urlopen(req, timeout=300) as r:  # noqa: S310
-        return json.loads(r.read())["embeddings"]
+        vectors: list[list[float]] = json.loads(r.read())["embeddings"]
+        return vectors
 
 
-def coverage(content, terms):
+def coverage(content: str, terms: Sequence[str]) -> float:
     """How much of the question's content the document carries, 0.0 to 1.0.
 
     The same quantity `_confirm_by_coverage` thresholds at 1.0. Computed here
@@ -104,7 +106,7 @@ def coverage(content, terms):
     return matched / total
 
 
-def cosine(a, b):
+def cosine(a: Sequence[float], b: Sequence[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))

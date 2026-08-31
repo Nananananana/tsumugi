@@ -119,6 +119,9 @@ NOT_RUN_HERE: dict[str, str] = {
     "Assert nothing came with it": (
         "asks what a no-extras install contains; this environment has extras"
     ),
+    "Assert the type information shipped with it": (
+        "inspects an installed wheel, not the source tree"
+    ),
     "Assert the contract shipped with it": "inspects an installed wheel, not the source tree",
 }
 
