@@ -114,6 +114,44 @@ script class rather than at the boundary of what gets bigrammed.
 | **B** 22 documents | 0.09 s | 0.02 s | 233 | 0.4 ms | 2.9 ms |
 | **C** 6 documents | 0.06 s | 0.01 s | 102 | 2.4 ms | 4.2 ms |
 
+*Re-measured 2026-08-31, and the corrections are worth more than the numbers.*
+
+| corpus | documents | chars/doc | first ingest | docs/s | re-ingest | ratio |
+|---|---|---|---|---|---|---|
+| `mamori` + `kiseki` working copies | 1,877 | 6,811 | 31.58 s | 59 | 1.55 s | **20.4×** |
+| `tsumugi/tests/cases` | 1,020 | 295 | 2.24 s | 455 | 1.05 s | **2.1×** |
+
+**Documents per second is not a unit.** It moves 7.7× between those two,
+because one corpus has documents twenty-three times the size of the other's.
+The ratio moves with it: 0002 has said **5.5×** since it was written, and these
+give 20.4× and 2.1×.
+
+**A is the same pair of repositories as row A above, and it now holds 1,877
+documents rather than 666.** So the defect in the table is not that its corpora
+are unnamed — they are named, three sections up, with their document counts and
+character counts. It is that **a name is not a pin.** `mamori` + `kiseki` in May
+and `mamori` + `kiseki` today are different corpora sharing a label, and every
+row measured against that label reproduces something else.
+
+**And then the same corpus gave a different answer an hour later.** Re-running
+`tsumugi/tests/cases`, with `git diff` over `src/` between the two runs empty:
+
+| | documents/second | re-ingest |
+|---|---|---|
+| the run in the table above | 455 | 1.05 s |
+| three runs an hour later | 571, 558, 570 | 0.64, 0.63, 0.63 s |
+
+Three consecutive runs agree to **±1%**, and that is what makes it dangerous:
+inside a batch the number looks precise, between batches it moves 25%. What
+changed is the machine, which is running seven other agent sessions and a GPU
+workload. **A repeated measurement is evidence that conditions held during the
+batch, and evidence of nothing else.**
+
+So none of the speed figures on this page are properties of the code alone —
+including the ones taken today to correct the ones taken before. `bench` holds
+a lease for the GPU for exactly this reason. There is no equivalent for the
+CPU, and these were taken without one.
+
 ### Incremental ingestion is further away than the roadmap assumed
 
 The [design](proposals/0001-the-design.md#10-roadmap) holds incremental
