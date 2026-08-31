@@ -8,6 +8,7 @@ its user to ignore the signal, and the signal is the product.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 from hypothesis import given
@@ -70,21 +71,21 @@ def items() -> tuple[ContextItem, ...]:
     )
 
 
-def a_package(**overrides: object) -> ContextPackage:
+def a_package(**overrides: Any) -> ContextPackage:
     selected = overrides.pop("items", items())
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "query": "予算の単位は",
         "items": selected,
         "omissions": (),
         "budget": BudgetReport(
             Budget.characters(1000),
-            sum(i.cost for i in selected),  # type: ignore[union-attr]
+            sum(i.cost for i in selected),
             "characters@1",
         ),
         "provenance": PackageProvenance(tsumugi_version="0.1.0.dev0"),
     }
     defaults.update(overrides)
-    return ContextPackage(**defaults)  # type: ignore[arg-type]
+    return ContextPackage(**defaults)
 
 
 class TestTheSearchForm:

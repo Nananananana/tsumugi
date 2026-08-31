@@ -100,10 +100,16 @@ Taken from `kiseki` and `mamori`, which paid for them.
 - Any test that invokes the CLI isolates itself: chdir to `tmp_path` and strip
   `TSUMUGI_*`. A CLI test that writes into a developer's real index is a bug
   waiting in every future test file.
-- Checks before every green commit: `uv run pytest -q`, `uv run mypy src`,
-  `uv run lint-imports`, `uv run ruff check --fix .`, `uv run ruff format .`,
+- Checks before every green commit: **`uv run python tools/gates.py`**, then
+  `uv run ruff check --fix .`, `uv run ruff format .`,
   `uv run pre-commit run --all-files`. If pre-commit rewrites anything,
   `git add` and run it again — a commit whose hooks failed did not happen.
+- **Do not narrow a checker on the command line.** This line used to say
+  `uv run mypy src`, which is narrower than `pyproject.toml`'s scope and prints
+  `Success: no issues found in 74 source files` while the configured run checks
+  82 — in the document that teaches people how to run the checks. Found by
+  `musubi` and `release`, who put it better: the config had the right scope and
+  it matched nobody's local run. `gates.py` exists so there is one spelling.
 - Windows: set `PYTHONUTF8=1`. This project handles Japanese text in every test.
 - Read-only dumps for an assistant go **outside** the working tree.
 

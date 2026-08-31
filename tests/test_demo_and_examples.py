@@ -180,7 +180,7 @@ class TestTheOptionalModelStage:
         assert "No model. No network." in capsys.readouterr().out
 
     def test_a_model_that_is_not_running_does_not_fail_the_demo(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # Port 1 on loopback: reserved, and nothing sane is bound to it. The
         # whole arrangement is that selection and verification are local and
@@ -188,13 +188,16 @@ class TestTheOptionalModelStage:
         import tsumugi.interfaces.cli.demo as demo_module
 
         original = demo_module.OllamaProvider
-        demo_module.OllamaProvider = lambda **kwargs: original(  # type: ignore[assignment]
-            url="http://127.0.0.1:1", timeout=5.0, **kwargs
+        # `monkeypatch` rather than assign-and-restore: rebinding a name that
+        # is a class is something mypy refuses to express, and the `try` was
+        # doing by hand what the fixture does by contract.
+        monkeypatch.setattr(
+            demo_module,
+            "OllamaProvider",
+            lambda **kwargs: original(url="http://127.0.0.1:1", timeout=5.0, **kwargs),
         )
-        try:
+        if True:
             assert run_demo(model="nothing-is-listening") == 0
-        finally:
-            demo_module.OllamaProvider = original  # type: ignore[assignment]
 
         out = capsys.readouterr().out
         assert "Everything above still ran" in out
@@ -202,16 +205,19 @@ class TestTheOptionalModelStage:
         assert "citations checked" in out and "left out" in out
 
     def test_it_says_where_it_would_send_before_it_sends(
-        self, capsys: pytest.CaptureFixture[str]
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import tsumugi.interfaces.cli.demo as demo_module
 
         original = demo_module.OllamaProvider
-        demo_module.OllamaProvider = lambda **kwargs: original(  # type: ignore[assignment]
-            url="http://127.0.0.1:1", timeout=5.0, **kwargs
+        # `monkeypatch` rather than assign-and-restore: rebinding a name that
+        # is a class is something mypy refuses to express, and the `try` was
+        # doing by hand what the fixture does by contract.
+        monkeypatch.setattr(
+            demo_module,
+            "OllamaProvider",
+            lambda **kwargs: original(url="http://127.0.0.1:1", timeout=5.0, **kwargs),
         )
-        try:
+        if True:
             run_demo(model="nothing-is-listening")
-        finally:
-            demo_module.OllamaProvider = original  # type: ignore[assignment]
         assert "sending to http://127.0.0.1:1 (local)" in capsys.readouterr().out

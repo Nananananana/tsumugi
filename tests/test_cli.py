@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 # Imported rather than `importorskip`ed: it is in the same `[dev]` extra as
 # pytest, so this file running already means it is installed. Skipping on its
@@ -248,7 +249,7 @@ class TestTrace:
 class TestVerify:
     def _package(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> tuple[Path, dict[str, object]]:
+    ) -> tuple[Path, dict[str, Any]]:
         run("ingest", str(corpus), index=index_path)
         capsys.readouterr()
         run("context", "テント", "--budget", "characters:2000", "--json", index=index_path)

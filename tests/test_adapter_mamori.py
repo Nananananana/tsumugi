@@ -12,6 +12,7 @@ that is a hard constraint rather than a preference.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -303,7 +304,7 @@ class TestTheWholeLoopThroughProtection:
             index=index,  # type: ignore[arg-type]
             cost_model=CharacterCost(),
             budget=Budget.characters(4000),
-            provider=provider,  # type: ignore[arg-type]
+            provider=provider,
             redactor=redactor,
         )
 
@@ -344,7 +345,7 @@ class TestTheWholeLoopThroughProtection:
             index=index,  # type: ignore[arg-type]
             cost_model=CharacterCost(),
             budget=Budget.characters(4000),
-            provider=Silent(),  # type: ignore[arg-type]
+            provider=Silent(),
             redactor=redactor,
         )
         protection = asked.package.provenance.protection
@@ -415,26 +416,26 @@ class TestSurrogateModeRoundTrips:
     session. These tests are what stop that becoming an accident.
     """
 
-    def _mixed_session(self) -> object:
+    def _mixed_session(self) -> Any:
         return mamori.PrivacySession(surrogate_types=frozenset({"PERSON"}))
 
     def test_a_surrogate_is_not_a_token(self) -> None:
         with self._mixed_session() as session:
-            protected = MamoriRedactor(session).protect(TEXT)  # type: ignore[arg-type]
+            protected = MamoriRedactor(session).protect(TEXT)
         # The name is gone and nothing marks where it was.
         assert "田中太郎" not in protected
         assert "<PERSON" not in protected
 
     def test_restoring_still_returns_the_original(self) -> None:
         with self._mixed_session() as session:
-            redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+            redactor = MamoriRedactor(session)
             assert redactor.restore(redactor.protect(TEXT)) == TEXT
 
     def test_a_quoted_fragment_restores(self) -> None:
         # What a model actually returns: part of what it was shown, not all
         # of it. This is the shape ADR-0009 is about.
         with self._mixed_session() as session:
-            redactor = MamoriRedactor(session)  # type: ignore[arg-type]
+            redactor = MamoriRedactor(session)
             protected = redactor.protect(TEXT)
             fragment = protected[: protected.index("さん") + 2]
             assert "田中太郎" in redactor.restore(fragment)

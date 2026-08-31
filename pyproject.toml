@@ -40,6 +40,8 @@ dev = [
     # pydantic in the core (ADR-0001), so the schema and the dataclasses are
     # kept in step by a test rather than derived from one another.
     "jsonschema>=4",
+    # Stubs, so the conformance suite type-checks like everything else.
+    "types-jsonschema",
 ]
 
 # There is deliberately no `siblings` extra. There was one -- `mamori>=0.14` --
@@ -107,19 +109,22 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.12"
-# `src` and `tools`, because a checker narrower than the thing it protects
-# fails silently by construction (mamori's CONTRIBUTING; measured on six
-# repositories by `iriguchi`, which found its own corpus generator unchecked).
-# `tools/` writes the committed fixtures and produces every number in
-# `docs/measurements.md`; nothing else looks at it.
+# Everything: `src`, `tools` and `tests`. A checker narrower than the thing it
+# protects fails silently by construction (mamori's CONTRIBUTING), measured
+# across six repositories by `iriguchi`, which found its own corpus generator
+# unchecked. This was `["src/tsumugi"]` -- 74 of 114 files -- and widening it
+# found that the library shipped without a PEP 561 marker, so every consumer's
+# checker skipped it entirely.
 #
-# `tests/` is **not** in scope yet and that is a gap, not a decision: 33 errors,
-# mostly deliberate `object` annotations and `type: ignore` comments that
-# stopped being needed the moment `py.typed` was added. One is real -- the
-# example parser in `test_a_new_format_needs_no_change_to_the_library` does not
-# satisfy the `Parser` protocol it demonstrates, so the test claims an
-# extensibility a typed user would not get.
-files = ["src/tsumugi", "tools"]
+# `tests/` came in last and cost 33 errors. Nine were `type: ignore` comments
+# that stopped being needed the moment `py.typed` existed. Three were real: the
+# example parsers in `test_parsers.py` demonstrated that "a new format needs no
+# change to the library" with classes that did not satisfy the `Parser`
+# protocol, so the test claimed an extensibility a typed user would not get.
+files = ["src/tsumugi", "tools", "tests"]
+# `tools/` is on the path for the tests that import the gate runner and the
+# seam fixture builder; mypy needs the same path to resolve them.
+mypy_path = ["tools"]
 strict = true
 warn_unreachable = true
 

@@ -32,7 +32,7 @@ from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
 from ...domain.budget import Budget
 from ...errors import TsumugiError
-from ...infrastructure.adapters.ollama import OllamaProvider
+from ...infrastructure.adapters.ollama import OllamaProvider as OllamaProvider
 from ...infrastructure.cost.heuristic import HeuristicTokenCost
 from ...infrastructure.filesystem import walk
 from ...infrastructure.freshness import remembered_roots

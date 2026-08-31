@@ -21,6 +21,7 @@ from tsumugi.infrastructure.parsers import (
 from tsumugi.infrastructure.parsers.lines import iter_lines
 from tsumugi.infrastructure.parsers.plaintext import PlainTextParser, SourceCodeParser
 from tsumugi.infrastructure.parsers.structured import JsonParser
+from tsumugi.ports.parser import ParsedDocument
 
 DOCUMENT = """---
 title: Budget notes
@@ -167,7 +168,7 @@ class TestRegistry:
             suffixes = (".orgmode",)
             media_type = "text/x-org"
 
-            def parse(self, content: str) -> object:  # pragma: no cover - shape only
+            def parse(self, content: str) -> ParsedDocument:  # pragma: no cover
                 raise NotImplementedError
 
         register_parser(OrgParser())
@@ -183,7 +184,7 @@ class TestRegistry:
             suffixes = (".md",)
             media_type = "text/markdown"
 
-            def parse(self, content: str) -> object:  # pragma: no cover - shape only
+            def parse(self, content: str) -> ParsedDocument:  # pragma: no cover
                 raise NotImplementedError
 
         with pytest.raises(ConfigurationError, match="already claimed"):
@@ -195,7 +196,7 @@ class TestRegistry:
             suffixes: tuple[str, ...] = ()
             media_type = "text/plain"
 
-            def parse(self, content: str) -> object:  # pragma: no cover - shape only
+            def parse(self, content: str) -> ParsedDocument:  # pragma: no cover
                 raise NotImplementedError
 
         with pytest.raises(ConfigurationError, match="claims no suffixes"):

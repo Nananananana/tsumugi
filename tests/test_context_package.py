@@ -7,6 +7,7 @@ built wrong and discovered later by a consumer with no way to tell.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 from hypothesis import given
@@ -54,10 +55,10 @@ def item(name: str, start: int, end: int, cost: int = 10) -> ContextItem:
     )
 
 
-def package(**overrides: object) -> ContextPackage:
+def package(**overrides: Any) -> ContextPackage:
     items = overrides.pop("items", (item("itm_001", 0, 20),))
-    spent = sum(i.cost for i in items)  # type: ignore[union-attr]
-    defaults: dict[str, object] = {
+    spent = sum(i.cost for i in items)
+    defaults: dict[str, Any] = {
         "query": "予算について何を決めたか",
         "items": items,
         "omissions": (),
@@ -65,7 +66,7 @@ def package(**overrides: object) -> ContextPackage:
         "provenance": PackageProvenance(tsumugi_version="0.1.0.dev0"),
     }
     defaults.update(overrides)
-    return ContextPackage(**defaults)  # type: ignore[arg-type]
+    return ContextPackage(**defaults)
 
 
 class TestTheContract:
