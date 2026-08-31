@@ -88,6 +88,34 @@ questions is possible for anyone holding the file. Textlessness reduces this; it
 does not remove it. Named in [threat-model.md](../threat-model.md), deletable,
 disableable.
 
+*Amended 2026-08-31, after `seam` generalised a finding about `document_id`.*
+**Frequency analysis is the weaker half.** A question is a short, ordinary
+string, so the hash of one is **confirmable by guessing**:
+
+```text
+ledger row holds  sha256:b599ca82401f0e28...
+  guess "what is the refund window"                  -> no
+  guess "does my insurance cover psychiatric care"   -> CONFIRMED
+```
+
+Anyone holding the file can test *whether a person ever asked about X*, for any
+X they can phrase. That is not repeat-counting; it is membership testing over
+whatever the holder already suspects, which is usually what they wanted. **A
+hash is one-way, and one-wayness stops protecting when the domain is small
+enough to enumerate.**
+
+So rule 1's *"textless means it can default to on without creating a second
+sensitive artefact"* claimed too much. It creates a **less legible** sensitive
+artefact. The ledger is still worth its default, and the reason is now the
+honest one -- it is derived, deletable and switchable off -- rather than a
+claim that there is nothing in it.
+
+**And *disableable* was not true when this was written.** `tsumugi context`
+wrote a row unconditionally; there was no flag. `--no-ledger` exists now, on
+`context` and `ask`, and it declines to create the table rather than writing an
+empty one. A stated mitigation with no mechanism is worth less than no
+mitigation, because it is the one a reader stops looking for.
+
 The closing half only exists when the caller verifies. A caller who builds
 packages and never calls `verify` gets half a ledger: costs without uses. That is
 still useful and it is worth saying that it is half.

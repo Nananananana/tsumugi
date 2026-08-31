@@ -8,6 +8,7 @@ once, badly.
 from __future__ import annotations
 
 import json
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -682,3 +683,39 @@ class TestComparingTwoModels:
         from tsumugi.interfaces.cli import main as module
 
         assert "answer_cases" not in inspect.getsource(module._disagreements)
+
+
+def test_no_ledger_leaves_the_ledger_empty(tmp_path: Path, index_path: Path) -> None:
+    """`--no-ledger` is the switch ADR-0011 said existed.
+
+    The ADR's cost section has said since it was written that the ledger *can
+    be disabled, and disabling it costs only the loop*. There was no way to do
+    it: `tsumugi context` wrote a row unconditionally. A stated mitigation with
+    no mechanism is worth less than no mitigation, because it is the one a
+    reader stops looking for.
+    """
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "note.md").write_text("The tent weighs 2.4kg." + chr(10), encoding="utf-8")
+    assert run("ingest", str(corpus), index=index_path) == 0
+
+    def rows() -> int:
+        """Ledger rows, counting a missing table as none.
+
+        It is missing rather than empty, which is the stronger result: the
+        table is created by the ledger itself, so `--no-ledger` does not write
+        an empty artefact, it declines to make one.
+        """
+        with sqlite3.connect(index_path) as connection:
+            present = connection.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ledger'"
+            ).fetchone()[0]
+            if not present:
+                return 0
+            return int(connection.execute("SELECT count(*) FROM ledger").fetchone()[0])
+
+    run("context", "how heavy is the tent", "--no-ledger", index=index_path)
+    assert rows() == 0, "--no-ledger recorded the build anyway"
+
+    run("context", "how heavy is the tent", index=index_path)
+    assert rows() == 1, "the ledger stopped recording when nothing asked it to"

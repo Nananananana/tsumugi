@@ -143,7 +143,10 @@ Of the context that was sent and checked, 71% was never cited (196 of 274 items)
 ```
 
 The ledger holds identifiers, offsets and counts — never the question, the
-document or the answer. A test greps the database file to prove it.
+document or the answer. A test greps the database file to prove it. It holds a
+*hash* of the question, which groups repeats and, because questions are short
+ordinary strings, lets anyone holding the file confirm a guessed one. `tsumugi
+context --no-ledger` declines to write it at all.
 
 ```console
 $ tsumugi trace "テントは 2.4kg"

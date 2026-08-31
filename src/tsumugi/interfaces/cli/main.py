@@ -115,6 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
     context.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help=(
+            "do not record this build. ADR-0011 said the ledger could be turned "
+            "off and there was no way to do it"
+        ),
+    )
+    context.add_argument(
         "--at",
         metavar="ISO8601",
         help=(
@@ -146,6 +154,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="tokens:4000, characters:20000 or bytes:65536 (default: tokens:4000)",
     )
     question.add_argument("--model", default=DEFAULT_MODEL, help=f"(default: {DEFAULT_MODEL})")
+    question.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help="do not record this exchange",
+    )
     question.add_argument("--url", default=DEFAULT_URL, help=f"(default: {DEFAULT_URL})")
     question.add_argument(
         "--allow-remote",
@@ -469,7 +482,8 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         created_at=args.at or "",
     )
 
-    SqliteLedger(connection).open(package)
+    if not args.no_ledger:
+        SqliteLedger(connection).open(package)
 
     if args.json:
         print(package.to_json())
@@ -524,7 +538,7 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
             budget=budget,
             provider=provider,
             redactor=redactor,
-            ledger=SqliteLedger(connection),
+            ledger=None if getattr(args, "no_ledger", False) else SqliteLedger(connection),
             candidate_limit=config.candidate_limit,
             minimum_score=args.min_score,
             version=__version__,
