@@ -300,6 +300,42 @@ byte-for-byte comparison would report.
 Measured, not asserted: `tests/test_ingest_and_search.py` pins all three cases
 against `hashlib.sha256` computed outside tsumugi.
 
+## What `document_id` is, and is not
+
+`doc_` followed by the first 16 hex of the sha256 of the document's path,
+relative to the directory that was ingested.
+
+**It is opaque, and it is not a key into anything.** The contract says only
+`{"type": "string", "minLength": 1}`, deliberately: nothing about how it is
+derived is promised, and a consumer that parses it, shortens it, or joins on it
+is relying on an implementation detail.
+
+That matters more than it usually would, because `seam` measured something
+nobody designed: **`kiseki`'s note reference is the same construction** — the
+sha256 of the same `/`-separated relative path, truncated to the same 16 hex
+digits — so the ids match apart from the prefix. Neither project imports or
+mentions the other. It is a coincidence of two reasonable choices.
+
+**tsumugi does not promise it and will not.** Anything built on it breaks
+silently and in a particular way: if either project changes its truncation, its
+path normalisation, or the root a path is relative to, the joins do not fail —
+they return **nothing**, which reads exactly like *no matches* and is really
+*the key stopped meaning the same thing*. `seam` declined to write a test for
+it on the grounds that testing an unpromised property creates the promise,
+which is right.
+
+If cross-project joining is ever wanted, the thing to join on is
+`anchor.source_path`, which is in the clear and is the same string both
+projects hashed.
+
+**And the hashing buys less than it looks like.** A path is a low-entropy
+string, so the hash hides it from someone with no idea what it might be and
+confirms it for anyone who can guess: hash `notes/2026/medical/diagnosis.md`,
+compare, done. It is a precaution against a path being *read*, not against one
+being *tested* — and in a package it is usually moot anyway, because
+`anchor.source_path` carries the path in the clear so that a reader can follow
+the citation. Deciding what may leave is `mamori`'s job, not this field's.
+
 ## What the schema cannot say
 
 **`end >= start` is not expressible.** JSON Schema 2020-12 cannot compare two

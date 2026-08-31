@@ -177,9 +177,21 @@ class Document:
 
         Derived from the path rather than from the content, so that editing a
         file produces a new *version* of the same document rather than an
-        unrelated one. Hashed rather than used raw because a path is a string
-        with a person's name and directory layout in it, and ids end up in
-        logs, exports and packages.
+        unrelated one.
+
+        Hashed rather than used raw because a path carries a person's name and
+        directory layout, and ids end up in logs, exports and packages.
+        **That buys less than it sounds like, and the sentence used to stop
+        before saying so.** A path is a low-entropy string, so the hash hides
+        it from someone with no idea what it might be and *confirms* it for
+        anyone who can guess: hashing `notes/2026/medical/diagnosis.md` and
+        comparing is a one-line check, and paths are conventional. It is a
+        precaution against a path being read, not against one being tested.
+
+        And in a package it is usually moot: `anchor.source_path` carries the
+        path in the clear, because a citation a person cannot follow is not
+        much of a citation. Where that matters, `mamori` is the layer that
+        decides what leaves -- not this function.
         """
         return f"doc_{ContentHash.of(source_path).short(16)}"
 
