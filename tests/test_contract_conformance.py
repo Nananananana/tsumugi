@@ -803,12 +803,23 @@ def test_there_is_exactly_one_copy_of_the_contract() -> None:
     build rule surprises someone -- is the failure this catches.
     """
     root = Path(__file__).resolve().parent.parent
-    copies = sorted(
+    published = root / "src" / "tsumugi" / "schemas"
+    stray = sorted(
         path.relative_to(root).as_posix()
         for path in root.rglob("context-package-*.json")
-        if not {".git", ".venv", "dist", "build"} & set(path.parts)
+        if not {".git", ".venv", "dist", "build"} & set(path.parts) and path.parent != published
     )
-    assert copies == [f"src/tsumugi/schemas/{CONTRACT_SCHEMA_NAME}"], copies
+    assert not stray, f"schema files outside {published.relative_to(root)}: {stray}"
+
+    # One file per version, not one file. The first version of this test
+    # asserted the whole list equalled `[context-package-1.json]`, which reads
+    # as "one copy" and means "one version" -- and would have failed the day a
+    # second version shipped, which ADR-0022 says is the only way this contract
+    # can ever gain anything. Verified by putting a real
+    # `context-package-2.json` in place and watching this test go red for the
+    # wrong reason.
+    names = sorted(path.name for path in published.glob("context-package-*.json"))
+    assert len(names) == len(set(names)) and CONTRACT_SCHEMA_NAME in names, names
 
 
 def test_the_loader_and_the_schema_define_the_same_fields() -> None:
@@ -858,7 +869,11 @@ class TestTheSchemaCanBeFetchedByTheNameAPackageCarries:
         assert contract_schema(draft)["$id"].endswith(CONTRACT_SCHEMA_NAME)
 
     def test_a_contract_this_library_does_not_publish_is_refused(self) -> None:
-        for unknown in ("tsumugi.context-package/2", "kiseki.context-package/1"):
+        # Not `/2`. A test whose example of "unpublished" is the next version
+        # to ship is a test that fails on the day it stops being true, and the
+        # thing it was protecting is unaffected. `/99` is not a number this
+        # project will reach.
+        for unknown in ("tsumugi.context-package/99", "kiseki.context-package/1"):
             with pytest.raises(UnsupportedContractError):
                 contract_schema(unknown)
 
