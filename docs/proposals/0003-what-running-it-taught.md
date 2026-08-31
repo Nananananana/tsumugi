@@ -300,9 +300,30 @@ that smuggled one in would be those three decisions reversed without an ADR
 saying so. bm25 already knows this and needs no list, which is the whole
 attraction.
 
-**6. Incremental ingestion.** Unchanged from 0002 and still not close: re-ingest
-over an unchanged corpus is 5.5× cheaper than a cold build, so the ten-second
-threshold arrives near 12,000 documents.
+**6. Incremental ingestion.** Still not close, and **re-measured 2026-08-31
+before being quoted again** — the conclusion held and two of its three numbers
+did not.
+
+| | 0002 said | measured now |
+|---|---|---|
+| ten seconds of re-ingest | ~12,000 documents | **12,100 and 9,700**, on two corpora |
+| re-ingest against cold build | 5.5× cheaper | **20.4× and 2.1×** |
+| first-ingest throughput | 223 documents/second | **59 and 455** |
+
+**Documents per second is not a unit**: it moved 7.7× between two real corpora
+because one has documents twenty-three times the size of the other's. The 5.5×
+ratio was never a property of this code — it was a property of one corpus,
+whose document size nobody recorded, because [the table it came from](../measurements.md)
+does not say which corpus it was.
+
+**The trigger survived anyway, and for a reason worth keeping.** Re-ingest is
+dominated by per-document work — stat, read, hash — not by document size, so
+its rate is stable where the others are not. Two corpora differing 23× in
+document size put ten seconds at 12,100 and 9,700 documents. **That is why it
+is the number to watch**, which 0002 asserted and could not have known.
+
+So: nothing to build. The item stays because the trigger is real and might
+arrive; the numbers under it are now ones that can be re-run.
 
 ### Answered since
 

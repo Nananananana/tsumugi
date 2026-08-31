@@ -122,12 +122,22 @@ real corpus."* At 223 documents per second that trigger arrives at roughly
 **2,200 documents** for a first build.
 
 But the case that actually matters is re-running ingest over a corpus where
-little changed, and that is **5.5× cheaper** — 0.54 s against 2.98 s — because an
-unchanged document skips the store write and the index update entirely. Ten
-seconds of *re-ingest* is around **12,000 documents**.
+little changed, because an unchanged document skips the store write and the
+index update entirely. Ten seconds of *re-ingest* is around **12,000
+documents**.
 
-So the honest position: the trigger is real, it is not close, and the number to
-watch is the re-ingest one rather than the cold-build one. Nothing to build yet.
+**That last number survived re-measurement and it is the only one that did.**
+Re-ingest ran at 1,211 documents/second on the large corpus and 971 on the
+small one, which put ten seconds at 12,100 and 9,700 documents — the same place
+0002 put it, from a different corpus, by a different route. It is stable
+because re-ingest is dominated by per-document work (stat, read, hash) rather
+than by document size, which is exactly why it is the number worth watching.
+
+So the honest position is unchanged and its arithmetic is not: the trigger is
+real, it is not close, and nothing needs building yet. **The cold-build trigger,
+however, has been crossed** — 1,877 real documents take 31.6 seconds, against
+the design's ten. It bought nothing: a first build is a first build, and
+incremental ingestion does not make one faster.
 
 The remaining cost in the re-ingest path is reading and hashing every file. If
 that ever becomes the bottleneck, the cheap fix is a size-and-mtime pre-check
