@@ -393,6 +393,57 @@ the tuning.
 documents look like; that is the axis the numbers above say is load-bearing.
 Nor by a corpus this project selects after seeing the scores.
 
+**Would the commissioned corpus close this? Answered before it arrives**
+*(2026-09-01, at `manager`'s suggestion, and the suggestion is the important
+part: deciding after delivery means the condition gets chosen to fit what
+turned up.)*
+
+**Yes in kind, and not automatically.** The text comes from people outside this
+project and they supply the question, the paraphrase and the neighbour, which
+is what the externality actually rests on. Four things decide whether the
+resulting number means anything, and all four are cheaper to fix now.
+
+*It is scored once, and never tuned against.* The moment a threshold moves
+because of what this corpus said, it stops being held out from the generator
+and becomes another mirror — a better-made one. So: score, record, and if the
+result then prompts a change to retrieval, **the corpus is spent** and closing
+v1.0 needs a second commission. That is a real cost and it is the price of the
+condition meaning what it says.
+
+*The floor does not move to meet the corpus.* If the `ci` floors are not met,
+the answer is to fix retrieval or to state the limitation in the README. It is
+not to lower the floor, and writing that down now is the whole reason to write
+anything down now.
+
+*Each genre records which writer wrote it, at intake.* Two writers is only
+worth having if a score can be split by writer, and it can only be split later
+if it was recorded earlier. `genres.json` said `origin: drafted` and not by
+what, and no care afterwards recovered it. **The same mistake is available here
+and it is available exactly once.**
+
+*And the size is the part I would get wrong.* Thirty to forty documents is
+roughly **ten to thirteen genres**, against thirty here. That matters in a
+specific direction, which this project has already measured on itself:
+
+| | trap rate |
+|---|---|
+| 10 genres | **6.0%** |
+| 30 genres, same generator, no code change | **25.8%** |
+
+**A small corpus fails by flattering.** Ten genres told me retrieval was fine;
+twenty more told me it was not. So a pass on ten to thirteen external genres is
+**weaker evidence than a pass on thirty**, and weaker in the direction that
+feels like success. It is still worth having — the vocabulary is the axis that
+matters, and this is the first corpus where it is not mine — but the number
+gets reported with its genre count beside it, and a pass is recorded as *"the
+floors held on thirteen genres nobody here wrote"*, which is a smaller sentence
+than v1.0 (1) as written.
+
+**So: this closes v1.0 (1) only if the genre count reaches thirty.** Below
+that, it is the strongest evidence this project has ever had and it is not
+enough, and I would rather say so now than discover the arithmetic while
+holding the invoice.
+
 **Two constraints on procuring one, and both are unrecoverable afterwards.**
 Named here for the same reason the drafter was: `genres.json` recorded that a
 genre was drafted and not by what, and no amount of later care can put that
