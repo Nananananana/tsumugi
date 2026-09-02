@@ -8,8 +8,21 @@ from, what was left out, and why.
 A verified citation means the quoted text exists where the model said it does.
 **It does not mean the claim is true.** See ``docs/concept.md``.
 
-Nothing here is stable. The version is a development one and the public
-surface will change.
+**The public surface is this module's ``__all__``, and the rule it follows is
+here rather than only in an ADR.** A name leaves it only after a release in
+which it still works and emits a ``DeprecationWarning`` naming its
+replacement; adding a name breaks nobody and is free. A test pins the list, so
+a rename arrives as an edit to a list of public names rather than as a surprise
+in your build.
+
+That test is not in the wheel, and `kiseki` is right that it therefore does not
+travel: a downstream reading this has the code, not the suite. So the promise
+is written where the code is. What you can check yourself is
+``sorted(tsumugi.__all__)`` against what you import.
+
+Nothing here is stable yet. The version is a development one, the rule above is
+the mechanism rather than a guarantee that 1.0 has arrived, and the surface is
+one day old with two consumers.
 """
 
 from __future__ import annotations

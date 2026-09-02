@@ -550,6 +550,65 @@ class TestOutputEncoding:
     does not get to fail on Japanese.
     """
 
+    def test_a_redirected_package_carries_the_text_it_was_given(self, tmp_path: Path) -> None:
+        """Redirected, on a legacy codepage, byte for byte.
+
+        Three requirements were already met: a real process, the redirect path
+        as well as the console, and output that is valid UTF-8 and valid JSON.
+        `mamori` supplied the fourth by poisoning its own writer with
+        `errors="replace"` and watching the first three pass:
+
+            exit 0 -> valid UTF-8 -> valid JSON -> `original_value: "??"`
+
+        **Valid is not unchanged.** `tsumugi.context-package/1` is frozen and
+        `akashi` and `seam` read it; `additionalProperties: false` constrains
+        the shape and says nothing about whether a value survived the trip. So
+        this asserts the string, not the encoding.
+        """
+        needle = "テントは 2.4kg — café ✓ です。"
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "n.md").write_text("# 装備" + chr(10) * 2 + needle + chr(10), encoding="utf-8")
+        index, out = tmp_path / "index.db", tmp_path / "package.json"
+
+        legacy = {**os.environ, "PYTHONIOENCODING": "cp932"}
+        legacy.pop("PYTHONUTF8", None)
+        runner = (
+            "import sys;from tsumugi.interfaces.cli.main import main;sys.exit(main(sys.argv[1:]))"
+        )
+
+        subprocess.run(  # noqa: S603 - argv is assembled here
+            [sys.executable, "-c", runner, "--index", str(index), "ingest", str(corpus)],
+            capture_output=True,
+            cwd=ROOT,
+            env=legacy,
+        )
+        with out.open("wb") as handle:
+            subprocess.run(  # noqa: S603 - argv is assembled here
+                [
+                    sys.executable,
+                    "-c",
+                    runner,
+                    "--index",
+                    str(index),
+                    "context",
+                    "テントは",
+                    "--json",
+                ],
+                stdout=handle,
+                stderr=subprocess.PIPE,
+                cwd=ROOT,
+                env=legacy,
+            )
+
+        written = out.read_text(encoding="utf-8")
+        package = json.loads(written)
+        assert package["items"], "nothing to check the fidelity of"
+        assert any(needle in item["text"] for item in package["items"]), (
+            "the package is valid JSON and does not contain what was ingested"
+        )
+        assert "?" not in written, "a character was replaced somewhere in the package"
+
     def test_a_users_own_words_survive_it(self, tmp_path: Path) -> None:
         """The characters come from the reader, not from this repository.
 
