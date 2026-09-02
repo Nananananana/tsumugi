@@ -27,6 +27,7 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 # Run from a checkout without installing. A measurement tool that needs an
 # install step is a measurement nobody re-runs.
@@ -266,6 +267,42 @@ def report(result: Measurement) -> None:
     print(f"sqlite {result.sqlite_version}")
 
 
+def _compare(result: Measurement, baseline: dict[str, Any], source: Path) -> None:
+    """Say whether the difference from a baseline can be judged at all.
+
+    The reason `decidable` exists, and the reason it returns three values. A
+    tool that printed "12% faster" from two single runs would be reporting the
+    machine's mood -- measured here at 0.42s across an hour against 0.01s
+    inside a batch.
+    """
+    before = baseline.get("reingest_seconds")
+    if before is None:
+        print("no re-ingest figure in " + str(source) + " to compare against.")
+        return
+
+    difference = result.reingest_seconds - before
+    verdict = decidable(difference, result.reingest_samples)
+    print()
+    if verdict is None:
+        print("  no spread was measured, so nothing can be said about the difference")
+    elif verdict is False:
+        print(
+            f"  re-ingest differs by {difference:+.2f}s, which is inside this run's own "
+            "spread. This run cannot tell whether anything changed."
+        )
+    else:
+        # Deliberately not "changed". Running this against a baseline taken
+        # minutes earlier, with nothing edited, reported -0.10s and landed
+        # here -- the within-batch spread is too narrow to be a floor for
+        # anything measured across batches, which is the NOTE above restated
+        # as a result rather than a caution.
+        print(
+            f"  re-ingest differs by {difference:+.2f}s, larger than this run's spread -- "
+            "which unchanged code has also managed on this machine"
+        )
+    print(f"  (against {before:.2f}s in {source.name}; see the NOTE above about batches)")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("roots", nargs="+", type=Path)
@@ -275,6 +312,11 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=3,
         help="re-ingest runs, to measure this machine's spread (default: 3)",
+    )
+    parser.add_argument(
+        "--against",
+        type=Path,
+        help="a previous --json run: report whether this one differs by more than the spread",
     )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -293,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
     else:
         report(result)
+        if args.against:
+            _compare(result, json.loads(args.against.read_text(encoding="utf-8")), args.against)
     return 0
 
 
