@@ -115,34 +115,6 @@ def _table_bytes(connection: sqlite3.Connection, prefix: str) -> int:
     return total
 
 
-def exceeds_batch_spread(difference: float, samples: list[float]) -> bool | None:
-    """Whether a difference is larger than this run's own within-batch spread.
-
-    **Named for the floor it uses, not for the question a caller wants
-    answered.** It was `decidable()`, which reads at the call site as though a
-    `True` settled something; what it settles is only that the difference beat
-    the spread of three runs taken a minute apart -- and unchanged code has
-    beaten that twice on this machine. A sibling project renamed
-    `improvement_exceeds_noise` to `exceeds_split_noise` for the same reason:
-    a docstring does not reach the line that reads `if x:`.
-
-    Three states, and the middle one is why this is not a ``bool``:
-
-    ``None``   fewer than two samples -- there is no floor, so nothing can be
-               said either way;
-    ``False``  the difference is inside the spread. **Not "no improvement".**
-               *This run cannot tell*, and reporting it as a bool would let a
-               reader hear the stronger thing;
-    ``True``   larger than the spread.
-
-    Borrowed from `bench`'s `improvement_exceeds_noise`, which reached the same
-    three states from the other direction.
-    """
-    if len(samples) < 2:
-        return None
-    return abs(difference) > (max(samples) - min(samples))
-
-
 def measure(roots: list[Path], queries: list[str], repeat: int = 3) -> Measurement:
     result = Measurement(
         corpus_roots=[str(r) for r in roots], sqlite_version=sqlite3.sqlite_version
@@ -276,12 +248,30 @@ def report(result: Measurement) -> None:
 
 
 def _compare(result: Measurement, baseline: dict[str, Any], source: Path) -> None:
-    """Say whether the difference from a baseline can be judged at all.
+    """Report the difference from a baseline, and refuse to judge it.
 
-    The reason `exceeds_batch_spread` exists, and the reason it returns three values. A
-    tool that printed "12% faster" from two single runs would be reporting the
-    machine's mood -- measured here at 0.42s across an hour against 0.01s
-    inside a batch.
+    **The floor this tool has does not cover this comparison, and saying so is
+    the whole function.** `exceeds_batch_spread` is built from runs taken a
+    minute apart; a baseline read from a file was taken whenever it was taken.
+    Using the first as a floor for the second is what produced "larger than the
+    spread" from unchanged code, twice.
+
+    `iriguchi` named the fix, and it is smaller and better than the one I
+    reached for: not softer wording on the `True` branch, but **samples taken
+    the way the comparison is taken.**
+
+    There was an `exceeds_batch_spread(difference, samples) -> bool | None`
+    here, borrowed from `bench`. It is gone, and the sequence is worth keeping:
+    it was written with no caller, given one, renamed so the call site carried
+    which floor it used -- and then the caller turned out to be the wrong
+    question, which left it with no caller again. **Three passes to notice that
+    the problem was never the name.** Deleted rather than kept for later, on
+    the same rule that removed four exception classes this morning.
+
+    A comparison spanning an hour needs
+    samples spanning an hour. Until this tool can take those, the honest answer
+    is the `None` one -- there is no applicable floor -- and it is the same
+    defect as an empty population reporting on a question it never covered.
     """
     before = baseline.get("reingest_seconds")
     if before is None:
@@ -289,26 +279,15 @@ def _compare(result: Measurement, baseline: dict[str, Any], source: Path) -> Non
         return
 
     difference = result.reingest_seconds - before
-    verdict = exceeds_batch_spread(difference, result.reingest_samples)
     print()
-    if verdict is None:
-        print("  no spread was measured, so nothing can be said about the difference")
-    elif verdict is False:
-        print(
-            f"  re-ingest differs by {difference:+.2f}s, which is inside this run's own "
-            "spread. This run cannot tell whether anything changed."
-        )
-    else:
-        # Deliberately not "changed". Running this against a baseline taken
-        # minutes earlier, with nothing edited, reported -0.10s and landed
-        # here -- the within-batch spread is too narrow to be a floor for
-        # anything measured across batches, which is the NOTE above restated
-        # as a result rather than a caution.
-        print(
-            f"  re-ingest differs by {difference:+.2f}s, larger than this run's spread -- "
-            "which unchanged code has also managed on this machine"
-        )
-    print(f"  (against {before:.2f}s in {source.name}; see the NOTE above about batches)")
+    print(f"  re-ingest differs by {difference:+.2f}s against {before:.2f}s in {source.name}")
+    print("  Whether that means anything is not something this run can say.")
+    print(
+        "  The only spread measured here is within one batch "
+        f"({max(result.reingest_samples) - min(result.reingest_samples):.2f}s across "
+        f"{len(result.reingest_samples)} runs). This comparison spans two, and a floor"
+    )
+    print("  built from one population does not cover a question about another.")
 
 
 def main(argv: list[str] | None = None) -> int:
