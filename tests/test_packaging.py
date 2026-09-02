@@ -83,7 +83,10 @@ def test_every_exception_this_library_exports_can_actually_be_raised() -> None:
         for name, obj in vars(errors).items()
         if isinstance(obj, type) and issubclass(obj, Exception) and not name.startswith("_")
     }
-    source = "\n".join(path.read_text(encoding="utf-8") for path in (ROOT / "src").rglob("*.py"))
+    assert exported, "no exception classes in tsumugi.errors; measuring nothing"
+    modules = sorted((ROOT / "src").rglob("*.py"))
+    assert modules, "no source under src/; measuring nothing"
+    source = "\n".join(path.read_text(encoding="utf-8") for path in modules)
     bases = {base.__name__ for obj in exported.values() for base in obj.__mro__[1:]}
 
     unraisable = sorted(

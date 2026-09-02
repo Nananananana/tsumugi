@@ -25,11 +25,17 @@ LINK = re.compile(r"\[[^\]]*\]\((?!https?:|mailto:|#)([^)#]+)(?:#[^)]*)?\)")
 
 
 def _documents() -> list[Path]:
-    return [
+    found = [
         path
         for path in ROOT.rglob("*.md")
         if not {".git", ".venv", "node_modules"} & set(path.parts)
     ]
+    # `for x in []: assert` is green. A renamed directory or a typo in the
+    # glob would turn every check below into a check of nothing, and nothing
+    # would go red -- `akashi` confirmed the shape by pointing its `SRC` at a
+    # directory that does not exist and watching 35 tests pass.
+    assert found, f"no markdown under {ROOT}; this is measuring nothing"
+    return found
 
 
 def test_every_local_link_in_every_document_resolves() -> None:
