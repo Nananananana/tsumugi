@@ -596,6 +596,30 @@ Reproduce: `tools/measure_embeddings.py` (needs ollama and an embedding model).
 
 ## What a real model does with a package
 
+### The models these numbers name
+
+**A tag is a moving pointer.** `ollama` tags are not digests, so
+`qwen2.5:14b-instruct` can hold different weights next month and nothing in a
+figure recorded against the tag would say so. Digests as of 2026-09-01, on this
+machine:
+
+| tag | digest |
+|---|---|
+| `llama3.1:8b` | `46e0c10c039e` |
+| `qwen2.5:14b-instruct` | `7cdf5a0187d5` |
+| `qwen2.5:14b-instruct-q4_K_M` | `7cdf5a0187d5` |
+| `bge-m3` | `790764642607` |
+| `nomic-embed-text` | `0a109f422b47` |
+
+The last two rows of the first three are **the same digest**: those two tags
+are one set of weights, so a result quoted against one is a result about the
+other. That is worth knowing before anyone reads them as two data points.
+
+Recorded because the family listed "a hosted model changing behind a fixed
+model id" as a floor nobody measures, and the local equivalent is one command
+away. Nothing here re-checks the digest at run time; this is a note about when
+these numbers were taken, not a guarantee about when they are read.
+
 *Measured 2026-08-30 against `ollama/llama3.1:8b`, on the ten held-out cases.
 Reproduce with:*
 

@@ -115,8 +115,16 @@ def _table_bytes(connection: sqlite3.Connection, prefix: str) -> int:
     return total
 
 
-def decidable(difference: float, samples: list[float]) -> bool | None:
-    """Whether a difference is larger than this run's own spread.
+def exceeds_batch_spread(difference: float, samples: list[float]) -> bool | None:
+    """Whether a difference is larger than this run's own within-batch spread.
+
+    **Named for the floor it uses, not for the question a caller wants
+    answered.** It was `decidable()`, which reads at the call site as though a
+    `True` settled something; what it settles is only that the difference beat
+    the spread of three runs taken a minute apart -- and unchanged code has
+    beaten that twice on this machine. A sibling project renamed
+    `improvement_exceeds_noise` to `exceeds_split_noise` for the same reason:
+    a docstring does not reach the line that reads `if x:`.
 
     Three states, and the middle one is why this is not a ``bool``:
 
@@ -270,7 +278,7 @@ def report(result: Measurement) -> None:
 def _compare(result: Measurement, baseline: dict[str, Any], source: Path) -> None:
     """Say whether the difference from a baseline can be judged at all.
 
-    The reason `decidable` exists, and the reason it returns three values. A
+    The reason `exceeds_batch_spread` exists, and the reason it returns three values. A
     tool that printed "12% faster" from two single runs would be reporting the
     machine's mood -- measured here at 0.42s across an hour against 0.01s
     inside a batch.
@@ -281,7 +289,7 @@ def _compare(result: Measurement, baseline: dict[str, Any], source: Path) -> Non
         return
 
     difference = result.reingest_seconds - before
-    verdict = decidable(difference, result.reingest_samples)
+    verdict = exceeds_batch_spread(difference, result.reingest_samples)
     print()
     if verdict is None:
         print("  no spread was measured, so nothing can be said about the difference")
