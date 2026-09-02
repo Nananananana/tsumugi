@@ -590,7 +590,7 @@ class TestOutputEncoding:
             ["forget", "café — notes.md"],
             ["doctor"],
         ):
-            finished = subprocess.run(
+            finished = subprocess.run(  # noqa: S603 - argv is built three lines up
                 [
                     sys.executable,
                     "-c",
