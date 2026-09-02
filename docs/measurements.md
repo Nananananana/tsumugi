@@ -307,6 +307,39 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+### How much of this is free? *(measured 2026-09-01)*
+
+`manager` asked `iriguchi` how much of its headline was just getting the
+majority class right, and the answer overturned two published wins. **The same
+question had never been asked here**, so `tools/measure_baselines.py` asks it
+against two baselines that would be embarrassing to lose to:
+
+| | recall | trap rate |
+|---|---|---|
+| `first_fit` — fill the budget in corpus order, **never read the question** | 70.0% | 75.8% |
+| `no_confirm` — the index's candidates, no confirmation stage | 63.9% | 67.5% |
+| **tsumugi** | **87.2%** | **4.2%** |
+
+**Seventy of the eighty-seven points are free.** A baseline that does not read
+the question at all gets most of the recall, because a case has five documents
+and a budget that fits several — that is the corpus's shape, not retrieval.
+The recall headline has been reported as though it were the library's, and
+about a fifth of it is.
+
+**The trap rate is where the work is:** 75.8% to 4.2%, eighteen-fold. That is
+the number this library earns, and it is the one the design is about — ADR-0007
+over-generates and lets confirmation decide, and this is the measurement of what
+that decision buys.
+
+**And `no_confirm` scores *worse* than never retrieving at all** — 63.9%
+against 70.0%. The index's top candidates fill the budget with documents that
+share words with the question and do not answer it, where corpus order stumbles
+onto the answer more often. Retrieval without confirmation is not a weaker
+version of this library; on this corpus it is worse than nothing, which is the
+sharpest evidence for the two-stage design that has been produced here.
+
+Reproduce: `python tools/measure_baselines.py`.
+
 **All 240 cases** — `tsumugi eval` with no `--tier`. Stated because it was not,
 and the omission cost an afternoon: reading this table beside the sentence
 below it, `--tier full` looks like the way to reproduce it, and `--tier full`
