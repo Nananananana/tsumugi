@@ -85,6 +85,13 @@ packages = ["src/tsumugi"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# An empty `parametrize` list is a *skip* by default, and a skip is green. Five
+# architecture tests parametrize over every module under `src`, so a renamed
+# package or a typo in the glob would turn the whole layer table into a row of
+# skips that nobody reads. `ALL_MODULES` already asserts it is non-empty; this
+# is the general form, from `iriguchi`, and it covers the next parametrize as
+# well as the five that exist.
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.ruff]
 line-length = 100
