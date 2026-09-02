@@ -43,8 +43,13 @@ __all__ = [
     "corpus_state",
 ]
 
-#: **Frozen.** A field may be added; none will be removed or change meaning
-#: inside version 1. A change that a consumer must notice takes a new version.
+#: **Frozen, and closed.** Nothing may be added, removed, or change meaning
+#: inside version 1 (ADR-0022): every object in the schema sets
+#: `additionalProperties: false`, so a consumer validating against it rejects a
+#: package carrying anything it does not list. This comment said "a field may
+#: be added" for a day after the ADR corrected the schema, the docs and
+#: `contract.py` -- the fifth place the promise lived, and the one that was
+#: missed.
 #:
 #: Frozen once a second program had produced and consumed a package rather than
 #: once the calendar said v0.2. The MCP server (ADR-0012) builds one in one

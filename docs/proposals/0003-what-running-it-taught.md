@@ -496,11 +496,25 @@ That is also why an outside writer is not asked to design the adversarial
 setup: it is measurement design, which is this project's half of the split, and
 handing it over would trade a known limitation for an unknown one.
 
-**2. The public surface stops moving without notice.**
+**2. The public surface stops moving without notice.** — **done 2026-09-01,
+[ADR-0023](../adr/0023-the-public-surface-changes-on-notice.md).**
 
-Today anything may be renamed. 1.0 means `build_context`, `search`, `verify`,
-`ask`, the ports and the CLI verbs carry a deprecation policy, and the
-architecture test's layer table gains the public names as a fourth column.
+`tsumugi.__all__` and the CLI verbs are pinned by `tests/test_public_surface.py`,
+so a rename arrives as an edit to a list of public names rather than as a
+surprise in somebody's build. The policy is that a name leaves only after a
+release where it still works and warns.
+
+**Writing it found that the promise named four functions that were not
+exported.** `build_context`, `search`, `verify` and `ask` were all reachable
+only by their full paths; `import tsumugi` could read the contract and not
+build a package. Nine names were added to close that, discovered by running the
+flow rather than reading it — including `cost_model_for`, which is
+public-looking and returns a *string*, so the library's central function
+required an object its public surface could not construct.
+
+The fourth column on the layer table is **not** done and is not being done: the
+pin is a better mechanism than a column, because it fails on a rename rather
+than describing one.
 
 **What 1.0 is deliberately not:** a distribution on PyPI. The name `tsumugi`
 there belongs to an unrelated project, the alternative is a distribution name

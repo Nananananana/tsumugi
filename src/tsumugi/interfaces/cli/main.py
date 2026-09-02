@@ -324,8 +324,24 @@ def _speak_utf8() -> None:
     and an em dash or a kanji is enough to end the run with a traceback in
     place of an answer.
 
-    ``errors="replace"`` is the second half and matters as much. A character
-    that genuinely cannot be written should cost one glyph, not the output.
+    ``errors="replace"`` is the second half. It does **not** fire for the em
+    dash -- once the stream is UTF-8 there is no character it cannot hold --
+    and the sentence here used to say it did. What it catches is a lone
+    surrogate, which arrives from Windows filenames that are not valid UTF-16
+    and would otherwise end a run over a path nobody chose.
+
+    The trade is stated rather than hidden: a redirected stream now carries
+    UTF-8 bytes whatever the console codepage says, so a consumer that decodes
+    as cp932 gets mojibake instead of one lost glyph. That is the right way
+    round for a corpus -- cp932 cannot hold the em dash *or* several thousand
+    characters a note might use -- but it is a choice, and a `cp932` **console**
+    is unaffected either way, because Python writes to a real console through
+    the wide API and never encodes at all.
+
+    `manager` flagged this file's em dashes from a scan of six repositories
+    after `akashi` hit a real crash. There is no crash here, and
+    `test_the_demo_survives_a_legacy_codepage` has been asserting that since
+    before the scan.
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)

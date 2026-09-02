@@ -14,6 +14,16 @@ surface will change.
 
 from __future__ import annotations
 
+from .application.ask import Asked, ask
+from .application.build_context import build_context, cost_model_for
+from .application.ingest import IngestReport, ingest_paths
+from .application.search import SearchResult, search
+from .application.verify import (
+    AnswerFormatError,
+    ProtectedPackageError,
+    parse_answer,
+    verify_answer,
+)
 from .contract import CONTRACT_SCHEMA_NAME, contract_schema, contract_schema_text
 from .domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
 from .domain.budget import Budget, Unit
@@ -27,28 +37,52 @@ from .errors import (
     StorageError,
     TsumugiError,
 )
+from .infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
+from .infrastructure.index.fts import FtsIndex
+from .infrastructure.parsers import parser_for
+from .infrastructure.storage.database import connect
+from .infrastructure.storage.sqlite import SqliteDocumentStore
 from .version import __version__
 
 __all__ = [
     "CONTRACT_SCHEMA_NAME",
     "Anchor",
+    "AnswerFormatError",
+    "Asked",
     "Block",
     "Budget",
+    "ByteCost",
+    "CharacterCost",
     "ConfigurationError",
     "ContentHash",
     "Document",
+    "FtsIndex",
+    "HeuristicTokenCost",
+    "IngestReport",
     "IngestionError",
+    "ProtectedPackageError",
     "Resolution",
     "ResolutionStatus",
+    "SearchResult",
     "Section",
     "Span",
+    "SqliteDocumentStore",
     "StorageError",
     "TsumugiError",
     "Unit",
     "UnsupportedContractError",
     "__version__",
+    "ask",
+    "build_context",
+    "connect",
     "contract_schema",
     "contract_schema_text",
+    "cost_model_for",
+    "ingest_paths",
+    "parse_answer",
+    "parser_for",
     "register_block_kind",
     "resolve",
+    "search",
+    "verify_answer",
 ]

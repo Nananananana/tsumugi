@@ -36,6 +36,7 @@ later ADR supersedes it and says so.
 | [0020](0020-a-protection-is-irreversible-until-it-says-otherwise.md) | A protection is irreversible until it says otherwise |
 | [0021](0021-the-ledger-records-that-a-package-was-protected-not-how.md) | The ledger records *that* a package was protected, not how |
 | [0022](0022-an-unconfirmed-candidate-is-an-omission-not-an-item.md) | An unconfirmed candidate is an omission, not an item |
+| [0023](0023-the-public-surface-changes-on-notice.md) | The public surface changes on notice, and the notice is a diff |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a
