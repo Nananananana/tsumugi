@@ -18,6 +18,7 @@ from .application.ask import Asked, ask
 from .application.build_context import build_context, cost_model_for
 from .application.ingest import IngestReport, ingest_paths
 from .application.search import SearchResult, search
+from .application.trace import trace_quotation
 from .application.verify import (
     AnswerFormatError,
     ProtectedPackageError,
@@ -27,6 +28,7 @@ from .application.verify import (
 from .contract import CONTRACT_SCHEMA_NAME, contract_schema, contract_schema_text
 from .domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
 from .domain.budget import Budget, Unit
+from .domain.claim import Support
 from .domain.document import Block, Document, Section, register_block_kind
 from .domain.hashing import ContentHash
 from .domain.package import UnsupportedContractError
@@ -38,9 +40,12 @@ from .errors import (
     TsumugiError,
 )
 from .infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
+from .infrastructure.filesystem import walk
+from .infrastructure.freshness import remembered_roots
 from .infrastructure.index.fts import FtsIndex
 from .infrastructure.parsers import parser_for
 from .infrastructure.storage.database import connect
+from .infrastructure.storage.ledger import SqliteLedger
 from .infrastructure.storage.sqlite import SqliteDocumentStore
 from .version import __version__
 
@@ -67,7 +72,9 @@ __all__ = [
     "Section",
     "Span",
     "SqliteDocumentStore",
+    "SqliteLedger",
     "StorageError",
+    "Support",
     "TsumugiError",
     "Unit",
     "UnsupportedContractError",
@@ -82,7 +89,10 @@ __all__ = [
     "parse_answer",
     "parser_for",
     "register_block_kind",
+    "remembered_roots",
     "resolve",
     "search",
+    "trace_quotation",
     "verify_answer",
+    "walk",
 ]

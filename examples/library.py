@@ -16,20 +16,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from tsumugi.application.build_context import build_context
-from tsumugi.application.ingest import ingest_paths
-from tsumugi.application.trace import trace_quotation
-from tsumugi.application.verify import verify_answer
-from tsumugi.domain.budget import Budget
-from tsumugi.domain.claim import Support
-from tsumugi.infrastructure.cost.heuristic import CharacterCost, HeuristicTokenCost
-from tsumugi.infrastructure.filesystem import walk
-from tsumugi.infrastructure.freshness import remembered_roots
-from tsumugi.infrastructure.index.fts import FtsIndex
-from tsumugi.infrastructure.parsers import parser_for
-from tsumugi.infrastructure.storage.database import connect
-from tsumugi.infrastructure.storage.ledger import SqliteLedger
-from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
+# One import. This example used to open with fourteen lines reaching into
+# `application`, `domain` and `infrastructure` -- which is how the library was
+# actually usable, and how nobody should have to use it. Everything below comes
+# off the top level now; `tests/test_public_surface.py` pins that list, and
+# ADR-0023 says what happens before a name in it moves.
+from tsumugi import (
+    Budget,
+    CharacterCost,
+    FtsIndex,
+    HeuristicTokenCost,
+    SqliteDocumentStore,
+    SqliteLedger,
+    Support,
+    build_context,
+    connect,
+    ingest_paths,
+    parser_for,
+    remembered_roots,
+    trace_quotation,
+    verify_answer,
+    walk,
+)
 
 NOTES = {
     "design.md": (

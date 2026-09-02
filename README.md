@@ -187,6 +187,42 @@ The agent is the reason the contract is a document rather than a Python class:
 resolves the citations in another — through JSON, with no shared objects. That
 round trip is what the contract was frozen on.
 
+## From Python
+
+The whole job from one import. `examples/library.py` is the same path with the
+reasons written out, and a test runs it — it opened with **fourteen** deep
+imports until this was written, which is how the library was usable and how
+nobody should have had to use it.
+
+```python
+import tsumugi
+
+connection = tsumugi.connect("index.db")
+store, index = tsumugi.SqliteDocumentStore(connection), tsumugi.FtsIndex(connection)
+
+tsumugi.ingest_paths(paths, root=root, store=store, index=index, parser_for=tsumugi.parser_for)
+
+package = tsumugi.build_context(
+    "テントは",
+    store=store,
+    index=index,
+    budget=tsumugi.Budget.characters(4000),
+    cost_model=tsumugi.CharacterCost(),
+)
+
+for item in package.items:
+    print(item.anchor.source_path, item.text)
+for left_out in package.omissions:  # ADR-0005: an empty package still explains itself
+    print(left_out.rule, left_out.reason)
+
+connection.close()  # the caller owns it; the CLI has its own registry
+```
+
+`tsumugi.__all__` and the CLI verbs are pinned by a test
+([ADR-0023](docs/adr/0023-the-public-surface-changes-on-notice.md)), so a
+rename arrives as an edit to a list of public names rather than as a surprise
+in your build.
+
 ## The one thing to be clear about
 
 **A resolved quotation means the text exists where it was said to. It does not

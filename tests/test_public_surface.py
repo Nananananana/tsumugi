@@ -40,6 +40,11 @@ import tsumugi
 #: around it.
 PUBLIC_SURFACE = frozenset(
     {
+        "SqliteLedger",
+        "Support",
+        "remembered_roots",
+        "trace_quotation",
+        "walk",
         "Anchor",
         "AnswerFormatError",
         "Asked",
