@@ -8,6 +8,7 @@ once, badly.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -548,6 +549,64 @@ class TestOutputEncoding:
     run with a traceback in place of an answer. A library for Japanese notes
     does not get to fail on Japanese.
     """
+
+    def test_a_users_own_words_survive_it(self, tmp_path: Path) -> None:
+        """The characters come from the reader, not from this repository.
+
+        `manager` scanned six repositories for string literals outside cp932
+        and handed tsumugi two em dashes. The scan was the wrong shape and
+        `iriguchi` proved it by finding a real crash the scan could not have
+        seen: `iriguchi ask --dry-run` died on a prompt containing `é`, and no
+        literal in that repository held one.
+
+        **The question is not whether this repository contains a character
+        cp932 lacks. It is whether a command ends when a reader types one.**
+        The test above only ever ran `demo`, whose data this project invented,
+        so it could not have answered that either.
+
+        cp932 has `…` and `→` and every kana. It does not have `—`, `é`, `•`
+        or a non-breaking space -- measured by `iriguchi` against the codec
+        rather than assumed, after a first table got it backwards.
+        """
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        # In the filename as well: a path is printed back in search results and
+        # in `doctor`, and it is the one string the reader did not type.
+        (corpus / "café — notes.md").write_text(
+            "# Café" + chr(10) * 2 + "The café — it opens at 9." + chr(10),
+            encoding="utf-8",
+        )
+        index = tmp_path / "index.db"
+
+        legacy = {**os.environ, "PYTHONIOENCODING": "cp932"}
+        legacy.pop("PYTHONUTF8", None)
+
+        for argv in (
+            ["ingest", str(corpus)],
+            ["search", "café — opens"],
+            ["context", "café — opens"],
+            ["trace", "café — it opens"],
+            ["search", "nothing-matches-é—"],
+            ["forget", "café — notes.md"],
+            ["doctor"],
+        ):
+            finished = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys;from tsumugi.interfaces.cli.main import main;"
+                    "sys.exit(main(sys.argv[1:]))",
+                    "--index",
+                    str(index),
+                    *argv,
+                ],
+                capture_output=True,
+                cwd=ROOT,
+                env=legacy,
+            )
+            stderr = finished.stderr.decode("utf-8", "replace")
+            assert "UnicodeEncodeError" not in stderr, f"{argv[0]}: {stderr[-400:]}"
+            assert "Traceback" not in stderr, f"{argv[0]}: {stderr[-400:]}"
 
     def test_the_demo_survives_a_legacy_codepage(self) -> None:
         finished = subprocess.run(
