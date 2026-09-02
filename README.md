@@ -353,28 +353,45 @@ number in this project that asks for a feature rather than permitting one — an
 that is what decides what gets built next
 ([docs/proposals/0002](docs/proposals/0002-what-building-it-taught.md)).
 
-## Three projects
+## Six projects
 
-tsumugi is the middle of three local-first libraries that share a constitution
-and share no code.
+tsumugi is one of six local-first libraries that share a constitution and share
+no code. The question each one answers is the whole of the difference between
+them.
 
 | | | Answers |
 |---|---|---|
 | [kiseki](https://github.com/Nananananana/kiseki) | **Remember** | What happened, and what it suggests you care about |
+| [musubi](https://github.com/Nananananana/musubi) | **Convert** | What a PDF or a page says — and where in the original each piece was |
 | **tsumugi** | **Connect** | What is worth sending, and where it came from |
 | [mamori](https://github.com/Nananananana/mamori) | **Protect** | Whether it is safe to send |
+| [akashi](https://github.com/Nananananana/akashi) | **Check** | Whether the particulars — numbers, dates, units — hold up |
+| [iriguchi](https://github.com/Nananananana/iriguchi) | **Route** | Whether a prompt goes to a local model, out through mamori, or nowhere |
 
-**tsumugi's core does not import kiseki or mamori, and works with neither
-installed.** They will be optional adapters. That is a hard constraint checked by
-the build, not an aspiration — see [docs/concept.md](docs/concept.md).
+They compose in one direction and nothing enforces that they must: musubi
+converts, tsumugi selects, akashi checks the particulars, mamori decides what
+may leave, iriguchi decides whether to ask at all. `akashi` verifies
+*particulars* where tsumugi's `verify` resolves *citations*, which is what
+keeps the two from being the same tool.
+
+**tsumugi's core imports none of them and works with none installed.** `kiseki`
+and `mamori` have optional adapters under `infrastructure/adapters/`; that they
+are the only place allowed to name a sibling is a hard constraint checked by the
+build, not an aspiration — see [docs/concept.md](docs/concept.md).
 
 ## Contributing
 
 `AGENTS.md` holds the rules and the current state. Before any commit:
 
 ```bash
-uv run pytest -q && uv run mypy && uv run lint-imports && uv run ruff check --fix . && uv run ruff format .
+uv run python tools/gates.py
 ```
+
+That runs exactly what CI gates — ruff, `mypy --strict`, five `import-linter`
+contracts, the suite, the fixture oracle and the evaluation floors — and judges
+each by its exit code. One spelling, because a command list maintained by hand
+beside a config drifts: `AGENTS.md` said `uv run mypy src` while the config
+checked `src` *and* `tools`, and the narrower one printed `Success`.
 
 ## License
 
