@@ -147,6 +147,18 @@ changed is the machine, which is running seven other agent sessions and a GPU
 workload. **A repeated measurement is evidence that conditions held during the
 batch, and evidence of nothing else.**
 
+`tools/measure_index.py` now repeats the re-ingest and prints a band rather
+than a number, with the caveat **above** it rather than below — a reader who
+has already seen a figure has finished forming an opinion about it. It also
+says what the band is not: repeating within one batch measures how still the
+machine held for a minute, not how still it holds for a day, and those differ
+here by a factor of ten (0.01s within a batch against 0.42s across an hour).
+
+The helper that decides whether a difference is real returns `bool | None`,
+because **`False` has to mean *this run cannot tell*, not *no improvement***.
+Written as a `bool` it lets a reader hear the stronger thing. The three states
+are `bench`'s, arrived at from the other direction.
+
 So none of the speed figures on this page are properties of the code alone —
 including the ones taken today to correct the ones taken before. `bench` holds
 a lease for the GPU for exactly this reason. There is no equivalent for the

@@ -78,6 +78,7 @@ class Measurement:
     #: decides when incremental ingestion is worth building: every file is
     #: still read, hashed and parsed, and only the store write is skipped.
     reingest_seconds: float = 0.0
+    reingest_samples: list[float] = field(default_factory=list)
     search_p50_ms: float = 0.0
     search_p95_ms: float = 0.0
     searches_returning_nothing: int = 0
@@ -113,7 +114,27 @@ def _table_bytes(connection: sqlite3.Connection, prefix: str) -> int:
     return total
 
 
-def measure(roots: list[Path], queries: list[str]) -> Measurement:
+def decidable(difference: float, samples: list[float]) -> bool | None:
+    """Whether a difference is larger than this run's own spread.
+
+    Three states, and the middle one is why this is not a ``bool``:
+
+    ``None``   fewer than two samples -- there is no floor, so nothing can be
+               said either way;
+    ``False``  the difference is inside the spread. **Not "no improvement".**
+               *This run cannot tell*, and reporting it as a bool would let a
+               reader hear the stronger thing;
+    ``True``   larger than the spread.
+
+    Borrowed from `bench`'s `improvement_exceeds_noise`, which reached the same
+    three states from the other direction.
+    """
+    if len(samples) < 2:
+        return None
+    return abs(difference) > (max(samples) - min(samples))
+
+
+def measure(roots: list[Path], queries: list[str], repeat: int = 3) -> Measurement:
     result = Measurement(
         corpus_roots=[str(r) for r in roots], sqlite_version=sqlite3.sqlite_version
     )
@@ -130,12 +151,20 @@ def measure(roots: list[Path], queries: list[str]) -> Measurement:
             ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
         result.ingest_seconds = time.perf_counter() - started
 
-        # The same walk again, over an unchanged corpus.
-        started = time.perf_counter()
-        for root in roots:
-            found = walk(root)
-            ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
-        result.reingest_seconds = time.perf_counter() - started
+        # The same walk again, over an unchanged corpus -- repeated, because a
+        # single number here is false precision. The same corpus on this
+        # machine read 455 and 571 documents/second an hour apart with no code
+        # changed, while three consecutive runs agreed to 1%. Repetition
+        # measures the width of a batch, not the width of a day.
+        for _ in range(repeat):
+            started = time.perf_counter()
+            for root in roots:
+                found = walk(root)
+                ingest_paths(
+                    found.files, root=root, store=store, index=index, parser_for=parser_for
+                )
+            result.reingest_samples.append(time.perf_counter() - started)
+        result.reingest_seconds = min(result.reingest_samples)
 
         connection.commit()
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -207,7 +236,30 @@ def report(result: Measurement) -> None:
         f"  ingest    {result.ingest_seconds:.2f}s "
         f"({result.documents_per_second:.0f} documents/second)"
     )
-    print(f"  re-ingest {result.reingest_seconds:.2f}s (unchanged corpus)")
+    samples = result.reingest_samples
+    if len(samples) > 1:
+        spread = max(samples) - min(samples)
+        # Above the numbers, not below them. A reader who has already seen a
+        # figure has finished forming an opinion about it -- `bench`'s point,
+        # and the reason this line is not a footnote.
+        print(
+            f"  NOTE: re-ingest spans {spread:.2f}s across {len(samples)} runs *in one batch*, "
+            f"which is a floor and not the floor."
+        )
+        print(
+            "        The same corpus on this machine read 1.05s and 0.63s an hour apart "
+            "with nothing changed."
+        )
+        print(
+            "        Repetition measures how still the machine held during these runs. "
+            "It does not measure the day."
+        )
+        print(
+            f"  re-ingest {min(samples):.2f}-{max(samples):.2f}s "
+            f"({len(samples)} runs, unchanged corpus)"
+        )
+    else:
+        print(f"  re-ingest {result.reingest_seconds:.2f}s (unchanged corpus)")
     print(f"  search    p50 {result.search_p50_ms:.1f} ms, p95 {result.search_p95_ms:.1f} ms")
     print(f"  {result.searches_returning_nothing} of the queries found nothing")
     print()
@@ -218,6 +270,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("roots", nargs="+", type=Path)
     parser.add_argument("--queries", type=Path, help="one query per line")
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=3,
+        help="re-ingest runs, to measure this machine's spread (default: 3)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -230,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.queries:
         queries = [q for q in args.queries.read_text(encoding="utf-8").splitlines() if q.strip()]
 
-    result = measure([r.resolve() for r in args.roots], queries)
+    result = measure([r.resolve() for r in args.roots], queries, repeat=args.repeat)
     if args.json:
         print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
     else:
