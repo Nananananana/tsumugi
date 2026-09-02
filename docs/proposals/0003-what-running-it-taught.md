@@ -198,7 +198,29 @@ survive the trap measurement, not the recall one.
 **Does not close** with an implementation; if a change to what a package means
 arrives as a diff, the decision was never made.
 
-**4. Chinese, or an honest sentence about it.**
+**4. Chinese, or an honest sentence about it.** — **the sentence is written,
+2026-09-01. The structural half remains.**
+
+The *or* was doing real work here and only one branch ever needed the corpus.
+The README now carries the numbers rather than leaving them in a measurement
+table nobody outside this repository reads:
+
+| | recall |
+|---|---|
+| English | 90.7% |
+| Japanese | 88.3% |
+| Korean | 83.3% |
+| Chinese | 83.3% |
+
+with the reason (Chinese has no script boundary between content and grammar, so
+nothing can be dropped from a question), the refused fix (a dictionary), and
+two limits on the numbers themselves — the corpus is this project's own, and
+its Chinese and Korean genres were drafted by a model nobody recorded.
+
+**What still waits on the commission** is whether something structural exists
+that is not a dictionary. That is the half that needs a corpus this project did
+not write, because a character-level rule tuned on genres I generated would be
+tuned on my idea of Chinese.
 
 Japanese has kana and Korean has spaces; Chinese has neither, so a whole
 question is one content term and nothing can be dropped. Either something

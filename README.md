@@ -165,6 +165,32 @@ are the backbone of the written language. Both were measured before anything was
 built, and the numbers are in
 [ADR 0007](docs/adr/0007-index-japanese-by-bigram.md).
 
+**Chinese and Korean work less well, and here is how much less.** Evidence
+recall over the whole evaluation corpus, by the language of the question:
+
+| | recall | cases |
+|---|---|---|
+| English | 90.7% | 54 |
+| Japanese | 88.3% | 60 |
+| Korean | 83.3% | 30 |
+| Chinese | 83.3% | 36 |
+
+Every miss is the same shape: a question that shares no contiguous phrase with
+the document. Japanese has kana between its content words and Korean has
+spaces, so something in the question can be dropped and the rest still
+confirmed. **Chinese has neither**, so a whole question is one content term and
+nothing can be dropped — and the fix that would help is a dictionary, which
+[ADR 0007](docs/adr/0007-index-japanese-by-bigram.md), ADR-0018 and ADR-0019
+each refused for the same reason: a word list is a thing that has to be
+maintained, per language, forever.
+
+Two honest limits on those numbers. They come from a corpus this project
+generated, and the Chinese and Korean genres in it were **all drafted by a
+model whose name was not recorded** — so they measure vocabulary that is not
+mine, drafted by something I cannot name. And retrieval is lexical throughout:
+when it misses, the package says so and names the rule, rather than returning a
+passage it could not confirm.
+
 ## For an agent
 
 `tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — four tools,
