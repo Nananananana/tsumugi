@@ -86,9 +86,35 @@ turn on is a check that is off. The path usually contains a username and a
 directory layout. It is a small addition to a file that already holds the
 documents themselves, and it is stated here rather than discovered.
 
-**A ledger is a record of your questions.** It holds no document text, but a list
-of what you asked and when is itself revealing. It can be disabled and it can be
-deleted.
+**A ledger is a record of your questions, and the hash does not hide them.** It
+holds no text — it holds `sha256(query)`, which groups repeats. That was
+described here as reducing the exposure, and it does less than it sounds like:
+
+```text
+ledger row holds  sha256:b599ca82401f0e28...
+  guess "what is the refund window"                  -> no
+  guess "does my insurance cover psychiatric care"   -> CONFIRMED
+```
+
+**A question is a short, ordinary string.** So anyone holding the file can test
+*whether you ever asked about X*, for any X they can phrase — membership
+testing over whatever they already suspect, which is usually what they wanted.
+Frequency analysis over repeats is the weaker half of this, and it was the only
+half stated until 2026-09-01. **A hash is one-way, and one-wayness stops
+protecting when the domain is small enough to enumerate.**
+
+It is on by default, it can be deleted, and `tsumugi context --no-ledger` and
+`tsumugi ask --no-ledger` decline to write it — declining to *create the table*
+rather than writing an empty one. Until 2026-09-01 this document and ADR-0011
+both said it could be disabled and there was no way to do it.
+
+**`anchor.document_id` confirms a guessed path, for the same reason.** It is
+`doc_` plus the first 16 hex of `sha256(relative path)`, and a path is
+low-entropy: hashing `notes/2026/medical/diagnosis.md` and comparing is a
+one-line check. It is a precaution against a path being *read*, not against one
+being *tested* — and in a package it is usually moot anyway, because
+`anchor.source_path` carries the path in the clear so a reader can follow the
+citation. What may leave is `mamori`'s decision, not this field's.
 
 **Deleting a source file does not delete the evidence.** The index keeps the text
 it anchored ([ADR 0010](adr/0010-the-index-stores-the-text.md)). `tsumugi forget`
@@ -108,7 +134,7 @@ worse than silence.
 | The index is **not** written inside the corpus folder | Corpus folders get synced, shared and committed. Cloud-syncing a complete plaintext index of your notes is a one-line mistake, and putting the file there invites it |
 | `.tsumugiignore`, plus `.gitignore` semantics, honoured by default | The patterns people already wrote to keep secrets out of git are the patterns they meant |
 | Files matching credential patterns (`.env`, `*.pem`, `id_*`, `*.key`) are skipped, and the skip is **reported** | Silent skipping and silent inclusion are both wrong. Say what was not read |
-| The ledger is on, and holds no text | The feedback loop is the point of the design; the text is not needed for it |
+| The ledger is on, and holds no text | The feedback loop is the point of the design; the text is not needed for it. It holds a hash of the query, which confirms a guess — see above, and `--no-ledger` |
 | `mamori` is off unless configured | An optional dependency that turns itself on is not optional. But see the README wording below |
 | No telemetry, ever | Not a setting |
 
