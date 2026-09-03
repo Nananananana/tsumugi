@@ -46,6 +46,12 @@ ALLOWED: dict[str, frozenset[str]] = {
     # against. `domain` is stdlib-only and imports nothing, so the wheel-only
     # consumer is no worse off; what changed is the layering, not the reach.
     "contract": frozenset({"domain"}),
+    # Translates a package into the shapes LangChain and LlamaIndex speak, and
+    # reads theirs back. Depends on nothing -- not on them, and not on this
+    # library's own layers: it takes the package's dictionary form so a
+    # consumer who received one over the wire can convert it without importing
+    # a domain type.
+    "interop": frozenset(),
     "ports": frozenset({"domain", "errors"}),
     "infrastructure": frozenset({"domain", "ports", "errors", "version"}),
     "application": frozenset({"domain", "ports", "errors", "version"}),
@@ -79,6 +85,7 @@ ALLOWED: dict[str, frozenset[str]] = {
             "errors",
             "version",
             "contract",
+            "interop",
         }
     ),
 }

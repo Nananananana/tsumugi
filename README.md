@@ -213,6 +213,35 @@ The agent is the reason the contract is a document rather than a Python class:
 resolves the citations in another — through JSON, with no shared objects. That
 round trip is what the contract was frozen on.
 
+## Already using LangChain or LlamaIndex
+
+The barrier to trying a retrieval library is the plumbing, so this speaks both
+shapes and **imports neither**:
+
+```python
+from langchain_core.documents import Document
+
+pages = tsumugi.as_documents(package)  # dicts both constructors accept
+documents = [Document(**page) for page in pages]
+
+tsumugi.texts_from(their_documents)  # and the other direction
+```
+
+`TextNode(**page)` works the same way — each page carries `page_content` *and*
+`text`, so a consumer does not have to know which library it was converted for.
+Both are exercised in CI against the **real** classes, because `Document` and
+`TextNode` belong to other people and other people change shapes.
+
+**What survives the trip is the point.** Each page's metadata carries the whole
+anchor — document id, offsets, both hashes — so a chain can hand an answer back
+to `verify` and get citations checked, having only ever handled `Document`
+objects. A retriever gives a pipeline text and a source; this gives it evidence.
+
+And the omissions travel, as pages with `kind: "omission"` and **empty text**,
+so concatenating `page_content` cannot send a reason to a model as though it
+were evidence. A pipeline that drops them has thrown away the half of the
+package that makes it a package.
+
 ## From Python
 
 The whole job from one import. `examples/library.py` is the same path with the

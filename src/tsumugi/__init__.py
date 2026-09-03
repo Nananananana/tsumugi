@@ -61,6 +61,7 @@ from .infrastructure.parsers import parser_for
 from .infrastructure.storage.database import connect
 from .infrastructure.storage.ledger import SqliteLedger
 from .infrastructure.storage.sqlite import SqliteDocumentStore
+from .interop import as_documents, texts_from
 from .version import __version__
 
 __all__ = [
@@ -94,6 +95,7 @@ __all__ = [
     "Unit",
     "UnsupportedContractError",
     "__version__",
+    "as_documents",
     "ask",
     "build_context",
     "by_score",
@@ -109,6 +111,7 @@ __all__ = [
     "remembered_roots",
     "resolve",
     "search",
+    "texts_from",
     "trace_quotation",
     "verify_answer",
     "walk",

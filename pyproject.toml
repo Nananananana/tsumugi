@@ -42,6 +42,12 @@ dev = [
     "jsonschema>=4",
     # Stubs, so the conformance suite type-checks like everything else.
     "types-jsonschema",
+    # The two libraries `interop` claims to speak. Nothing in `src/` imports
+    # them; they are here so the *claim* is tested against the real classes
+    # rather than against this repository's idea of them. `Document` and
+    # `TextNode` are other people's shapes, and other people change shapes.
+    "langchain-core>=0.3",
+    "llama-index-core>=0.12",
 ]
 
 # Optional, and every one of them is outside the core. The domain imports
@@ -163,7 +169,15 @@ warn_unreachable = true
 # mypy still type-checks against the real thing. `ignore_missing_imports` only
 # governs what happens when the module cannot be found at all.
 [[tool.mypy.overrides]]
-module = ["mamori.*", "mamori", "kiseki.*", "kiseki", "janome.*", "jieba", "fastembed.*"]
+module = [
+    "mamori.*",
+    "mamori",
+    "kiseki.*",
+    "kiseki",
+    "janome.*",
+    "jieba",
+    "fastembed.*",
+]
 ignore_missing_imports = true
 
 [tool.coverage.run]

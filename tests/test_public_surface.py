@@ -48,6 +48,8 @@ PUBLIC_SURFACE = frozenset(
         "ORDERINGS",
         "by_score",
         "maximal_marginal_relevance",
+        "as_documents",
+        "texts_from",
         "Anchor",
         "AnswerFormatError",
         "Asked",
