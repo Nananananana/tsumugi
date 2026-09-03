@@ -336,6 +336,56 @@ def _occurrences(piece: str, folded: str) -> list[int]:
     return found
 
 
+def _fold_with_origins(content: str) -> tuple[str, list[int]]:
+    """NFKC-casefold ``content``, and say where each folded character came from.
+
+    **Matching happens in folded space and anchors live in original space, and
+    those two are not the same length.** NFKC turns one character into three
+    (``㈱`` -> ``(株)``, ``½`` -> ``1/2``), three into one (halfwidth ``ｶ`` plus
+    a voiced mark -> ``ガ``), and one into two (the ``ﬁ`` ligature, which is
+    what PDF extraction produces). Every one of those shifts every offset after
+    it.
+
+    Before this existed, a span found in folded space was applied directly to
+    the original: a document beginning ``ｶﾞｲﾄﾞ:`` anchored ``テントは`` two
+    characters early and returned ``': テ'``. The item's ``text`` and
+    ``text_hash`` were then both computed from that wrong span, so they agreed
+    with each other and `verify` resolved happily. **A citation pointing at the
+    wrong text, self-consistently.**
+
+    ``origins[i]`` is the index in ``content`` that folded character ``i`` came
+    from. Characters are grouped exactly when they compose -- detected by
+    normalising a pair jointly and separately and seeing whether the results
+    differ -- because a rule based on combining class alone misses the
+    halfwidth voiced marks, whose combining class is 0.
+    """
+    folded: list[str] = []
+    origins: list[int] = []
+    index = 0
+    while index < len(content):
+        size = 1
+        while index + size < len(content) and unicodedata.normalize(
+            "NFKC", content[index : index + size + 1]
+        ) != unicodedata.normalize("NFKC", content[index : index + size]) + unicodedata.normalize(
+            "NFKC", content[index + size]
+        ):
+            size += 1
+        piece = unicodedata.normalize("NFKC", content[index : index + size]).casefold()
+        folded.append(piece)
+        origins.extend([index] * len(piece))
+        index += size
+    return "".join(folded), origins
+
+
+def _origin(origins: list[int], at: int, length: int) -> int:
+    """The index in the original string for folded index ``at``.
+
+    Past the end maps to ``length``, so a span that ends on the last folded
+    character ends at the end of the document rather than one short of it.
+    """
+    return origins[at] if at < len(origins) else length
+
+
 def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
     """Confirm when enough of the question's content is present, and say where.
 
@@ -356,7 +406,7 @@ def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
     if not total:
         return []
 
-    folded = unicodedata.normalize("NFKC", content).casefold()
+    folded, origins = _fold_with_origins(content)
     located: list[tuple[str, list[int]]] = []
     matched = 0
     for term in terms:
@@ -377,9 +427,10 @@ def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
     best_spread = -1
     for anchor in positions:
         spans = [
-            Span(min(at, len(content)), min(at + len(text), len(content)))
+            Span(begins, max(_origin(origins, at + len(text), len(content)), begins))
             for text, occurrences in located
             for at in [min(occurrences, key=lambda p: (abs(p - anchor), p))]
+            for begins in [_origin(origins, at, len(content))]
         ]
         spread = max(s.end for s in spans) - min(s.start for s in spans)
         if best_spans is None or spread < best_spread:
@@ -440,16 +491,14 @@ def _confirm(content: str, needles: Sequence[str]) -> tuple[list[Span], int]:
     the sixth word is the *subject*, that is the difference between the right
     document and a near-miss about something else.
     """
-    folded = unicodedata.normalize("NFKC", content).casefold()
-    # Per-character normalization keeps lengths aligned for the common case;
-    # where it does not, the span is still inside the document and the anchor
-    # records what it actually covers.
+    folded, origins = _fold_with_origins(content)
     found: list[Span] = []
     for needle in sorted(needles, key=len, reverse=True):
         start = folded.find(needle)
         while start != -1 and len(found) < 64:
-            end = min(start + len(needle), len(content))
-            found.append(Span(min(start, len(content)), end))
+            begins = _origin(origins, start, len(content))
+            ends = _origin(origins, start + len(needle), len(content))
+            found.append(Span(begins, max(ends, begins)))
             start = folded.find(needle, start + 1)
         if found:
             return found, len(needle)
