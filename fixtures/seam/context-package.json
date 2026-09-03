@@ -41,7 +41,8 @@
         "signals": [
           "lexical_match",
           "heading_match",
-          "confirmed_in_text"
+          "confirmed_in_text",
+          "confirmed_share:0.88"
         ]
       },
       "text": "テントの重量は2.4kg、二人用。"
@@ -69,7 +70,8 @@
         "signals": [
           "lexical_match",
           "heading_match",
-          "confirmed_in_text"
+          "confirmed_in_text",
+          "confirmed_share:0.88"
         ]
       },
       "text": "テントの重量は3.1kg、二人用。"
@@ -90,7 +92,7 @@
     }
   ],
   "output_schema": null,
-  "package_id": "sha256:111ba10a2a3ae513363ed5b795438e3b4247f2fa29eb56136ea60c7608bc4ee6",
+  "package_id": "sha256:98cefec2db8a9ef55e72b0c1d065d1da22e917793885774647ddfc9d4d659c57",
   "provenance": {
     "corpus_state": "sha256:08d31f83049bdf18b1bcff62a1595f41cffc0233c9011754401c3de9a1893747",
     "protection": null,

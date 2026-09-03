@@ -545,3 +545,49 @@ class TestWhatADocumentHashIsAHashOf:
         assert self._ingested(tmp_path, body) == self._ingested(
             tmp_path / "second", b"\xef\xbb\xbf" + body
         )
+
+
+class TestTheConfirmedShare:
+    """How much of the question was confirmed, not merely that something was.
+
+    `tsumugi eval` reports that 13 unanswerable questions still return context.
+    All are English, because an English question splits into sub-phrases and a
+    partial phrase can confirm against a document that does not answer it. The
+    share separates them -- 0.91 median where an answer exists, 0.44 where it
+    does not -- and it is reported rather than acted on, because cutting at 0.5
+    would take 51 of 157 correct answers with the 11 wrong ones.
+    """
+
+    def test_an_exact_question_confirms_all_of_itself(
+        self, tmp_path: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "terms.md").write_text(
+            "# Terms" + chr(10) * 2 + "The warranty coverage period is 24 months." + chr(10),
+            encoding="utf-8",
+        )
+        _ingest(corpus, store, index)
+        results, _ = search("the warranty coverage period", store=store, index=index)
+        confirmed = [r for r in results if not r.unconfirmed]
+        assert confirmed
+        assert confirmed[0].matched == len("the warranty coverage period")
+
+    def test_a_question_the_document_only_half_answers_says_so(
+        self, tmp_path: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        """The shape of all 13: the phrase is there, the answer is not."""
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "terms.md").write_text(
+            "# Terms" + chr(10) * 2 + "The warranty coverage period is 24 months." + chr(10),
+            encoding="utf-8",
+        )
+        _ingest(corpus, store, index)
+        question = "the warranty coverage period for accessories"
+        results, _ = search(question, store=store, index=index)
+        confirmed = [r for r in results if not r.unconfirmed and r.matched]
+        assert confirmed, "the fixture no longer reaches a partial confirmation"
+        share = confirmed[0].matched / len(question)
+        assert share < 1.0, "a question the document does not answer confirmed entirely"
+        assert share > 0.3, "the fixture confirms so little that it is not the case being tested"

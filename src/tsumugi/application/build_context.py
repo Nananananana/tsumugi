@@ -83,6 +83,20 @@ def build_context(
             signals.append(SIGNAL_SECTION)
         if not result.unconfirmed:
             signals.append(SIGNAL_CONFIRMED)
+            # How much of the question was confirmed here, not merely that
+            # something was. It separates the two situations a bare
+            # `confirmed_in_text` cannot tell apart: on this corpus the median
+            # share is 0.91 where an answer exists and 0.44 where the question
+            # is unanswerable and a partial phrase matched anyway.
+            #
+            # **Reported, not thresholded.** Cutting below 0.5 would silence 11
+            # of the 13 unanswerable cases and destroy 51 of 157 answerable
+            # ones -- an absolute bar tuned here, which ADR-0018 and ADR-0019
+            # each refused, now with a number. A consumer with their own corpus
+            # and their own tolerance can threshold what this reports; this
+            # library does not guess on their behalf.
+            if result.matched and query:
+                signals.append(f"confirmed_share:{min(result.matched / len(query), 1.0):.2f}")
 
         # The index over-generates on purpose and confirmation is what turns a
         # candidate into a result (ADR-0007). A candidate the index proposed and

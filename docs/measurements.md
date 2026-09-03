@@ -307,6 +307,41 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+### The thing it cannot say, and the threshold that will not fix it
+
+`tsumugi eval` reports it in its own output: **13 unanswerable questions still
+returned context.** All thirteen are English, all are genuinely
+`confirmed_in_text`, and the mechanism is specific — an English question splits
+into sub-phrases, so `the coverage period` can confirm against a document that
+never mentions the thing being asked about. A Japanese question with no spaces
+yields one needle and confirms all-or-nothing, which is why none of the
+thirteen are Japanese.
+
+**How much of the question was confirmed separates them cleanly:**
+
+| | cases | median share confirmed |
+|---|---|---|
+| answerable | 124 | **0.91** |
+| unanswerable | 13 | **0.44** |
+
+Which makes a threshold look obvious, and it is not:
+
+| cut | unanswerable silenced | **answerable lost** |
+|---|---|---|
+| 0.5 | 11 of 13 | **51 of 157** |
+| 0.6 | 12 of 13 | 56 of 157 |
+| 0.7 | 13 of 13 | 57 of 157 |
+
+**Thirty-two percent of correct answers, to suppress eleven false ones.**
+ADR-0018 refused a stopword list and ADR-0019 refused an absolute bar, both on
+the argument that a threshold tuned on one corpus does not transfer; this is
+the same refusal with a price on it.
+
+So the share is **reported and not thresholded**. Every confirmed item now
+carries `confirmed_share:0.44` beside `confirmed_in_text`, and a consumer with
+their own corpus and their own tolerance can cut where they like. The library
+does not guess on their behalf, and the number above is why.
+
 ### What external libraries are worth here *(measured 2026-09-01)*
 
 The zero-dependency rule was relaxed for everything outside the domain, which
