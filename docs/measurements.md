@@ -307,6 +307,48 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+### What external libraries are worth here *(measured 2026-09-01)*
+
+The zero-dependency rule was relaxed for everything outside the domain, which
+reopens three things earlier ADRs refused **for dependency reasons rather than
+for evidence**. So they were measured rather than adopted.
+
+**Segmentation does not recover the residual.** ADR-0007 chose bigrams and named
+its own condition: *if the golden retrieval dataset ever shows this costing real
+recall, it comes back as an optional adapter*. Of the 23 cases the lexical stage
+misses:
+
+| terms from | confirm the answer | a rival also confirms |
+|---|---|---|
+| character bigrams (today) | 0 of 23 | 12 |
+| `janome` (Japanese morphology) | **0 of 23** | 7 |
+| `jieba` (Chinese words) | **2 of 23** | 7 |
+
+The condition looked met — Chinese recall is 83.3% — and the measurement says
+the diagnosis was wrong. **These are paraphrases, not mis-segmentations**: the
+question uses different words, and no boundary rule finds a word that is not
+there. A segmenter fixes where words end, and the residual is about which words
+were chosen.
+
+**A cross-encoder recovers them and cannot be trusted to gate them.**
+`BAAI/bge-reranker-base`, the multilingual reranker rival libraries reach for:
+
+| | |
+|---|---|
+| of the 23 misses, answer ranked first | **17** — better than embeddings' 15 |
+| of the 120 trap cases, **the forbidden document ranked first** | **10 (8.3%)** |
+| of the 120 trap cases, the answer ranked first | 53 (44.2%) |
+
+**This library's trap rate is 4.2%.** Letting the reranker decide what is sent
+would roughly double it while ranking the answer first in under half the cases.
+ADR-0022 refused to carry an item nothing lexical confirms; a better model does
+not overturn that, it prices it — seventeen paraphrases, declined.
+
+So the reranker ships where being wrong costs an *ordering* rather than a false
+citation: `--ordering rerank` reorders candidates that confirmation has already
+accepted. Reproduce with `tools/measure_segmenters.py` and the reranker figures
+in `docs/adr/0025-outside-the-domain-a-library-may-help.md`.
+
 ### Does a different ordering help? *(measured 2026-09-01)*
 
 `fit_to_budget` fills a budget best-first, and *best* meant descending score.

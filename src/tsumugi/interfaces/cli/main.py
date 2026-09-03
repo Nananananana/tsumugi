@@ -201,11 +201,12 @@ def build_parser() -> argparse.ArgumentParser:
     for parser_needing_ordering in (context, question):
         parser_needing_ordering.add_argument(
             "--ordering",
-            choices=sorted(ORDERINGS),
+            choices=sorted([*ORDERINGS, "rerank"]),
             help=(
                 "which candidate the budget is offered first. `score` is descending "
                 "relevance and is what the measured numbers were taken on; `mmr` trades "
-                "relevance against novelty (default: from config, then score)"
+                "relevance against novelty; `rerank` asks a cross-encoder, needs "
+                "`tsumugi[research]` and is slow (default: from config, then score)"
             ),
         )
         parser_needing_ordering.add_argument(

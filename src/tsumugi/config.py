@@ -86,11 +86,19 @@ class TsumugiConfig:
         which is the failure this repository has spent a week removing from its
         own claims.
         """
+        if self.ordering == "rerank":
+            # Resolved here rather than in `domain.ORDERINGS`, because the
+            # domain may not know that `infrastructure` exists (ADR-0001) and a
+            # cross-encoder is as far from stdlib-only as this project goes.
+            from .infrastructure.reranking import rerank
+
+            return rerank
         try:
             chosen = ORDERINGS[self.ordering]
         except KeyError:
             raise ConfigurationError(
-                f"unknown ordering {self.ordering!r}. Known: {', '.join(sorted(ORDERINGS))}"
+                f"unknown ordering {self.ordering!r}. "
+                f"Known: {', '.join(sorted([*ORDERINGS, 'rerank']))}"
             ) from None
         if chosen is not maximal_marginal_relevance:
             return chosen

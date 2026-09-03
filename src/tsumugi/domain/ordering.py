@@ -45,7 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover - a type, not a dependency
 __all__ = ["DEFAULT_DIVERSITY", "ORDERINGS", "Ordering", "by_score", "maximal_marginal_relevance"]
 
 #: An ordering takes what could be sent and says in what order to try it.
-Ordering = Callable[[Sequence["Candidate"]], list["Candidate"]]
+Ordering = Callable[[Sequence["Candidate"], str], list["Candidate"]]
 
 #: The λ in Carbonell & Goldstein, named for what it does rather than for its
 #: letter. 1.0 is pure relevance and reduces exactly to ``by_score``; 0.0 is
@@ -63,13 +63,13 @@ def _tiebreak(candidate: Candidate) -> tuple[str, str, int]:
     return (candidate.source_path, candidate.anchor.document_id, candidate.anchor.span.start)
 
 
-def by_score(candidates: Sequence[Candidate]) -> list[Candidate]:
+def by_score(candidates: Sequence[Candidate], query: str = "") -> list[Candidate]:
     """Descending score. The ordering every measured number here was taken on."""
     return sorted(candidates, key=lambda c: (-c.score, *_tiebreak(c)))
 
 
 def maximal_marginal_relevance(
-    candidates: Sequence[Candidate], *, diversity: float = DEFAULT_DIVERSITY
+    candidates: Sequence[Candidate], query: str = "", *, diversity: float = DEFAULT_DIVERSITY
 ) -> list[Candidate]:
     """Relevance traded against novelty, greedily (Carbonell & Goldstein, 1998).
 

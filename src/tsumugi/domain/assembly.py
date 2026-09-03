@@ -87,6 +87,7 @@ def fit_to_budget(
     truncated_at: int | None = None,
     redundancy_threshold: float = DEFAULT_THRESHOLD,
     ordering: Ordering | None = None,
+    query: str = "",
 ) -> Fitted:
     """Choose what fits, and say what did not.
 
@@ -109,7 +110,7 @@ def fit_to_budget(
     # Which candidate is tried first is an algorithm, not a detail, and it is
     # chosen by the caller (`domain/ordering.py`). The default is the score
     # order every measured number in `docs/measurements.md` was taken on.
-    ordered = (ordering or by_score)(candidates)
+    ordered = (ordering or by_score)(candidates, query)
 
     # Ranked order decides which member of a duplicate cluster survives.
     # Redundancy says two passages are alike; it has no way to know which is

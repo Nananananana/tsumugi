@@ -254,6 +254,13 @@ then `--ordering`, with an unknown name **refused rather than ignored**:
 tsumugi context "the warranty coverage period" --ordering mmr --diversity 0.5
 ```
 
+A third, `rerank`, asks a cross-encoder — what most retrieval libraries reach
+for. It needs `pip install "tsumugi[research]"`, downloads a model, and is the
+only thing here that is neither offline nor deterministic. **It reorders
+candidates confirmation has already accepted and cannot add one**, because
+measured as a *gate* it ranks a forbidden document first in 8.3% of trap cases
+against this library's 4.2% ([ADR-0025](docs/adr/0025-outside-the-domain-a-library-may-help.md)).
+
 The default is `score` because that is what the numbers were measured on, and
 because MMR changes the contents of 5 packages in 240 here
 ([ADR-0024](docs/adr/0024-the-ordering-is-a-setting.md)). It is a setting
@@ -335,6 +342,15 @@ boundary is and what drawing it there cost.
 Installing this package without extras installs **one thing**. That is asserted
 on every push: CI installs it into a clean environment and fails if anything
 came with it.
+
+There is one extra, `tsumugi[research]`, and nothing needs it. The rule
+([ADR-0025](docs/adr/0025-outside-the-domain-a-library-may-help.md)) is that
+the domain still imports only the standard library — an architecture test
+enforces that — while `infrastructure/` and `tools/` may reach for a library
+**once it has been measured on this corpus, including when the answer is no.**
+Two of the three candidates measured on the day that rule changed were refused:
+a Japanese and a Chinese segmenter recovered 0 and 2 of 23 missed cases, because
+the residual is paraphrase rather than word boundaries.
 
 *(The sentence used to say `pip install tsumugi`, which is wrong in a way worth
 naming: `tsumugi` on PyPI is somebody else's project — a gene-network tool from

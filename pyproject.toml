@@ -44,6 +44,24 @@ dev = [
     "types-jsonschema",
 ]
 
+# Optional, and every one of them is outside the core. The domain imports
+# nothing but the standard library and an architecture test enforces that
+# (ADR-0001); these live in `infrastructure/` and `tools/`, which is the layer
+# an external library is allowed to reach.
+#
+# **None of them is installed by default and none is required.** `tsumugi`
+# works with none of them, which is what makes them extras rather than
+# dependencies -- and what each one is *worth here* is measured in
+# `docs/measurements.md` rather than assumed from what it does elsewhere.
+research = [
+    # Cross-encoder reranking and ONNX embeddings, without torch.
+    "fastembed>=0.4",
+    # Japanese morphology. Pure Python, dictionary bundled.
+    "janome>=0.5",
+    # Chinese word segmentation.
+    "jieba>=0.42",
+]
+
 # There is deliberately no `siblings` extra. There was one -- `mamori>=0.14` --
 # and no resolver on earth could satisfy it, because mamori is not on PyPI:
 #
@@ -145,7 +163,7 @@ warn_unreachable = true
 # mypy still type-checks against the real thing. `ignore_missing_imports` only
 # governs what happens when the module cannot be found at all.
 [[tool.mypy.overrides]]
-module = ["mamori.*", "mamori", "kiseki.*", "kiseki"]
+module = ["mamori.*", "mamori", "kiseki.*", "kiseki", "janome.*", "jieba", "fastembed.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]

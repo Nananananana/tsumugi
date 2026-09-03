@@ -153,6 +153,7 @@ def build_context(
         cost_of=cost_model.cost,
         minimum_score=minimum_score,
         ordering=ordering,
+        query=query,
         truncated_at=truncation.limit if truncation is not None else None,
     )
 
