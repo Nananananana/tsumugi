@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from tsumugi.application.ingest import ingest_paths
-from tsumugi.application.search import _content_terms, search
+from tsumugi.application.search import RELATIVE_MATCH_FLOOR, _content_terms, search
 from tsumugi.application.trace import trace_anchor, trace_quotation
 from tsumugi.domain.anchor import Anchor, ResolutionStatus
 from tsumugi.domain.span import Span
@@ -175,6 +175,99 @@ class TestSearch:
         _ingest(corpus, store, index)
         results, _ = search("量子色力学", store=store, index=index)
         assert results == []
+
+
+class TestNeedles:
+    """The phrase list a query becomes, at the boundary nothing was testing."""
+
+    def test_two_words_still_make_a_phrase(self) -> None:
+        """`len(words) <= 1` is the single-word shortcut, and one is the edge.
+
+        `tools/mutate.py` moved it to `<= 2` and nothing objected: a two-word
+        query silently became its first word alone, so `warranty coverage`
+        would have retrieved on `warranty` and confirmed on `warranty`. Two
+        words is the commonest shape of a real question after one.
+        """
+        from tsumugi.application.search import _needles
+
+        assert _needles("warranty coverage") == ["warranty coverage"]
+        assert _needles("warranty") == ["warranty"]
+        assert _needles("") == []
+
+
+class TestTheRelativeFloor:
+    """ADR-0019, pinned by a test rather than only by the evaluation floors.
+
+    `tools/mutate.py` found this: mutating the relative-floor expression --
+    `r.unconfirmed or r.matched >= floor or not r.matched` -- survived every
+    unit test. The logic is real and was measured (trap rate 25.8% to 3.3%),
+    but the only thing holding it was `eval --tier ci`, a statistical gate.
+
+    **A statistical gate tells you a number moved. It does not tell you which
+    rule broke**, and it took four attempts to get this rule right. These tests
+    say what it means, so a regression arrives named.
+    """
+
+    def test_a_weak_match_beside_a_strong_one_is_not_evidence(
+        self, tmp_path: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        """The near-miss case, in miniature, in a query the rule can act on.
+
+        **The first draft of this test could not reach the rule**, and finding
+        out why is the useful part. `_needles` splits on whitespace, so a
+        Japanese query with no spaces yields exactly one needle and `matched`
+        is all-or-nothing -- 0 or the whole length, never between. The floor
+        compares against 80% of the best, so with two possible values it can
+        never decide anything. **The relative floor is a multi-word rule**, and
+        nothing said so before this test was written.
+
+        Here the answer matches all 28 characters of the phrase and the
+        neighbour matches `coverage period`, 15 -- below 80% of 28, so it comes
+        back marked rather than ranked.
+        """
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "answer.md").write_text(
+            "# Terms" + chr(10) * 2 + "The warranty coverage period is 24 months." + chr(10),
+            encoding="utf-8",
+        )
+        (corpus / "neighbour.md").write_text(
+            "# Returns" + chr(10) * 2 + "The coverage period for returns is 30 days." + chr(10),
+            encoding="utf-8",
+        )
+        _ingest(corpus, store, index)
+
+        results, _ = search("the warranty coverage period", store=store, index=index)
+        by_path = {r.source_path: r for r in results}
+        assert "corpus/answer.md" in by_path or "answer.md" in str(by_path), by_path
+        answer = next(r for p, r in by_path.items() if "answer" in p)
+        neighbour = next(r for p, r in by_path.items() if "neighbour" in p)
+
+        assert not answer.unconfirmed, "the document that answers the question was dropped"
+        assert neighbour.matched, "the fixture no longer reaches the floor at all"
+        assert neighbour.matched < answer.matched * RELATIVE_MATCH_FLOOR
+        assert neighbour.unconfirmed, "a much weaker match was returned as evidence"
+
+    def test_the_only_match_there_is_still_counts(
+        self, tmp_path: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        """Relative to the best found, not to an absolute bar.
+
+        With one document there is no stronger match to be weak against, so a
+        partial match is the best evidence the corpus has and is returned as
+        such. An absolute threshold would drop it, which is the mistake
+        ADR-0019 exists to avoid.
+        """
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        (corpus / "only.md").write_text(
+            "# 装備" + chr(10) * 2 + "テントの重量は 2.4kg です。" + chr(10), encoding="utf-8"
+        )
+        _ingest(corpus, store, index)
+
+        results, _ = search("テントの重量は", store=store, index=index)
+        assert results, "nothing came back at all"
+        assert not results[0].unconfirmed, "the only evidence there was marked unconfirmed"
 
 
 class TestTrace:

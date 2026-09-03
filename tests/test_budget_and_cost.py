@@ -173,3 +173,27 @@ class TestMeasuredError:
     def test_a_negative_error_is_refused(self) -> None:
         with pytest.raises(ValueError, match="cannot be negative"):
             MeasuredError(p50=-0.1, p95=0.1, against="cl100k_base", dataset="x")
+
+
+def test_a_budget_of_one_is_allowed() -> None:
+    """The smallest budget that admits anything.
+
+    Found by `tools/mutate.py`: changing `limit <= 0` to `limit <= 1` survived,
+    because nothing exercised the boundary. The rule is that a budget of zero
+    admits nothing and is refused; one is legal and admits very little.
+    """
+    assert Budget.characters(1).limit == 1
+    with pytest.raises(ValueError):
+        Budget.characters(0)
+
+
+def test_a_budget_cannot_be_edited_after_it_is_made() -> None:
+    """`frozen=True` is a promise about reproducibility, not a style choice.
+
+    Also a `mutate.py` survivor: `frozen=True -> False` changed nothing any
+    test could see. ADR-0003 makes a package reproducible from its inputs, and
+    an input that a caller can mutate after the fact is not an input.
+    """
+    budget = Budget.characters(100)
+    with pytest.raises(AttributeError):
+        budget.limit = 200  # type: ignore[misc]
