@@ -28,6 +28,7 @@ from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
 from ...config import TsumugiConfig
 from ...domain.budget import Budget, Unit
+from ...domain.ordering import ORDERINGS, Ordering
 from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
 from ...evaluation.answering import AnswerScore, answer_cases, summarise_answers
@@ -196,6 +197,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit the package, the answer and the verification as one document",
     )
     question.set_defaults(run=_ask)
+
+    for parser_needing_ordering in (context, question):
+        parser_needing_ordering.add_argument(
+            "--ordering",
+            choices=sorted(ORDERINGS),
+            help=(
+                "which candidate the budget is offered first. `score` is descending "
+                "relevance and is what the measured numbers were taken on; `mmr` trades "
+                "relevance against novelty (default: from config, then score)"
+            ),
+        )
+        parser_needing_ordering.add_argument(
+            "--diversity",
+            type=float,
+            metavar="SHARE",
+            help="the share of the MMR trade given to relevance, 0..1. Only with --ordering mmr",
+        )
 
     trace = commands.add_parser("trace", help="find where a quotation came from")
     trace.add_argument("quotation")
@@ -464,6 +482,23 @@ def _search(args: argparse.Namespace, config: TsumugiConfig) -> int:
     return 0
 
 
+def _ordering(args: argparse.Namespace, config: TsumugiConfig) -> Ordering:
+    """The ordering, with the flag winning over the file and the environment.
+
+    The precedence this module already documents: defaults, then the config
+    file, then `TSUMUGI_*`, then the command line. A flag left unset must not
+    overwrite a configured value with a default, which is why this reads
+    `getattr(..., None)` rather than taking whatever argparse put there.
+    """
+    flagged: float | None = getattr(args, "diversity", None)
+    chosen = replace(
+        config,
+        ordering=getattr(args, "ordering", None) or config.ordering,
+        diversity=config.diversity if flagged is None else float(flagged),
+    )
+    return chosen.selected_ordering()
+
+
 def _cost_model(unit: Unit) -> CostModel:
     """The composition root's one job for budgets."""
     if unit is Unit.TOKENS:
@@ -487,6 +522,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         store=store,
         index=index,
         cost_model=_cost_model(budget.unit),
+        ordering=_ordering(args, config),
         budget=budget,
         candidate_limit=config.candidate_limit,
         minimum_score=args.min_score,
@@ -551,6 +587,7 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
             store=store,
             index=index,
             cost_model=_cost_model(budget.unit),
+            ordering=_ordering(args, config),
             budget=budget,
             provider=provider,
             redactor=redactor,

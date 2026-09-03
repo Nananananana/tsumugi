@@ -15,9 +15,16 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import Any, Final
 
+from .domain.ordering import (
+    DEFAULT_DIVERSITY,
+    ORDERINGS,
+    Ordering,
+    maximal_marginal_relevance,
+)
 from .errors import ConfigurationError
 
 __all__ = ["DEFAULT_INDEX_DIRECTORY", "TsumugiConfig", "default_index_path"]
@@ -55,6 +62,39 @@ class TsumugiConfig:
     #: Cap on candidates the index returns per query. A cap that truncates has
     #: to reach ``omissions[]`` under ``truncated_by_cap`` (ADR-0005).
     candidate_limit: int = 50
+    #: Which candidate the budget is offered first (`domain/ordering.py`).
+    #: ``score`` is descending relevance and is what every number in
+    #: `docs/measurements.md` was measured on; ``mmr`` trades relevance against
+    #: novelty (Carbonell & Goldstein, 1998) so a budget is spent on distinct
+    #: evidence rather than the same sentence twice.
+    #:
+    #: Named rather than defaulted to the newer one. On this corpus MMR changes
+    #: the contents of 5 packages in 240 and moves no measured number, because
+    #: the budget binds in only 32 cases -- so there is nothing here to justify
+    #: changing what everybody already gets.
+    ordering: str = "score"
+    #: The share of the MMR trade given to relevance: 1.0 is pure relevance and
+    #: is exactly ``score``, 0.0 is pure novelty and ignores the question.
+    #: Ignored unless ``ordering`` is ``mmr``.
+    diversity: float = DEFAULT_DIVERSITY
+
+    def selected_ordering(self) -> Ordering:
+        """The ordering this configuration names, ready to pass to a build.
+
+        Raises rather than falling back. A misspelt ``ordering`` that quietly
+        became ``score`` would be a setting that looks applied and is not --
+        which is the failure this repository has spent a week removing from its
+        own claims.
+        """
+        try:
+            chosen = ORDERINGS[self.ordering]
+        except KeyError:
+            raise ConfigurationError(
+                f"unknown ordering {self.ordering!r}. Known: {', '.join(sorted(ORDERINGS))}"
+            ) from None
+        if chosen is not maximal_marginal_relevance:
+            return chosen
+        return partial(maximal_marginal_relevance, diversity=self.diversity)
 
     def resolved_index_path(self) -> Path:
         return self.index_path if self.index_path is not None else default_index_path()
@@ -88,6 +128,15 @@ class TsumugiConfig:
             except ValueError as error:
                 raise ConfigurationError(
                     f"TSUMUGI_CANDIDATE_LIMIT must be a number, not {limit!r}"
+                ) from error
+        if ordering := source.get("TSUMUGI_ORDERING"):
+            values["ordering"] = ordering
+        if diversity := source.get("TSUMUGI_DIVERSITY"):
+            try:
+                values["diversity"] = float(diversity)
+            except ValueError as error:
+                raise ConfigurationError(
+                    f"TSUMUGI_DIVERSITY must be a number between 0 and 1, not {diversity!r}"
                 ) from error
         return cls.from_mapping(values)
 

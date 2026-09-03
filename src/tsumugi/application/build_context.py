@@ -21,6 +21,7 @@ from ..domain.assembly import Candidate, fit_to_budget
 from ..domain.budget import Budget, Unit
 from ..domain.document import Document
 from ..domain.omission import OmissionRule
+from ..domain.ordering import Ordering
 from ..domain.package import (
     BudgetReport,
     ContextPackage,
@@ -55,6 +56,9 @@ def build_context(
     budget: Budget,
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
+    # Which candidate is tried first (`domain/ordering.py`). `None` keeps the
+    # score order every number in `docs/measurements.md` was taken on.
+    ordering: Ordering | None = None,
     context_characters: int = 400,
     version: str = __version__,
     freshness: FreshnessCheck | None = None,
@@ -148,6 +152,7 @@ def build_context(
         budget=budget,
         cost_of=cost_model.cost,
         minimum_score=minimum_score,
+        ordering=ordering,
         truncated_at=truncation.limit if truncation is not None else None,
     )
 

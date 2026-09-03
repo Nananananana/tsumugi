@@ -31,6 +31,7 @@ from dataclasses import dataclass, replace
 
 from ..domain.budget import Budget
 from ..domain.claim import VerificationReport
+from ..domain.ordering import Ordering
 from ..domain.package import ContextPackage, Protection
 from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
@@ -85,6 +86,7 @@ def ask(
     index: Index,
     cost_model: CostModel,
     budget: Budget,
+    ordering: Ordering | None = None,
     provider: LLMProvider,
     redactor: Redactor | None = None,
     ledger: LedgerStore | None = None,
@@ -100,6 +102,7 @@ def ask(
         index=index,
         cost_model=cost_model,
         budget=budget,
+        ordering=ordering,
         candidate_limit=candidate_limit,
         minimum_score=minimum_score,
         version=version,

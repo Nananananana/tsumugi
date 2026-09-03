@@ -44,6 +44,7 @@ from .domain.budget import Budget, Unit
 from .domain.claim import Support
 from .domain.document import Block, Document, Section, register_block_kind
 from .domain.hashing import ContentHash
+from .domain.ordering import ORDERINGS, by_score, maximal_marginal_relevance
 from .domain.package import UnsupportedContractError
 from .domain.span import Span
 from .errors import (
@@ -64,6 +65,7 @@ from .version import __version__
 
 __all__ = [
     "CONTRACT_SCHEMA_NAME",
+    "ORDERINGS",
     "Anchor",
     "AnswerFormatError",
     "Asked",
@@ -94,11 +96,13 @@ __all__ = [
     "__version__",
     "ask",
     "build_context",
+    "by_score",
     "connect",
     "contract_schema",
     "contract_schema_text",
     "cost_model_for",
     "ingest_paths",
+    "maximal_marginal_relevance",
     "parse_answer",
     "parser_for",
     "register_block_kind",

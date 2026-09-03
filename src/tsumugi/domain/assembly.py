@@ -23,6 +23,7 @@ from typing import Final
 from .anchor import Anchor
 from .budget import Budget
 from .omission import Omission, OmissionRule
+from .ordering import Ordering, by_score
 from .redundancy import DEFAULT_THRESHOLD, mark_duplicates
 from .selection import ContextItem, ItemProvenance, SelectionTrace
 from .span import Span
@@ -85,6 +86,7 @@ def fit_to_budget(
     minimum_score: float = 0.0,
     truncated_at: int | None = None,
     redundancy_threshold: float = DEFAULT_THRESHOLD,
+    ordering: Ordering | None = None,
 ) -> Fitted:
     """Choose what fits, and say what did not.
 
@@ -104,12 +106,10 @@ def fit_to_budget(
     an omission -- and then under ``redundant_candidate``, because "this repeats
     itm_001" is a better answer to *why* than "there was no room".
     """
-    ordered = sorted(
-        candidates,
-        # Deterministic to the last key. An unstable sort here would make every
-        # package downstream unreproducible.
-        key=lambda c: (-c.score, c.source_path, c.anchor.document_id, c.anchor.span.start),
-    )
+    # Which candidate is tried first is an algorithm, not a detail, and it is
+    # chosen by the caller (`domain/ordering.py`). The default is the score
+    # order every measured number in `docs/measurements.md` was taken on.
+    ordered = (ordering or by_score)(candidates)
 
     # Ranked order decides which member of a duplicate cluster survives.
     # Redundancy says two passages are alike; it has no way to know which is

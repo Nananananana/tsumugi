@@ -244,6 +244,22 @@ for left_out in package.omissions:  # ADR-0005: an empty package still explains 
 connection.close()  # the caller owns it; the CLI has its own registry
 ```
 
+Algorithms that are choices are settings, not edits. The ordering candidates
+are offered to the budget in is `score` (descending relevance) or `mmr`
+(Carbonell & Goldstein 1998, relevance traded against novelty), selected the
+way everything else here is — built-in default, config file, `TSUMUGI_ORDERING`,
+then `--ordering`, with an unknown name **refused rather than ignored**:
+
+```bash
+tsumugi context "the warranty coverage period" --ordering mmr --diversity 0.5
+```
+
+The default is `score` because that is what the numbers were measured on, and
+because MMR changes the contents of 5 packages in 240 here
+([ADR-0024](docs/adr/0024-the-ordering-is-a-setting.md)). It is a setting
+because that measurement is on one corpus, and this project's own corpus is the
+thing it least trusts.
+
 `tsumugi.__all__` and the CLI verbs are pinned by a test
 ([ADR-0023](docs/adr/0023-the-public-surface-changes-on-notice.md)), so a
 rename arrives as an edit to a list of public names rather than as a surprise

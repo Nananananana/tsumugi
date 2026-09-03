@@ -32,16 +32,29 @@ from pathlib import Path
 
 sys.path.insert(0, "src")
 from tsumugi.application.build_context import build_context
+from tsumugi.domain.ordering import maximal_marginal_relevance
 from tsumugi.evaluation.dataset import load_cases
 from tsumugi.evaluation.runner import cost_model_for, prepared_case
+
+
+def _overlapping(texts: list[str]) -> bool:
+    """Two selected passages sharing a twelve-character window."""
+    for a in range(len(texts)):
+        grams = {texts[a][k : k + 12] for k in range(max(0, len(texts[a]) - 12))}
+        for b in range(a + 1, len(texts)):
+            if any(texts[b][k : k + 12] in grams for k in range(max(0, len(texts[b]) - 12))):
+                return True
+    return False
 
 
 def main() -> int:
     cases = [c for c in load_cases(Path("tests/cases")) if c.must_include]
     assert cases, "no cases with a required fact; measuring nothing"
 
-    found = {"tsumugi": 0, "first_fit": 0, "no_confirm": 0}
-    trapped = {"tsumugi": 0, "first_fit": 0, "no_confirm": 0}
+    found = {"tsumugi": 0, "first_fit": 0, "no_confirm": 0, "mmr": 0}
+    repeats = {"tsumugi": 0, "mmr": 0}
+    items = {"tsumugi": 0, "mmr": 0}
+    trapped = {"tsumugi": 0, "first_fit": 0, "no_confirm": 0, "mmr": 0}
     trap_cases = 0
 
     for case in cases:
@@ -54,6 +67,15 @@ def main() -> int:
                 case.question, store=store, index=index, cost_model=cost, budget=case.budget
             )
             real = [item.text for item in package.items]
+            diverse = build_context(
+                case.question,
+                store=store,
+                index=index,
+                cost_model=cost,
+                budget=case.budget,
+                ordering=maximal_marginal_relevance,
+            )
+            mmr = [item.text for item in diverse.items]
 
             # Everything the index proposed, before confirmation had a say.
             hits = index.search(case.question, limit=50)
@@ -67,8 +89,13 @@ def main() -> int:
         first_fit = _under_budget(list(case.documents.values()), limit)
         no_confirm = _under_budget(candidates, limit)
 
+        for name, texts in (("tsumugi", real), ("mmr", mmr)):
+            repeats[name] += _overlapping(texts)
+            items[name] += len(texts)
+
         for name, texts in (
             ("tsumugi", real),
+            ("mmr", mmr),
             ("first_fit", first_fit),
             ("no_confirm", no_confirm),
         ):
@@ -81,9 +108,13 @@ def main() -> int:
     print(f"{total} cases with a required fact, {trap_cases} of them with a forbidden one")
     print()
     print(f"{'':12} {'recall':>8} {'trap':>8}")
-    for name in ("first_fit", "no_confirm", "tsumugi"):
+    for name in ("first_fit", "no_confirm", "tsumugi", "mmr"):
         trap = f"{trapped[name] / trap_cases * 100:7.1f}%" if trap_cases else "      -"
         print(f"{name:12} {found[name] / total * 100:7.1f}% {trap}")
+    print()
+    print(f"{'ordering':12} {'items':>8} {'repeat':>8}")
+    for name in ("tsumugi", "mmr"):
+        print(f"{name:12} {items[name]:8} {repeats[name] / total * 100:7.1f}%")
     print()
     print(
         "The gap between `first_fit` and `tsumugi` is what reading the question is worth\n"

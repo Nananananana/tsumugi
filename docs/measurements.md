@@ -307,6 +307,44 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+### Does a different ordering help? *(measured 2026-09-01)*
+
+`fit_to_budget` fills a budget best-first, and *best* meant descending score.
+That has a measurable weakness here — **113 of 240 packages contain two items
+sharing a twelve-character window** — so the ordering became a parameter, with
+Maximal Marginal Relevance (Carbonell & Goldstein, SIGIR 1998) as the
+alternative: relevance traded against novelty, using the character-shingle
+similarity already used for the duplicate marks.
+
+**It changes almost nothing here, and that is the finding:**
+
+| | |
+|---|---|
+| packages whose **contents** differ | **5 of 240** |
+| packages whose **order** differs | 20 of 240 |
+| packages where the budget actually bound | 32 of 240 |
+| recall, precision, trap rate | **identical to three decimal places** |
+
+Two reasons, and neither is that MMR is broken — a unit test holds it demoting
+a near-duplicate below a distinct passage, and `diversity=1.0` reduces exactly
+to the score ordering.
+
+**The budget rarely binds.** In 208 of 240 cases everything that confirms also
+fits, so the order things are tried in cannot change what is sent.
+
+**And bm25 has usually separated the duplicates already.** For an ordering to
+matter, a near-duplicate has to rank *directly behind its twin*, and scoring by
+term frequency over documents of different lengths usually puts something else
+between them. The arrangement MMR is for is one the earlier stages mostly
+prevent.
+
+So the default stays `score`, which is what every number on this page was
+measured on, and `mmr` is available for corpora that are not this one —
+**named in the settings rather than chosen for everybody on the strength of a
+1998 paper and no local evidence.**
+
+Reproduce: `python tools/measure_baselines.py`.
+
 ### How much of this is free? *(measured 2026-09-01)*
 
 `manager` asked `iriguchi` how much of its headline was just getting the
