@@ -505,7 +505,7 @@ were chosen.
 | of the 120 trap cases, **the forbidden document ranked first** | **10 (8.3%)** |
 | of the 120 trap cases, the answer ranked first | 53 (44.2%) |
 
-**This library's trap rate is 4.2%.** Letting the reranker decide what is sent
+**This library's trap rate is 4.2% here, and 5.0% since section indexing shipped** (below). Letting the reranker decide what is sent
 would roughly double it while ranking the answer first in under half the cases.
 ADR-0022 refused to carry an item nothing lexical confirms; a better model does
 not overturn that, it prices it — seventeen paraphrases, declined.
@@ -576,6 +576,13 @@ about a fifth of it is.
 the number this library earns, and it is the one the design is about — ADR-0007
 over-generates and lets confirmation decide, and this is the measurement of what
 that decision buys.
+
+**These three rows predate section indexing**, which shipped afterwards and moved
+the trap rate to 5.0% — deliberately, to buy back 20 points of recall on
+realistic document lengths. The comparison stands: the baselines were measured
+against the same corpus on the same day, and 75.8% to 5.0% is fifteen-fold rather
+than eighteen. `tools/measure_sensitivity.py` prints the current figure at every
+run, so this page cannot drift from the code again without somebody seeing it.
 
 **And `no_confirm` scores *worse* than never retrieving at all** — 63.9%
 against 70.0%. The index's top candidates fill the budget with documents that

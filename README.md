@@ -348,7 +348,7 @@ for. It needs `pip install "tsumugi[research]"`, downloads a model, and is the
 only thing here that is neither offline nor deterministic. **It reorders
 candidates confirmation has already accepted and cannot add one**, because
 measured as a *gate* it ranks a forbidden document first in 8.3% of trap cases
-against this library's 4.2% ([ADR-0025](docs/adr/0025-outside-the-domain-a-library-may-help.md)).
+against this library's 5.0% ([ADR-0025](docs/adr/0025-outside-the-domain-a-library-may-help.md)).
 
 The default is `score` because that is what the numbers were measured on, and
 because MMR changes the contents of 5 packages in 240 here
