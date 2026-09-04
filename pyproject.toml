@@ -116,6 +116,9 @@ addopts = "-q"
 # is the general form, from `iriguchi`, and it covers the next parametrize as
 # well as the five that exist.
 empty_parameter_set_mark = "fail_at_collect"
+markers = [
+    "allows_network: this test genuinely attempts a connection; the conftest fence steps aside",
+]
 
 [tool.ruff]
 line-length = 100

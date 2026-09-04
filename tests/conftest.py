@@ -70,3 +70,46 @@ def corpus(tmp_path: Path) -> Path:
     (root / "notes" / "scratch.tmp").write_text("ignore me\n", encoding="utf-8")
     (root / ".tsumugiignore").write_text("*.tmp\n", encoding="utf-8")
     return root
+
+
+class NetworkAttemptedError(RuntimeError):
+    """A test tried to open a connection. Distinct so it cannot be mistaken.
+
+    `ConnectionRefusedError` is what a closed port raises, and a test that
+    expects a refusal would pass on this fence for the wrong reason -- the
+    fence would be reporting its own success as the test's.
+    """
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> None:
+    """`docs/architecture.md` says every test runs with no network. This checks it.
+
+    That sentence was held by a static check -- `test_architecture.py` forbids
+    the core from importing `socket`, `urllib` and the rest -- which proves
+    what the source says and not what a run does. A transitive import, a
+    fixture, or a test helper could still reach out, and nothing would notice.
+
+    **Patched on the method, not on the class.** `ssl.SSLSocket` inherits from
+    `socket.socket`, so replacing the class breaks anything that subclasses it
+    and the failure looks nothing like the thing being prevented. `iriguchi`
+    found that; `mamori` had already avoided it and said why in a docstring,
+    which is the only reason it is avoided here too.
+
+    A test that means to attempt a connection asks for it with
+    `@pytest.mark.allows_network`, so the exception is a decision rather than a
+    surprise.
+    """
+    if request.node.get_closest_marker("allows_network"):
+        return
+
+    import socket
+
+    def refuse(self: socket.socket, address: object) -> None:
+        raise NetworkAttemptedError(
+            f"a test tried to connect to {address!r}. Nothing here needs the network; "
+            "mark it `@pytest.mark.allows_network` if it genuinely does"
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse)

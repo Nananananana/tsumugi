@@ -504,7 +504,17 @@ does nothing is the worst available outcome. The index lives at
 | `test_cli.py` | Every command, and the things `doctor` must never fail to say |
 | `test_leakage.py` | Greps logs, reprs and tracebacks for document text |
 
-Every test runs with no network, no model and no third-party package beyond the
-test tools themselves. That is the property worth stating, and unlike a count
-it is enforced: `test_leakage.py` and the no-extras CI job both fail if it
-stops being true.
+Every test runs with no model and no third-party package beyond the test tools
+themselves, and **all but ten with no socket at all**. That sentence used to
+say "no network" and stop, which was stronger than the truth: `conftest.py` now
+refuses `socket.connect` in every test, and ten objected. All ten are the
+ollama adapter and the two CLI paths that exercise *provider unreachable* — a
+loopback connection to a closed port, which never leaves the machine and never
+depends on anything being up. They carry `@pytest.mark.allows_network`, so the
+exception is a decision rather than a discovery.
+
+Enforced rather than asserted, and by three different things: the fence above
+catches a run that reaches out, `test_architecture.py` catches source that
+*could*, and the no-extras CI job catches a dependency arriving. The first is
+new — the claim had been resting on a static check, which proves what the
+source says and not what a run does.

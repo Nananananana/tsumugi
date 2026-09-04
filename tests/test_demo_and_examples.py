@@ -165,6 +165,7 @@ class TestTheExample:
             assert reason in source, reason
 
 
+@pytest.mark.allows_network  # loopback to a closed port: the "provider unreachable" path
 class TestTheOptionalModelStage:
     """``--model`` is opt-in, and the demo is whole without it.
 

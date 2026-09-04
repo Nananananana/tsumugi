@@ -311,6 +311,7 @@ def ollama() -> Any:
     thread.join(timeout=5)
 
 
+@pytest.mark.allows_network  # loopback to a closed port: the "provider unreachable" path
 class TestTheOllamaAdapter:
     def test_it_asks_and_returns_what_came_back(self, ollama: str) -> None:
         assert OllamaProvider(url=ollama).generate("hello") == "ok"

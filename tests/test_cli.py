@@ -500,6 +500,7 @@ class TestAsk:
         assert "somebody else" in message
         assert "--allow-remote" in message
 
+    @pytest.mark.allows_network  # loopback to a closed port: the "provider unreachable" path
     def test_it_says_where_it_is_sending_before_it_sends(
         self, corpus: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -701,6 +702,7 @@ class TestAskJson:
     fake provider, because a CLI test that needed ollama running would be a
     test that is skipped on every machine that matters."""
 
+    @pytest.mark.allows_network  # loopback to a closed port: the "provider unreachable" path
     def test_it_fails_with_a_message_rather_than_a_traceback(self, corpus: Path) -> None:
         main(["ingest", str(corpus)])
         # Port 1 on loopback: reserved, nothing is listening.
