@@ -1203,3 +1203,53 @@ this project keeps finding:
   changes what is in the package. On a tighter budget it would decide. The
   sweep now separates *plateau* (observable, but the metric cannot see it) from
   *no effect* (nothing observable moved at all).
+
+## Korean was losing whole questions before confirmation saw them
+
+Found by asking why 7 of the 23 empty packages carried **no omissions at all**.
+An omission means a candidate was considered and rejected; none means the index
+returned nothing, so confirmation never ran. Four of those seven are Korean and
+two are Chinese — the two weakest languages.
+
+    question  등록은 언제까지 가능하나요?    terms: 등록은, 언제까지, ...
+    document  학교 행정의 등록 마감일은      terms: 등록, 마감일은, ...
+    overlap   NONE
+
+`등록은` is *registration* plus the topic particle. The tokenizer passed Hangul
+runs through whole on a stated assumption — *"Korean writes its word
+boundaries, so a run is already a word"* — which is **right about word
+boundaries and wrong about morphology**: an eojeol is noun plus particle.
+`INFLECTION_TAIL` exists for exactly this and could never reach it, because it
+acts during confirmation and confirmation never runs on a document the index
+did not return.
+
+`python tools/measure_hangul.py`, three tokenizers over the 240 labelled cases:
+
+| | recall | trap | terms/char | answered with nothing at all |
+|---|---|---|---|---|
+| shipped | 87.2% | 5.0% | 0.450 | 7 |
+| prefixes on both sides | 87.2% | 5.0% | 0.476 | 4 |
+| **prefixes on the question only** | **87.2%** | **5.0%** | **0.450** | **4** |
+
+**The free side buys everything the expensive side buys.** Expanding the index
+costs 5.8% more terms per character and reaches the same four; expanding only
+the question costs nothing, because a question is a dozen characters tokenized
+once. So the question side ships and the index side does not.
+
+**This is not a recall win and should not be read as one.** Recall, precision
+and the trap rate are all unchanged: these questions still use words the
+document does not, so confirmation still refuses them and they still produce no
+items. What changes is that three of them now have a candidate to offer as a
+lead instead of being answered with silence.
+
+`index_terms` is untouched, so an index built by an earlier version stays
+readable and `name` does not change — nobody has to `ingest --rebuild`. That is
+a property worth keeping deliberately: if the expansion were ever moved into
+`_terms`, the stored terms would change while the name said they had not, and
+every existing index would silently stop matching. `test_normalization.py`
+holds it.
+
+**The corpus understates this.** It has four Korean cases that reach this code
+at all, which is why `HANGUL_STEM = 2` is chosen rather than measured — four
+cases cannot separate 2 from 3. Real Korean will meet this far more often than
+a corpus this project generated for itself.

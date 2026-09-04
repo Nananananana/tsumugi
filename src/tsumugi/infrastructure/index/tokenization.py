@@ -156,6 +156,21 @@ def script_runs(text: str) -> Iterator[tuple[str, str]]:
         yield kind, "".join(run)
 
 
+#: Shortest Hangul prefix a question is expanded to. One syllable is not a
+#: morpheme and would match most of the corpus; two is the shortest Korean noun
+#: stem that means anything. Chosen rather than measured -- the corpus has four
+#: Korean cases that reach this code, which cannot separate 2 from 3.
+HANGUL_STEM: Final = 2
+
+#: The Hangul syllables block. `script_class` already knows about the jamo
+#: ranges, and a run of those is not a word being inflected.
+_SYLLABLES: Final = (0xAC00, 0xD7AF)
+
+
+def _is_hangul(term: str) -> bool:
+    return any(_SYLLABLES[0] <= ord(character) <= _SYLLABLES[1] for character in term)
+
+
 class BigramTokenizer:
     """The built-in tokenizer. Satisfies :class:`~tsumugi.ports.tokenizer.Tokenizer`.
 
@@ -187,4 +202,48 @@ class BigramTokenizer:
         return self._terms(text)
 
     def query_terms(self, query: str) -> Sequence[str]:
-        return self._terms(query)
+        """The question's terms, plus what a Hangul run might reduce to.
+
+        **Korean glues its particles to the noun**, and the comment above --
+        *"Hangul is spaced, so a run is already a word"* -- is right about word
+        boundaries and wrong about morphology. An eojeol is noun *plus*
+        particle, so a question asking `등록은` and a document saying `등록`
+        share no term at all, and the index returns nothing:
+
+            question  등록은 언제까지 가능하나요?   terms: 등록은, 언제까지, ...
+            document  학교 행정의 등록 마감일은     terms: 등록, 마감일은, ...
+            overlap   NONE
+
+        `INFLECTION_TAIL` exists for exactly this and cannot reach it: it lets
+        a stem count as a whole term during *confirmation*, which never runs on
+        a document the index did not return.
+
+        **Only the question expands, and that is the whole design.** The two
+        directions cost differently:
+
+            question longer   등록은 asked of 등록   -> here, and free
+            document longer   등록 asked of 등록은   -> would cost index size
+
+        Expanding the index costs 5.8% more terms per character and, measured
+        on the labelled corpus, buys exactly what this does. So this side is
+        done and the other is not.
+
+        Because `index_terms` is untouched, an index built by an earlier
+        version stays readable: these terms are a superset containing the
+        original, so they line up with what is already stored. `name` therefore
+        does not change and nobody has to `ingest --rebuild`. **If this
+        expansion is ever moved into `_terms`, that stops being true and every
+        existing index silently stops matching** -- `test_tokenization.py`
+        holds it.
+
+        Measured over 240 labelled cases: recall, precision and the trap rate
+        are unchanged, and the number of questions the index answers with
+        *nothing at all* -- no items and no candidates to offer as a lead --
+        falls from 7 to 4.
+        """
+        terms: list[str] = []
+        for term in self._terms(query):
+            terms.append(term)
+            if _is_hangul(term):
+                terms.extend(term[:size] for size in range(len(term) - 1, HANGUL_STEM - 1, -1))
+        return terms
