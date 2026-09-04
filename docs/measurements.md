@@ -370,6 +370,40 @@ The diagnosis stands and the fix does not: this needs chunking, where the unit
 that is scored and the unit that is returned are the same thing, rather than a
 better guess about where to cut a document that was never divided.
 
+#### And chunking works — simulated before building it
+
+`tools/measure_long_documents.py --sections` writes each markdown section as its
+own file, so the index scores sections instead of documents. It is a
+simulation and it cheats in the one way that matters — anchors then point into
+section files rather than the parent, which a real implementation may not do
+(ADR-0010) — so it answers *would this recover the recall* and nothing about
+whether it can be built.
+
+| median document | whole documents | **by section** |
+|---|---|---|
+| 150 | 87.2% | 87.2% |
+| 1,397 | 78.3% | **86.7%** |
+| 4,329 | 77.8% | **86.1%** |
+| 12,528 | **65.6%** | **86.1%** |
+
+**Recall stops depending on document length**, which is the entire point: 20.5
+points recovered at realistic size, and flat from there.
+
+**It costs 0.8 points of trap rate, and where that comes from is the useful
+part.** The trap rate is 5.0% by section against 4.2% whole — *at every
+padding, including none*. So it is not a cost of long documents; it is a cost
+of sectioning itself. More units, each smaller, gives a near-miss section more
+chances to confirm on its own, with less surrounding text to be relative to
+([ADR-0019](adr/0019-confirmation-is-relative.md)'s floor compares against the
+best match found, and a section is a smaller pond).
+
+That is why the roadmap item's closing condition says *trap rate no worse*, and
+why this simulation does not meet it. **The open question is not whether to
+chunk. It is whether the trap cost survives an implementation where a section
+knows which document it came from** — because the relative floor could then be
+computed across the parent rather than within the chunk, which the separate
+files cannot do and a real implementation can.
+
 ### The thing it cannot say, and the threshold that will not fix it
 
 `tsumugi eval` reports it in its own output: **13 unanswerable questions still

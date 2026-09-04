@@ -25,6 +25,7 @@ either would be measuring a different question.
 
 from __future__ import annotations
 
+import re
 import statistics
 import sys
 import tempfile
@@ -45,6 +46,17 @@ from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 #: How much unrelated prose to wrap each document in. 0 is the corpus as it
 #: ships; the others bracket a real document's 6,811 characters.
 PADDINGS = (0, 1000, 4000, 12000)
+
+#: Split on markdown headings -- the unit `Document` already carries as
+#: sections, and the obvious candidate for a chunk. Used with `--sections` to
+#: simulate section-level indexing without building it: each section becomes
+#: its own file, so the index scores sections instead of documents.
+#:
+#: **A simulation, and it cheats in one way that matters.** Anchors then point
+#: into section files rather than the parent, which is exactly what a real
+#: implementation may not do (ADR-0010). It answers "would scoring sections
+#: recover the recall" and nothing about whether it can be built.
+HEADING = re.compile(r"(?m)^(?=#)")
 
 
 def _filler(cases: list[Case]) -> dict[str, list[str]]:
@@ -80,11 +92,18 @@ def _pad(text: str, pool: list[str], size: int, forbidden: list[str]) -> str:
     return join.join([*before, text, *after])
 
 
+def _sections(text: str) -> list[str]:
+    parts = [part for part in HEADING.split(text) if part.strip()]
+    return parts or [text]
+
+
 def main() -> int:
+    by_section = "--sections" in sys.argv
     cases = [c for c in load_cases(Path("tests/cases")) if c.must_include]
     assert cases, "no cases with a required fact; measuring nothing"
     pool = _filler(cases)
 
+    print("scored by:", "sections" if by_section else "whole documents")
     print(f"{'padding':>8} {'median doc':>11} {'recall':>8} {'trap':>8}")
     for size in PADDINGS:
         found = trapped = trap_cases = 0
@@ -105,7 +124,13 @@ def main() -> int:
                 root = Path(workspace) / "corpus"
                 root.mkdir()
                 for name, text in padded.items():
-                    (root / name).write_text(text, encoding="utf-8")
+                    if not by_section:
+                        (root / name).write_text(text, encoding="utf-8")
+                        continue
+                    for number, section in enumerate(_sections(text)):
+                        (root / f"{Path(name).stem}-{number:03d}.md").write_text(
+                            section, encoding="utf-8"
+                        )
                 connection = connect(Path(workspace) / "index.db")
                 try:
                     store = SqliteDocumentStore(connection)
