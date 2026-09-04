@@ -103,7 +103,11 @@ def main() -> int:
     assert cases, "no cases with a required fact; measuring nothing"
     pool = _filler(cases)
 
-    print("scored by:", "sections" if by_section else "whole documents")
+    # The library sections its own index now, so the flag no longer switches
+    # "sections or not" -- it switches whether each section is also its own
+    # *file*. Kept because it is how the fix was simulated before it was built,
+    # and a measurement whose baseline has disappeared cannot be re-run.
+    print("corpus written as:", "one file per section" if by_section else "whole files")
     print(f"{'padding':>8} {'median doc':>11} {'recall':>8} {'trap':>8}")
     for size in PADDINGS:
         found = trapped = trap_cases = 0

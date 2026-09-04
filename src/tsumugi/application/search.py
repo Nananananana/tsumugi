@@ -91,17 +91,31 @@ def search(
             # `tsumugi doctor` is where drift gets reported.
             continue
 
-        spans, matched = _confirm(document.content, needles)
+        # Confirmation happens inside the part the index actually scored. A
+        # hit for one section of a long document should not be confirmed by a
+        # phrase four sections away: that is how the right document comes back
+        # with the window on the wrong occurrence, which is 68% of the recall
+        # lost at realistic document sizes.
+        #
+        # Offsets come back into the parent, so anchors are unchanged.
+        region = hit.span or Span(0, len(document.content))
+        scoped = region.slice(document.content)
+
+        spans, matched = _confirm(scoped, needles)
         if not spans:
             # Coverage confirms without a phrase, so there is no matched run to
             # score. It ranks on bm25 and occurrence count alone, which is the
             # right order of preference: a phrase is stronger evidence.
-            spans, matched = _confirm_by_coverage(document.content, terms), 0
+            spans, matched = _confirm_by_coverage(scoped, terms), 0
+        spans = [Span(s.start + region.start, s.end + region.start) for s in spans]
         if not spans:
             results.append(
                 SearchResult(
-                    anchor=Anchor.into(document, Span(0, min(context, len(document.content)))),
-                    text=document.content[:context],
+                    anchor=Anchor.into(
+                        document,
+                        Span(region.start, min(region.start + context, region.end)),
+                    ),
+                    text=scoped[:context],
                     source_path=document.source_path,
                     score=hit.score,
                     section=_section_name(document, 0),

@@ -17,6 +17,7 @@ from collections.abc import Sequence
 
 from ...domain.document import Document, DocumentId
 from ...domain.hashing import ContentHash
+from ...domain.span import Span
 from ...ports.index import IndexHit
 from .tokenization import BigramTokenizer
 
@@ -35,6 +36,35 @@ def _usable(term: str) -> bool:
 def _quote(term: str) -> str:
     """A term as an FTS5 phrase. Everything is quoted, so nothing is syntax."""
     return '"' + term.replace('"', '""') + '"'
+
+
+def _own_spans(document: Document) -> list[Span]:
+    """Each section's own text, tiling the document without overlaps.
+
+    `Document.sections` **nests**: a level-1 heading spans everything under it,
+    including its level-2 children. Indexing them all indexes the same
+    paragraph once per ancestor, and the first thing that goes wrong is not a
+    scoring artefact -- it is `ContextPackage` refusing to be built, because the
+    same span arrives as both an item and an omission. That invariant caught
+    this the first time it ran.
+
+    So a section contributes the text between its own start and its first
+    child: what a reader means by "the part under this heading", as opposed to
+    "this heading and everything beneath it". The pieces tile, so every
+    character is indexed exactly once.
+    """
+    sections = sorted(document.sections or (), key=lambda s: (s.span.start, -s.span.end))
+    spans: list[Span] = []
+    for index, section in enumerate(sections):
+        children = [
+            other.span.start
+            for other in sections[index + 1 :]
+            if section.span.contains(other.span) and other.span != section.span
+        ]
+        end = min(children) if children else section.span.end
+        if end > section.span.start:
+            spans.append(Span(section.span.start, end))
+    return spans or [Span(0, len(document.content))]
 
 
 class FtsIndex:
@@ -75,15 +105,41 @@ class FtsIndex:
             )
 
     def add(self, document: Document) -> None:
-        terms = " ".join(self._tokenizer.index_terms(document.content))
+        """One row per section, with the section's offsets into the document.
+
+        **The unit that is scored is the unit that can be returned.** Indexing
+        whole files means bm25 ranks a 12,000-character document by terms that
+        may be anywhere in it, and the passage handed back is a window around
+        whichever occurrence was found first. Measured: recall falls from 87.2%
+        to 65.6% as documents grow to realistic size, and 68% of that loss is
+        the window rather than the ranking.
+
+        `Document` already carries sections, and a document with no headings
+        has one implicit section covering all of it -- so there is no
+        special case here and no new idea of what a chunk is.
+
+        The offsets are into the **parent**, so an anchor still resolves
+        against the file on disk. Most libraries chunk into new documents and
+        lose the parent's coordinates; this one cannot (ADR-0010).
+        """
         with self._connection:
             self._connection.execute(
                 "DELETE FROM search WHERE document_id = ?", (document.document_id,)
             )
-            self._connection.execute(
-                "INSERT INTO search (terms, document_id, version) VALUES (?, ?, ?)",
-                (terms, document.document_id, str(document.version)),
-            )
+            for span in _own_spans(document):
+                body = span.slice(document.content)
+                terms = " ".join(self._tokenizer.index_terms(body))
+                self._connection.execute(
+                    "INSERT INTO search (terms, document_id, version, start, end) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        terms,
+                        document.document_id,
+                        str(document.version),
+                        span.start,
+                        span.end,
+                    ),
+                )
 
     def remove(self, document_id: DocumentId) -> None:
         with self._connection:
@@ -96,8 +152,8 @@ class FtsIndex:
 
         expression = " OR ".join(_quote(term) for term in dict.fromkeys(terms))
         rows = self._connection.execute(
-            "SELECT document_id, version, bm25(search) AS rank FROM search "
-            "WHERE search MATCH ? ORDER BY rank, document_id LIMIT ?",
+            "SELECT document_id, version, start, end, bm25(search) AS rank FROM search "
+            "WHERE search MATCH ? ORDER BY rank, document_id, start LIMIT ?",
             (expression, limit),
         ).fetchall()
 
@@ -109,6 +165,7 @@ class FtsIndex:
                 score=-float(row["rank"]),
                 document_id=row["document_id"],
                 version=ContentHash.parse(row["version"]),
+                span=Span(int(row["start"]), int(row["end"])),
             )
             for row in rows
         ]

@@ -19,7 +19,7 @@ from ...errors import StorageError
 
 __all__ = ["SCHEMA_VERSION", "connect", "empty", "requires_fts5"]
 
-SCHEMA_VERSION: Final = 2
+SCHEMA_VERSION: Final = 3
 
 _MIGRATIONS: dict[int, str] = {
     1: """
@@ -42,6 +42,12 @@ _MIGRATIONS: dict[int, str] = {
         terms,
         document_id UNINDEXED,
         version     UNINDEXED,
+        -- The section this row is for, as offsets into the *parent* document.
+        -- One row per section rather than per file: bm25 scores what it can
+        -- return, which on a real-sized document is the whole difference
+        -- between 65.6% and 86.1% recall.
+        start       UNINDEXED,
+        end         UNINDEXED,
         tokenize    = 'unicode61 remove_diacritics 0'
     );
 
@@ -56,6 +62,27 @@ _MIGRATIONS: dict[int, str] = {
     -- documents ingested under schema 1 predate it, and a NULL root simply
     -- means "cannot check", which is the honest answer rather than an error.
     ALTER TABLE documents ADD COLUMN corpus_root TEXT;
+    """,
+    3: """
+    -- One search row per *section* rather than per file, so the unit bm25
+    -- scores is the unit that can be returned. `start` and `end` are offsets
+    -- into the parent document, never into a copy, so anchors are unchanged.
+    --
+    -- The table is dropped rather than altered: FTS5 has no ADD COLUMN, and an
+    -- index is derived data that `tsumugi ingest --rebuild` restores. Emptied
+    -- rather than left half-populated -- an index that answers some queries
+    -- from the old shape and some from the new is worse than one that answers
+    -- none, because only the second kind tells you.
+    DROP TABLE IF EXISTS search;
+    CREATE VIRTUAL TABLE search USING fts5(
+        terms,
+        document_id UNINDEXED,
+        version     UNINDEXED,
+        start       UNINDEXED,
+        end         UNINDEXED,
+        tokenize    = 'unicode61 remove_diacritics 0'
+    );
+    DELETE FROM index_meta WHERE key = 'tokenizer';
     """,
 }
 

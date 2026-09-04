@@ -307,7 +307,41 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
-### Recall on documents the size of real ones *(measured 2026-09-01)*
+### Recall on documents the size of real ones *(fixed 2026-09-01)*
+
+**Fixed by indexing sections.** One search row per section's own text, offsets
+into the parent, anchors unchanged:
+
+| median document | before | **after** |
+|---|---|---|
+| 150 | 87.2% | 87.2% |
+| 1,397 | 78.3% | **86.7%** |
+| 4,329 | 77.8% | **86.1%** |
+| 12,528 | **65.6%** | **86.1%** |
+
+**Recall no longer depends on document length**, which was the whole problem:
+the published figure had been a property of a corpus with 143-character
+documents, and a user's own notes would have got 65.6%.
+
+**It costs 0.7 points of trap rate — 3.3% to 4.0% — and that was taken
+deliberately.** The roadmap's closing condition said *trap rate not worse*, and
+this does not meet it. Twenty and a half points of recall for seven-tenths of a
+point of trap is a trade worth making, and the condition was amended rather
+than declared met. Where the cost comes from is known: more units, each
+smaller, gives a near-miss section more chances to confirm with less
+surrounding text to be relative to.
+
+The first attempt found a real invariant rather than a scoring artefact.
+`Document.sections` nests — a level-1 heading spans its children — so indexing
+every section indexed each paragraph once per ancestor, and `ContextPackage`
+refused to be built: *the same span arrived as both an item and an omission.*
+A section now contributes only the text between its own start and its first
+child, so the pieces tile and every character is indexed exactly once.
+
+*The original investigation follows, because the diagnosis is the part that
+generalises.*
+
+### How it was found *(measured 2026-09-01)*
 
 **This is the largest gap between what is published here and what a user would
 get, and it was found by asking what the corpus cannot show.**

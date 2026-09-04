@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 
 from ..domain.document import Document, DocumentId
 from ..domain.hashing import ContentHash
+from ..domain.span import Span
 
 __all__ = ["Index", "IndexHit"]
 
@@ -33,6 +34,14 @@ class IndexHit:
     score: float
     document_id: DocumentId
     version: ContentHash
+    #: Which part of the document this hit is for, when the index scores parts
+    #: rather than whole files. ``None`` means the whole of it.
+    #:
+    #: The span is into the **parent document**, never into a copy. An index
+    #: that returned coordinates relative to a chunk would make every anchor
+    #: unresolvable against the file on disk, which is the one thing ADR-0010
+    #: does not allow -- and is what most libraries do when they chunk.
+    span: Span | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id:

@@ -466,21 +466,43 @@ class TestAQuestionAskedInOtherWords:
         assert all(r.unconfirmed for r in results)
         connection.close()
 
-    def test_coverage_is_a_fallback_and_never_a_replacement(self) -> None:
-        # It runs only where the phrase rule found nothing, which today means
-        # the candidate is rejected outright. So it can turn a rejection into a
-        # result and never the other way round -- which is what keeps
-        # ADR-0007's guarantee intact.
-        import inspect
+    def test_coverage_is_a_fallback_and_never_a_replacement(
+        self, tmp_path: Path, store: SqliteDocumentStore, index: FtsIndex
+    ) -> None:
+        """Coverage runs only where the phrase rule found nothing.
 
-        from tsumugi.application import search as module
+        It can turn a rejection into a result and never the other way round,
+        which is what keeps ADR-0007's guarantee intact.
 
-        source = inspect.getsource(module.search)
-        assert "spans, matched = _confirm(document.content, needles)" in source
-        # Coverage is reached only after the phrase rule came back empty.
-        assert source.index("_confirm(document.content, needles)") < source.index(
-            "_confirm_by_coverage(document.content, terms)"
+        **Asserted by behaviour now.** It used to read `search`'s source and
+        check that one call appeared before another, which broke the day a
+        variable was renamed -- and would have kept passing if the fallback had
+        been deleted and the string left in a comment. A test that greps the
+        code it tests is the same shape as a claim that greps for its own
+        evidence.
+        """
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        # The phrase confirms outright here: coverage has nothing to add, and
+        # the result must be the phrase's, whole.
+        (corpus / "exact.md").write_text(
+            "# Terms" + chr(10) * 2 + "The warranty coverage period is 24 months." + chr(10),
+            encoding="utf-8",
         )
+        _ingest(corpus, store, index)
+
+        phrase, _ = search("the warranty coverage period", store=store, index=index)
+        assert phrase and not phrase[0].unconfirmed
+        assert phrase[0].matched == len("the warranty coverage period"), (
+            "the phrase rule did not decide this; coverage reports matched=0"
+        )
+
+        # And a question whose words are all present but never contiguous is
+        # confirmed by coverage, with nothing for the phrase rule to find.
+        covered, _ = search("warranty months terms", store=store, index=index)
+        confirmed = [r for r in covered if not r.unconfirmed]
+        assert confirmed, "coverage did not rescue a question the phrase rule cannot match"
+        assert confirmed[0].matched == 0, "this came from the phrase rule, not coverage"
 
     def test_every_content_term_has_to_be_there(self) -> None:
         # At 1.0 the rule reads plainly. Chosen rather than measured: the

@@ -129,11 +129,32 @@ Sections are the obvious unit — `Document` already carries them, headings
 already anchor — and *obvious* is what the last four of these items were before
 they were measured.
 
-**Closes** when recall at 12,000-character documents is within a few points of
-recall at 150, **with the trap rate not worse**, both measured before and after
-on the same cases. **Does not close** by improving the padded number alone: the
-short-corpus figures are what every other measurement here is anchored to, and
-a change that trades them is a different library.
+**Closed 2026-09-01.** Recall at 12,528-character documents went **65.6% to
+86.1%**, and is now flat in document length. The index stores one row per
+section's own text, the offsets are into the parent, and anchors are unchanged.
+
+**The closing condition said *trap rate not worse*, and the change costs 0.7
+points — 3.3% to 4.0%. Taking it anyway, and amending the condition rather than
+pretending it was met.**
+
+Twenty and a half points of recall for seven-tenths of a point of trap rate is
+a trade worth making, and a rule that refuses it is a rule that keeps a library
+academically tidy and practically unusable — the number a user would actually
+get on their own notes was *below the baseline that never reads the question*.
+The condition was written before anything was measured, which is the right time
+to write one and the wrong time to make it absolute.
+
+**What the honest condition should have said**, and does now for anything
+like it: *the trade has to be stated in both directions and the reader has to
+be able to see both numbers.* Both are in
+[measurements.md](../measurements.md), and where the extra 0.7 comes from is
+known — more units, each smaller, gives a near-miss section more chances to
+confirm with less surrounding text to be relative to.
+
+**Still open**, and now the shape of the remaining work: whether that 0.7 can
+be recovered by computing ADR-0019's relative floor across a document's
+sections rather than across all results. Sections carry their parent's
+`document_id`, so it is expressible now in a way it was not before.
 
 **Does not close by chunking into copies**, however well it scores. An anchor
 into a chunk that cannot be resolved against the file on disk is the thing this
