@@ -30,6 +30,7 @@ from __future__ import annotations
 from .application.ask import Asked, ask
 from .application.build_context import build_context, cost_model_for
 from .application.ingest import IngestReport, ingest_paths
+from .application.leads import Lead, leads_from
 from .application.search import SearchResult, search
 from .application.trace import trace_quotation
 from .application.verify import (
@@ -81,6 +82,7 @@ __all__ = [
     "HeuristicTokenCost",
     "IngestReport",
     "IngestionError",
+    "Lead",
     "ProtectedPackageError",
     "Resolution",
     "ResolutionStatus",
@@ -104,6 +106,7 @@ __all__ = [
     "contract_schema_text",
     "cost_model_for",
     "ingest_paths",
+    "leads_from",
     "maximal_marginal_relevance",
     "parse_answer",
     "parser_for",

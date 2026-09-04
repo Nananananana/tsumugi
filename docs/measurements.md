@@ -1105,3 +1105,59 @@ fail, so the roadmap item is the corpus, not the code.
   it answers, so the corpus reports how well near-verbatim questions are served
   and says nothing about how people ask. `tools/measure_paraphrase.py` shows the
   boundary, and shows Chinese failing two rows before English does.
+
+## When a package comes back empty
+
+`python tools/measure_empty_packages.py`, over the 180 labelled cases that name
+a required fact. **23 of them (12.8%) produce a package with no items at all** —
+confirmation supported nothing, so the evidence list is correctly empty and
+completely useless to whoever asked.
+
+Their omissions already name the passages the index proposed. Resolving those
+back into text:
+
+| offered | holds the required fact | holds a forbidden one |
+|---|---|---|
+| all | 65.2% | 65.2% |
+| best 3 | 65.2% | 65.2% |
+| best 2 | 65.2% | 56.5% |
+| best 1 | 43.5% | 21.7% |
+
+Offering every near miss is a coin flip. The ranking does its work in the first
+position and none after it — the second costs 21.7 points of risk for no
+recall — which is why `leads_from` defaults to one and to empty packages only
+([ADR-0026](adr/0026-a-lead-is-offered-only-when-there-is-nothing-to-confuse-it-with.md)).
+
+**Read 43.5/21.7 as "roughly two to one in the first position", not as two
+decimal places.** It is one corpus, written here; the one time its vocabulary
+changed hands the trap rate moved 6.0% → 25.8% with no code change.
+
+## Speed, and where it goes
+
+`cProfile` over 300 documents of 6,800 characters (2.6 MiB), the size a real
+document measured across two sibling repositories:
+
+| | before | after |
+|---|---|---|
+| ingest | 9.5s (0.27 MiB/s) | 4.7s (0.56 MiB/s) |
+| query | 488 ms | 156 ms |
+
+Nothing algorithmic changed. Four things were being recomputed:
+
+- `mark_duplicates` shingled **inside** its pairwise loop — 2,450 shingle
+  builds per query where 50 would do, 44% of the call;
+- `_fold_with_origins` re-derived a document's fold once per confirmation rule,
+  84 folds to look at 50 documents;
+- the cost model's `classify` scanned range tuples per character, 383,000 times
+  per twenty queries to reach one of seven answers;
+- the tokenizer's `script_class` did the same, 1.8 million times per ingest for
+  about 90 distinct answers.
+
+What remains in ingest is `_io.open` at 5.6 ms per file, which is Windows
+opening files rather than anything this library does.
+
+**Measured on a machine running several agent sessions.** The earlier note
+stands: this corpus has read 455 and 571 documents/second an hour apart with no
+code change, and three consecutive runs agreeing to ±1% is what made that
+dangerous. The ratios above are large enough to survive that; the absolute
+numbers are not load-independent.

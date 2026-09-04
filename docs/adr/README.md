@@ -39,6 +39,7 @@ later ADR supersedes it and says so.
 | [0023](0023-the-public-surface-changes-on-notice.md) | The public surface changes on notice, and the notice is a diff |
 | [0024](0024-the-ordering-is-a-setting.md) | The ordering is a setting, and the default is the measured one |
 | [0025](0025-outside-the-domain-a-library-may-help.md) | Outside the domain, a library may help — if it is measured first |
+| [0026](0026-a-lead-is-offered-only-when-there-is-nothing-to-confuse-it-with.md) | A lead is offered only when there is nothing to confuse it with |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

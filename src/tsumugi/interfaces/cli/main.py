@@ -23,6 +23,7 @@ from ...application.ask import ask
 from ...application.build_context import build_context
 from ...application.forgetting import forget_documents
 from ...application.ingest import ingest_paths
+from ...application.leads import DEFAULT_LIMIT, Lead, leads_from
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
@@ -115,6 +116,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
+    context.add_argument(
+        "--leads",
+        type=int,
+        default=DEFAULT_LIMIT,
+        metavar="N",
+        help=(
+            "when nothing is confirmed, show the N best-ranked unconfirmed passages "
+            f"(default {DEFAULT_LIMIT}; more of them are measurably not worth it)"
+        ),
+    )
+    context.add_argument(
+        "--no-leads",
+        action="store_true",
+        help="stay silent when nothing is confirmed, rather than offering a near miss",
+    )
     context.add_argument(
         "--no-ledger",
         action="store_true",
@@ -564,7 +580,40 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
     elif package.omissions:
         print(f"{len(package.omissions)} candidates were left out; --why to see them")
 
+    # Nothing was confirmed, so the evidence list is empty and correct -- and
+    # on its own it is useless to the person who asked. The best-ranked near
+    # miss is offered under its own name, never as evidence.
+    #
+    # Deliberately absent from `--json`: the package is a frozen contract
+    # (ADR-0022) and a lead is not part of it. A consumer who wants leads calls
+    # `leads_from`, which is what the library exports it for.
+    if not package.items and not args.no_leads:
+        _print_leads(leads_from(package, store, limit=args.leads))
+
     return 0 if package.items else 1
+
+
+def _print_leads(leads: list[Lead]) -> None:
+    """Say what was found, and say plainly that it was not confirmed.
+
+    Measured over the labelled cases whose package comes back empty: the best
+    lead holds the required fact 43.5% of the time and a forbidden one 21.7%
+    of the time. Those numbers are why the wording is this blunt, and why the
+    exit code stays 1 -- a lead is not an answer, and a script must not be
+    able to mistake one for an answer.
+    """
+    if not leads:
+        return
+    print()
+    print("no confirmed evidence. the closest passage found, NOT confirmed:")
+    for lead in leads:
+        print()
+        print(f"  {lead.source_path}[{lead.span.start}:{lead.span.end}]  (unconfirmed)")
+        for line in lead.text.strip().splitlines():
+            print(f"  | {line}")
+    print()
+    print("  this shares no confirmed wording with your question. treat it as a place")
+    print("  to look, not as an answer. `--no-leads` turns this off.")
 
 
 def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:

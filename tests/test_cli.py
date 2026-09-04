@@ -840,3 +840,76 @@ def test_no_ledger_leaves_the_ledger_empty(tmp_path: Path, index_path: Path) -> 
 
     run("context", "how heavy is the tent", index=index_path)
     assert rows() == 1, "the ledger stopped recording when nothing asked it to"
+
+
+class TestLeadsAtTheCommandLine:
+    """What a person sees when nothing is confirmed.
+
+    `tsumugi context` used to print an empty package and stop, which is true
+    and is the reason people said the library never answers anything. It now
+    offers the best-ranked unconfirmed passage under a heading that says so
+    (ADR-0026).
+
+    Three things have to stay true, and each is a way this could quietly become
+    the feature ADR-0022 refused.
+    """
+
+    def test_a_dead_end_offers_the_closest_passage_and_says_it_is_unconfirmed(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert run("ingest", str(corpus), index=index_path) == 0
+        capsys.readouterr()
+
+        code = run(
+            "context",
+            "what is the reimbursement turnaround for cancelled bookings",
+            "--budget",
+            "characters:300",
+            index=index_path,
+        )
+        printed = capsys.readouterr().out
+
+        assert "no confirmed evidence" in printed
+        assert "NOT confirmed" in printed
+        assert "not as an answer" in printed
+        # **The exit code does not move.** ADR-0022's surviving argument is that
+        # safety must not depend on a reader honouring a label; a script reading
+        # the status has to see the same failure it saw before.
+        assert code == 1
+
+    def test_no_leads_returns_to_silence(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert run("ingest", str(corpus), index=index_path) == 0
+        capsys.readouterr()
+
+        question = "what is the reimbursement turnaround for cancelled bookings"
+        run("context", question, "--budget", "characters:300", index=index_path)
+        assert "no confirmed evidence" in capsys.readouterr().out, (
+            "the default must offer a lead, or the suppression below proves nothing"
+        )
+
+        run("context", question, "--budget", "characters:300", "--no-leads", index=index_path)
+        assert "no confirmed evidence" not in capsys.readouterr().out
+
+    def test_json_carries_no_lead_because_the_contract_is_closed(
+        self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """v1 is frozen (ADR-0022). A convenience does not get a contract bump."""
+        assert run("ingest", str(corpus), index=index_path) == 0
+        capsys.readouterr()
+
+        run(
+            "context",
+            "what is the reimbursement turnaround for cancelled bookings",
+            "--budget",
+            "characters:300",
+            "--json",
+            index=index_path,
+        )
+        package = json.loads(capsys.readouterr().out)
+        assert package["items"] == [], "this question must confirm nothing, or nothing is tested"
+        assert not any("lead" in key.lower() for key in package)
+        from tsumugi import contract_schema
+
+        jsonschema.validate(package, contract_schema(package["contract"]))
