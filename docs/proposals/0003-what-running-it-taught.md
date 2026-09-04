@@ -271,7 +271,7 @@ survive the trap measurement, not the recall one.
 arrives as a diff, the decision was never made.
 
 **4. Chinese, or an honest sentence about it.** — **the sentence is written,
-2026-09-01. The structural half remains.**
+2026-09-01. The structural half remains, and 2026-09-04 made it sharper.**
 
 The *or* was doing real work here and only one branch ever needed the corpus.
 The README now carries the numbers rather than leaving them in a measurement
@@ -338,6 +338,41 @@ genre with no drafter and a handwritten one that names one, and the twenty
 existing genres are marked `unrecorded` rather than back-filled with the tool's
 default — the value is not known, and guessing it would put a name where the
 honest entry is a gap.
+
+**2026-09-04: it is not the recall problem this item describes.** `tools/measure_paraphrase.py`
+asks one Chinese fact several ways against a document that contains it. Verbatim
+works; so does verbatim shortened. Then:
+
+| question | | |
+| --- | --- | --- |
+| `菜园大小` | just the keywords | **one item, and the answer is not in it** |
+| `菜园` | the document's own word for the subject | **one item, and the answer is not in it** |
+
+Not an empty package — a confident wrong one, which is the outcome this library
+exists to prevent. And the cause is not confirmation. `_confirm_by_coverage`
+locates evidence where the query's terms **crowd together**, and its own
+docstring records why: each term's *first* occurrence pointed the item at the
+heading, because a heading is a document's first mention of what it is about.
+That fix works from two terms upwards. Chinese only ever has one, so the
+fallback is the first occurrence and the item is the heading — the same bug,
+still live, in the one language that cannot avoid it.
+
+**Thirty Chinese cases score 80% and none can see it**, because every one asks
+its question in the document's own contiguous words. So the 83.3% in the README
+is not a claim about Chinese; it is a claim about near-verbatim Chinese, and the
+README now says so.
+
+This does not change the commission's shape, it narrows what it has to answer.
+The structural question was "can a question be reduced to its content without a
+dictionary". The measured question is **"where does a single-term match point"**
+— which is smaller, is not language-specific in its statement, and can be
+decided by cases whose questions are not copied from their documents. Both
+candidate fixes are already refused by evidence taken elsewhere: a segmenter
+(ADR-0007; jieba measured at 2 of 23 residual failures) and density-ranked
+occurrences (tried and reverted, +0.5 recall for +0.7 trap). Neither is
+decidable on a corpus that cannot fail, so **the corpus is the blocking item,
+not the code** — and `measure_paraphrase.py` is the shape the new cases have to
+break.
 
 ### Then
 

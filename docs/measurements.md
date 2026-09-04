@@ -987,6 +987,92 @@ having:
   counting it as ungrounded would report a model that cannot follow an output
   contract as one that cites badly — two problems with two different fixes.
 
+## Which constants are load-bearing, and which are decoration
+
+`python tools/measure_sensitivity.py`. Every number in this library that decides
+something was set by a person against one corpus. A value that swings the
+results when nudged is a value fitted to *this* data; a value that does not is
+one another corpus will not need to change. The whole 180-case corpus is
+re-scored with each constant moved, using the runner's own build and
+`score_case`, so the rows are comparable with everything above.
+
+| constant | range tried | recall moves | trap moves | |
+| --- | --- | --- | --- | --- |
+| `INFLECTION_TAIL` = 2 | 0 – 3 | **16.7 pts** | 0.0 | cliff |
+| `RELATIVE_MATCH_FLOOR` = 0.8 | 0.5 – 0.95 | 0.0 | **16.7 pts** | cliff |
+| `COVERAGE_THRESHOLD` = 1.0 | 0.6 – 1.0 | 0.6 | **13.3 pts** | cliff |
+| `MATCH_WEIGHT` = 0.1 | 0.0 – 0.3 | 0.0 | 0.0 | plateau |
+| `redundancy_threshold` = 0.75 | 0.5 – 0.9 | 0.0 | 0.0 | plateau |
+| `SHINGLE` = 5 | 3 – 8 | 0.0 | 0.0 | plateau |
+
+**The two precision cliffs are on their flat side, which is the safe one.**
+`RELATIVE_MATCH_FLOOR` reads 5.0% trap at both 0.8 and 0.95, and 21.7% at 0.5;
+`COVERAGE_THRESHOLD` reads 5.0% at 1.0 and 5.8% at 0.8, and 18.3% at 0.6. Both
+shipped values sit where the curve has already flattened, so a corpus that
+behaves differently costs traps only if it pushes *down*, and neither is
+balanced on a knife edge.
+
+`MATCH_WEIGHT` moves no number at 0.0 or at 0.3 — but it is not inert: it
+reorders the items of **6 packages in 180**. It breaks ties and nothing else,
+which is worth knowing before someone deletes it as dead.
+
+`INFLECTION_TAIL` is the one real cliff, and the 16.7 points are **entirely
+Chinese**:
+
+| | en (45) | ja (50) | ko (25) | mixed (30) | zh (30) |
+| --- | --- | --- | --- | --- | --- |
+| tail = 1 | 88.9% | 86.0% | 80.0% | 80.0% | **0.0%** |
+| tail = 2 *(shipped)* | 88.9% | 86.0% | 80.0% | 100.0% | 80.0% |
+| tail = 3, 4, 6 | 88.9% | 86.0% | 80.0% | 100.0% | 80.0% |
+
+Chinese has no spaces and no script alternation, so `_content_terms` returns the
+**whole question as one term**. Confirmation then asks whether that one term
+appears within `INFLECTION_TAIL` characters of whole — at 1 nothing confirms and
+recall is zero; at 2 the corpus's Chinese questions, which are contiguous
+substrings of their documents, all fit. The shipped value is the *smallest* that
+works and has no headroom below; raising it to 6 costs no traps in any language.
+
+A tolerance proportional to term length — `max(2, floor(len(term) × f))` for f in
+0.1, 0.2, 0.3 — was measured and changes **not one case in any language**. The
+corpus cannot separate the two rules, so there is no evidence for the change and
+it was not made.
+
+## The corpus cannot see paraphrase, and Chinese is where that shows
+
+`python tools/measure_paraphrase.py`. Every corpus question was written by
+somebody reading the document it answers. Asking the same fact several ways
+against one small document per language, from verbatim outwards:
+
+| | en | ja | zh |
+| --- | --- | --- | --- |
+| verbatim | yes | yes | yes |
+| verbatim + question stem | yes | yes | yes |
+| the same words, shorter | yes | yes | yes |
+| just the keywords | **yes** | **yes** | **no — wrong passage** |
+| the document's own keyword alone | — | — | **no — wrong passage** |
+| how a person actually asks | yes | no | no |
+| a synonym for the keyword | no | no | no |
+
+The synonym row failing is ADR-0007 working: this library confirms by the words
+that are there. **The keyword rows are a defect, and they do not fail by
+returning nothing.** `菜园` — the document's own word for the subject — returns a
+package with one item that does not contain the answer.
+
+`_confirm_by_coverage` locates evidence where the query's terms crowd together,
+and its docstring records why: taking each term's *first* occurrence pointed the
+item at the heading, because a heading is a document's first mention of what it
+is about. That fix works from two terms upwards. Chinese only ever has one, the
+fallback is the first occurrence, and the item is the heading again — the bug
+that was fixed in 2024 for every language that puts spaces between its words.
+
+**Thirty Chinese cases score 80% and not one of them can see this**, because
+each asks its question in the document's own contiguous words. The two candidate
+fixes are both already refused by evidence taken elsewhere: segmenting Han runs
+(ADR-0007 refused a segmenter; `tools/measure_segmenters.py` measured jieba at 2
+of 23 residual failures) and locating single-term evidence by density (tried and
+reverted: +0.5 recall, +0.7 trap). Neither is decidable on a corpus that cannot
+fail, so the roadmap item is the corpus, not the code.
+
 ## What these numbers are not
 
 - **Not a benchmark against anything else.** No other tool was run.
@@ -1008,3 +1094,7 @@ having:
 - **The index and cost numbers above are not gated.** Retrieval is: CI runs the
   `ci` tier and fails below its floors. Index size and ingest speed are re-run
   by hand.
+- **Not a measure of paraphrase.** Every question was written from the document
+  it answers, so the corpus reports how well near-verbatim questions are served
+  and says nothing about how people ask. `tools/measure_paraphrase.py` shows the
+  boundary, and shows Chinese failing two rows before English does.

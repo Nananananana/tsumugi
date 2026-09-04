@@ -231,12 +231,25 @@ nothing can be dropped — and the fix that would help is a dictionary, which
 each refused for the same reason: a word list is a thing that has to be
 maintained, per language, forever.
 
-Two honest limits on those numbers. They come from a corpus this project
-generated, and the Chinese and Korean genres in it were **all drafted by a
-model whose name was not recorded** — so they measure vocabulary that is not
-mine, drafted by something I cannot name. And retrieval is lexical throughout:
-when it misses, the package says so and names the rule, rather than returning a
-passage it could not confirm.
+**Three honest limits on those numbers**, and the third one matters most.
+
+They come from a corpus this project generated, and the Chinese and Korean
+genres in it were **all drafted by a model whose name was not recorded** — so
+they measure vocabulary that is not mine, drafted by something I cannot name.
+
+Retrieval is lexical throughout, so a question sharing no word with its document
+is a miss by construction, not a bug.
+
+And **every question in the corpus was written by someone reading the document
+it answers**, so the table above says how well near-verbatim questions are
+served and nothing about how people ask. Where that shows is Chinese: asked for
+`菜园` — the document's own word for the subject — a package comes back with one
+item that does not contain the answer. Not empty: *wrong*. Evidence is located
+where a question's terms crowd together, and a language whose questions are
+always one term has nothing to crowd, so the item lands on the heading. Run
+`python tools/measure_paraphrase.py` to see the boundary in three languages;
+the diagnosis is in [measurements](docs/measurements.md) and it is the open half
+of roadmap item 4.
 
 ## For an agent
 
@@ -342,6 +355,27 @@ because MMR changes the contents of 5 packages in 240 here
 ([ADR-0024](docs/adr/0024-the-ordering-is-a-setting.md)). It is a setting
 because that measurement is on one corpus, and this project's own corpus is the
 thing it least trusts.
+
+**Which numbers are safe to leave alone** is measured rather than asserted.
+`python tools/measure_sensitivity.py` moves every constant that decides
+something across its plausible range and re-scores the whole corpus with the
+evaluator's own scoring, so a value fitted to this data shows up as a swing:
+
+| | range tried | what moves |
+|---|---|---|
+| `INFLECTION_TAIL` = 2 | 0 – 3 | recall, by **16.7 points** — and all of it Chinese |
+| `RELATIVE_MATCH_FLOOR` = 0.8 | 0.5 – 0.95 | trap rate, 5.0% → 21.7% going down |
+| `COVERAGE_THRESHOLD` = 1.0 | 0.6 – 1.0 | trap rate, 5.0% → 18.3% going down |
+| `redundancy_threshold` = 0.75 | 0.5 – 0.9 | nothing measured |
+
+The two precision values sit where their curve has already flattened — 0.8 and
+0.95 give the same trap rate — so they are conservative rather than balanced on
+an edge. `redundancy_threshold` moves no number on this corpus, which is exactly
+why it is now a setting (`TSUMUGI_REDUNDANCY_THRESHOLD`) instead of a constant:
+a number that this corpus cannot justify is a number somebody else's corpus
+should be allowed to change. It is not inert — it decides whether a package says
+`redundant_with:` and whether a crowded-out passage is explained as a duplicate
+or as a budget overflow.
 
 `tsumugi.__all__` and the CLI verbs are pinned by a test
 ([ADR-0023](docs/adr/0023-the-public-surface-changes-on-notice.md)), so a

@@ -25,6 +25,7 @@ from .domain.ordering import (
     Ordering,
     maximal_marginal_relevance,
 )
+from .domain.redundancy import DEFAULT_THRESHOLD
 from .errors import ConfigurationError
 
 __all__ = ["DEFAULT_INDEX_DIRECTORY", "TsumugiConfig", "default_index_path"]
@@ -77,6 +78,12 @@ class TsumugiConfig:
     #: is exactly ``score``, 0.0 is pure novelty and ignores the question.
     #: Ignored unless ``ordering`` is ``mmr``.
     diversity: float = DEFAULT_DIVERSITY
+    #: How alike two passages must be before one is marked a near-duplicate of
+    #: the other. Measured on this corpus, moving it between 0.5 and 0.9 changes
+    #: no reported number -- which is the reason it is a setting rather than a
+    #: constant. A value that nothing here can move is a value fitted to
+    #: documents nobody else has, and somebody else's corpus will disagree.
+    redundancy_threshold: float = DEFAULT_THRESHOLD
 
     def selected_ordering(self) -> Ordering:
         """The ordering this configuration names, ready to pass to a build.
@@ -145,6 +152,14 @@ class TsumugiConfig:
             except ValueError as error:
                 raise ConfigurationError(
                     f"TSUMUGI_DIVERSITY must be a number between 0 and 1, not {diversity!r}"
+                ) from error
+        if threshold := source.get("TSUMUGI_REDUNDANCY_THRESHOLD"):
+            try:
+                values["redundancy_threshold"] = float(threshold)
+            except ValueError as error:
+                raise ConfigurationError(
+                    "TSUMUGI_REDUNDANCY_THRESHOLD must be a number between 0 and 1, "
+                    f"not {threshold!r}"
                 ) from error
         return cls.from_mapping(values)
 

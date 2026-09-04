@@ -33,6 +33,7 @@ from ..domain.budget import Budget
 from ..domain.claim import VerificationReport
 from ..domain.ordering import Ordering
 from ..domain.package import ContextPackage, Protection
+from ..domain.redundancy import DEFAULT_THRESHOLD
 from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
 from ..ports.index import Index
@@ -93,6 +94,7 @@ def ask(
     freshness: FreshnessCheck | None = None,
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
+    redundancy_threshold: float = DEFAULT_THRESHOLD,
     version: str = __version__,
 ) -> Asked:
     """Build context for ``question``, ask ``provider``, and check the answer."""
@@ -105,6 +107,7 @@ def ask(
         ordering=ordering,
         candidate_limit=candidate_limit,
         minimum_score=minimum_score,
+        redundancy_threshold=redundancy_threshold,
         version=version,
         freshness=freshness,
         # A machine is going to check this answer, so it has to be machine

@@ -28,6 +28,7 @@ from ..domain.package import (
     PackageProvenance,
     corpus_state,
 )
+from ..domain.redundancy import DEFAULT_THRESHOLD
 from ..domain.selection import ItemProvenance, Layer
 from ..ports.cost import CostModel
 from ..ports.freshness import FreshnessCheck
@@ -56,6 +57,9 @@ def build_context(
     budget: Budget,
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
+    # How alike two passages must be to be marked near-duplicates. Reachable
+    # from configuration because the corpus it was chosen on is one corpus.
+    redundancy_threshold: float = DEFAULT_THRESHOLD,
     # Which candidate is tried first (`domain/ordering.py`). `None` keeps the
     # score order every number in `docs/measurements.md` was taken on.
     ordering: Ordering | None = None,
@@ -166,6 +170,7 @@ def build_context(
         budget=budget,
         cost_of=cost_model.cost,
         minimum_score=minimum_score,
+        redundancy_threshold=redundancy_threshold,
         ordering=ordering,
         query=query,
         truncated_at=truncation.limit if truncation is not None else None,
