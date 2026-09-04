@@ -139,7 +139,9 @@ jobs:
       # red. If mamori's releases ever start doing that in earnest, the lever
       # is pinning the checkout to a ref -- not tolerance.
       - name: The seam
-        run: python -m pytest tests/test_adapter_mamori.py -q
+        # No `-q`: `addopts` already sets it and a second stacks to `-qq`,
+        # which deletes the "N passed" line from the log this job exists to produce.
+        run: python -m pytest tests/test_adapter_mamori.py
         continue-on-error: true
         env:
           PYTHONUTF8: "1"

@@ -87,7 +87,13 @@ GATES: tuple[tuple[str, str, list[str]], ...] = (
     # it was in this list on the first run of this file. A gate runner with a
     # dead gate is the joke this file exists to stop, arriving inside it.
     ("import-linter", "Layering", [_script("lint-imports")]),
-    ("pytest", "Test", [sys.executable, "-m", "pytest", "-q"]),
+    # No `-q` here. `pyproject.toml` already sets `addopts = "-q"`, and a
+    # second one stacks to `-qq`, which removes the "N passed" line -- so a
+    # captured failure loses the count, and a selector matching nothing prints
+    # an empty string. Relayed by a `mamori` session that hit it; this file
+    # judges by exit code so it was never wrong, but its saved output was
+    # poorer than it needed to be for no benefit.
+    ("pytest", "Test", [sys.executable, "-m", "pytest"]),
     (
         "evaluation fixtures",
         "Check the evaluation fixtures",
