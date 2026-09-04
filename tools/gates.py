@@ -48,6 +48,7 @@ once something has been shown to make it non-zero.*
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
@@ -132,6 +133,61 @@ NOT_RUN_HERE: dict[str, str] = {
 }
 
 
+#: Asking GitHub for the newest run on `main`. A list rather than a string, so
+#: nothing is handed to a shell.
+_GH_LAST_RUN = (
+    "gh",
+    "run",
+    "list",
+    "--branch",
+    "main",
+    "--limit",
+    "1",
+    "--json",
+    "conclusion,displayTitle,headSha",
+)
+
+
+def last_ci_result() -> str:
+    """What GitHub made of the last push. Asked, rather than assumed.
+
+    **The gap this file's docstring describes, finally closed by looking.**
+    mypy was green here and red in CI for three pushes: `warn_unused_ignores`
+    depends on whether the `mamori` sibling is installed, and the lint job and
+    this machine answered differently. Nothing local could have caught it --
+    both environments were correct about themselves.
+
+    So the last word on `main` is fetched instead of inferred. It needs `gh`
+    and a network, which is why it is a line of the report rather than an
+    eighth gate: a check that cannot run offline must not be able to fail a run
+    offline, and a gate that is skipped half the time teaches people to ignore
+    it.
+    """
+    try:
+        finished = subprocess.run(  # noqa: S603
+            _GH_LAST_RUN,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            env=_environment(),
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"not asked ({type(error).__name__}); needs `gh` and a network"
+    if finished.returncode != 0:
+        return f"not asked (gh exited {finished.returncode})"
+    try:
+        runs = json.loads(finished.stdout)
+    except json.JSONDecodeError:
+        return "not asked (gh returned something that is not JSON)"
+    if not runs:
+        return "no runs on main yet"
+    run = runs[0]
+    return (
+        f"{run.get('conclusion') or 'still running'}: "
+        f"{run.get('displayTitle', '')!r} ({str(run.get('headSha'))[:7]})"
+    )
+
+
 def main() -> int:
     failures: list[tuple[str, int, str]] = []
     for name, _step, command in GATES:
@@ -153,6 +209,7 @@ def main() -> int:
 
     if not failures:
         print(f"\n{len(GATES)} gates, all green.")
+        print(f"last CI run on main -- {last_ci_result()}")
         return 0
 
     for name, code, output in failures:
