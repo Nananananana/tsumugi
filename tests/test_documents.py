@@ -84,3 +84,37 @@ def test_the_documented_way_to_read_the_contract_is_the_one_that_is_tested() -> 
         "describes the accessor. The accessor is the route the conformance "
         "suite exercises; the file path is not."
     )
+
+
+#: `## Some Heading` -> `#some-heading`, the way GitHub builds an anchor.
+HEADING = re.compile(r"(?m)^#{1,6} (.+?)\s*$")
+IN_PAGE = re.compile(r"\]\(#([^)]+)\)")
+
+
+def _anchor(heading: str) -> str:
+    """GitHub's slug: lowercase, punctuation dropped, spaces to hyphens."""
+    return re.sub(r"[^a-z0-9 _-]", "", heading.lower()).strip().replace(" ", "-")
+
+
+def test_every_in_page_link_points_at_a_heading_that_exists() -> None:
+    """A table of contents that points at nothing looks exactly like one that works.
+
+    The links resolving test above skips fragments on purpose -- checking
+    headings as well as files would make it fail on a renamed section, which is
+    a noisier promise. This is the narrow version: a link with **only** a
+    fragment is a claim about this document alone, and nothing outside it can
+    change the answer.
+
+    Added when the README grew a "Where to start" table, which is the first
+    thing a reader meets and the first thing to rot.
+    """
+    broken: list[str] = []
+    for path in _documents():
+        text = path.read_text(encoding="utf-8")
+        anchors = {_anchor(h) for h in HEADING.findall(text)}
+        broken += [
+            f"{path.relative_to(ROOT).as_posix()} -> #{target}"
+            for target in IN_PAGE.findall(text)
+            if target not in anchors
+        ]
+    assert not broken, "links to headings that are not there:\n  " + "\n  ".join(broken)

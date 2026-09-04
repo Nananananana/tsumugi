@@ -3,30 +3,77 @@
 **Send a model the parts of your notes that bear on the question — with a record
 of where each part came from, and an account of what was left out.**
 
-Local-first. One named adapter may open a socket; nothing else can. **Zero runtime dependencies.**
+[![CI](https://github.com/Nananananana/tsumugi/actions/workflows/ci.yml/badge.svg)](https://github.com/Nananananana/tsumugi/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![License Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Runtime dependencies: 0](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)](#zero-dependencies-checked)
+
+Retrieval gives you passages. **tsumugi gives you passages you can check** — an
+anchor into the file each one came from, and the list of what it decided not to
+send and why. Local-first, offline, and deterministic: the same question over
+the same corpus builds the same package, byte for byte.
+
+```bash
+pip install "tsumugi @ git+https://github.com/Nananananana/tsumugi"
+tsumugi demo          # a whole walk-through in a throwaway directory
+```
+
+```python
+import tsumugi
+
+connection = tsumugi.connect("index.db")
+store, index = tsumugi.SqliteDocumentStore(connection), tsumugi.FtsIndex(connection)
+tsumugi.ingest_paths(paths, root=root, store=store, index=index, parser_for=tsumugi.parser_for)
+
+package = tsumugi.build_context(
+    "how heavy is the tent",
+    store=store,
+    index=index,
+    budget=tsumugi.Budget.characters(4000),
+    cost_model=tsumugi.CharacterCost(),
+)
+
+for item in package.items:
+    print(item.anchor.source_path, item.text)
+for left_out in package.omissions:
+    print(left_out.rule, left_out.reason)  # what it did not send, and why
+```
+
+## Why this and not a retriever
+
+|  |  |
+|---|---|
+| **Every passage is anchored** | document id, offsets and two hashes. `verify` resolves a model's citations back to the file on disk and says *supported*, *unsupported*, *uncited* or *unverifiable* |
+| **It says what it left out** | a budget that binds, a candidate that could not be confirmed, a near-duplicate — each becomes an `omission` with a rule and a reason ([ADR-0005](docs/adr/0005-selection-is-a-report.md)) |
+| **The contract is frozen** | `tsumugi.context-package/1` is a JSON document with a published schema, not a Python class. Another program in another language can read it |
+| **It measures itself** | 240 labelled cases, and every number in [docs/measurements.md](docs/measurements.md) is reproducible with one command — including the ones that say something did not work |
+| **Nothing is installed** | zero runtime dependencies, asserted in CI by installing into a clean environment |
+
+Search works in Japanese, Chinese, Korean and English. It **does not** decide
+whether a claim is true — see [what it does not do](#what-it-does-not-do).
+
+## Where to start
+
+| | |
+|---|---|
+| Try it | `tsumugi demo` |
+| Use it from Python | [From Python](#from-python), or [`examples/library.py`](examples/library.py) |
+| Plug it into an existing pipeline | [Already using LangChain or LlamaIndex](#already-using-langchain-or-llamaindex) |
+| Give it to an agent | [For an agent](#for-an-agent) — a read-only MCP server |
+| Read the numbers | [docs/measurements.md](docs/measurements.md) |
+| Read the decisions | [docs/adr/](docs/adr/README.md) — every one carries what it cost |
 
 ---
 
 > ### Status: v0.2 in progress
 >
-> Reading a corpus, searching it, building a **ContextPackage** under a budget,
-> marking redundancy without removing it, putting the question to a local model,
-> checking that model's citations against the package, recording what was sent
-> and what was used, forgetting on request, serving all of it to an agent over
-> MCP, and scoring the selection against a labelled corpus all work. Both
-> sibling adapters (`mamori`, `kiseki`) exist and are optional.
->
-> Two instruction sets ship — one for a person reading the answer, one for a
-> program checking it — and `render()` emits the whole prompt, so a package
-> always describes exactly what was sent
-> ([ADR 0017](docs/adr/0017-the-instruction-set-is-a-parameter.md)). There is no
-> template *language*, on purpose: the third shape can argue for itself.
->
-> The ContextPackage contract is **frozen at version 1**.
+> The ContextPackage contract is **frozen at version 1**. Everything described
+> above works today; both sibling adapters (`mamori`, `kiseki`) exist and are
+> optional. The public surface is pinned by a test and changes on notice
+> ([ADR-0023](docs/adr/0023-the-public-surface-changes-on-notice.md)).
 >
 > - **What the code does today** — [docs/architecture.md](docs/architecture.md)
 > - **What it is meant to become** — [docs/proposals/0003-what-running-it-taught.md](docs/proposals/0003-what-running-it-taught.md)
-> - **The decisions** — [docs/adr/](docs/adr/README.md)
 > - **The threat model** — [docs/threat-model.md](docs/threat-model.md)
 >
 > [docs/README.md](docs/README.md) explains which documents describe what exists
