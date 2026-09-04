@@ -106,7 +106,7 @@ FORBIDDEN_ANYWHERE_IN_CORE = frozenset(
 #: The adapters that are allowed to reach the network, by name. An allow-list
 #: rather than a rule about the package, so that adding one is a decision
 #: somebody makes on purpose (ADR-0016).
-NETWORKED_ADAPTERS = frozenset({"ollama.py"})
+NETWORKED_ADAPTERS = frozenset({"ollama.py", "openai_compatible.py"})
 
 #: The core stands alone. The siblings are optional adapters and the test suite
 #: runs with neither installed.

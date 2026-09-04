@@ -531,14 +531,19 @@ class TestAsk:
             and any(
                 isinstance(inner, ast.Call)
                 and isinstance(inner.func, ast.Name)
-                and inner.func.id == "OllamaProvider"
+                and inner.func.id in {"OllamaProvider", "OpenAICompatibleProvider"}
                 for inner in ast.walk(node)
             )
         }
-        assert sending == {"_ask", "_answer_report"}, (
-            f"{sorted(sending)} can send. `tsumugi ask` and `tsumugi eval --model` "
-            f"are the two commands that may; every other command is local, and the "
-            f"threat model says so."
+        # `_provider` rather than `_ask`: choosing between Ollama and an
+        # OpenAI-compatible server put the construction in one factory, which
+        # `_ask` calls. The property is unchanged and so is what would break it
+        # -- a third name appearing here means a command that was local can now
+        # send, and the threat model says which two may.
+        assert sending == {"_provider", "_answer_report"}, (
+            f"{sorted(sending)} can send. `tsumugi ask` (via `_provider`) and "
+            f"`tsumugi eval --model` are the two commands that may; every other "
+            f"command is local, and the threat model says so."
         )
 
 

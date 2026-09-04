@@ -38,6 +38,8 @@ from ...evaluation.runner import run_cases
 from ...evaluation.scoring import FLOORS, summarise
 from ...infrastructure.adapters.mamori import open_session
 from ...infrastructure.adapters.ollama import DEFAULT_MODEL, DEFAULT_URL, OllamaProvider
+from ...infrastructure.adapters.openai_compatible import DEFAULT_URL as OPENAI_URL
+from ...infrastructure.adapters.openai_compatible import OpenAICompatibleProvider
 from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.freshness import FilesystemFreshness, remembered_roots
@@ -47,6 +49,7 @@ from ...infrastructure.storage.database import SCHEMA_VERSION, connect, empty
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.cost import CostModel
+from ...ports.llm import LLMProvider
 from ..mcp.server import serve
 from .demo import run_demo
 
@@ -176,7 +179,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not record this exchange",
     )
-    question.add_argument("--url", default=DEFAULT_URL, help=f"(default: {DEFAULT_URL})")
+    question.add_argument(
+        "--server",
+        choices=("ollama", "openai"),
+        default="ollama",
+        help=(
+            "which API the local server speaks. `openai` is /v1/chat/completions, "
+            "which vLLM, llama.cpp, LM Studio and TGI all serve"
+        ),
+    )
+    question.add_argument(
+        "--url",
+        default=None,
+        help=f"(default: {DEFAULT_URL}, or {OPENAI_URL} with --server openai)",
+    )
     question.add_argument(
         "--allow-remote",
         action="store_true",
@@ -616,13 +632,33 @@ def _print_leads(leads: list[Lead]) -> None:
     print("  to look, not as an answer. `--no-leads` turns this off.")
 
 
+def _provider(args: argparse.Namespace) -> LLMProvider:
+    """Whichever local server was asked for, with that server's default URL.
+
+    `--url` defaults to `None` rather than to Ollama's, so that
+    `--server openai` does not silently point vLLM's adapter at port 11434 and
+    report the resulting 404 as though the model were missing.
+    """
+    if args.server == "openai":
+        return OpenAICompatibleProvider(
+            args.model,
+            url=args.url or OPENAI_URL,
+            allow_remote=args.allow_remote,
+        )
+    return OllamaProvider(
+        model=args.model,
+        url=args.url or DEFAULT_URL,
+        allow_remote=args.allow_remote,
+    )
+
+
 def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
     try:
         budget = Budget.parse(args.budget)
     except ValueError as error:
         raise ConfigurationError(str(error)) from error
 
-    provider = OllamaProvider(model=args.model, url=args.url, allow_remote=args.allow_remote)
+    provider = _provider(args)
     connection = _connect(config.resolved_index_path(), create=False)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
