@@ -44,6 +44,7 @@ from ..ports.store import DocumentStore
 from ..version import __version__
 from .build_context import build_context
 from .instructions import ANSWER_SCHEMA, ANSWERING
+from .search import Confirmation
 from .verify import verify_answer
 
 __all__ = ["Asked", "ask"]
@@ -95,6 +96,7 @@ def ask(
     candidate_limit: int = 50,
     minimum_score: float = 0.0,
     redundancy_threshold: float = DEFAULT_THRESHOLD,
+    confirmation: Confirmation | None = None,
     version: str = __version__,
 ) -> Asked:
     """Build context for ``question``, ask ``provider``, and check the answer."""
@@ -108,6 +110,7 @@ def ask(
         candidate_limit=candidate_limit,
         minimum_score=minimum_score,
         redundancy_threshold=redundancy_threshold,
+        confirmation=confirmation,
         version=version,
         freshness=freshness,
         # A machine is going to check this answer, so it has to be machine

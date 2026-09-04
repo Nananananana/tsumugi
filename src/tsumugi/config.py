@@ -19,6 +19,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Final
 
+from .application.search import DEFAULT_CONFIRMATION, Confirmation
 from .domain.ordering import (
     DEFAULT_DIVERSITY,
     ORDERINGS,
@@ -84,6 +85,33 @@ class TsumugiConfig:
     #: constant. A value that nothing here can move is a value fitted to
     #: documents nobody else has, and somebody else's corpus will disagree.
     redundancy_threshold: float = DEFAULT_THRESHOLD
+    #: The three numbers that decide whether a candidate is confirmed. Settings
+    #: rather than constants because `tools/measure_sensitivity.py` moved each
+    #: one and re-scored the corpus, and **all three are on cliffs** -- between
+    #: 13 and 17 points of recall or trap ride on each, and every one was
+    #: chosen against a corpus this project wrote.
+    #:
+    #: `inflection_tail` is the one most likely to need changing: it exists
+    #: because Japanese glues grammar to its nouns, and 2 is the number that
+    #: suits Japanese. The defaults are unchanged and are what every number in
+    #: `docs/measurements.md` was measured on.
+    coverage_threshold: float = DEFAULT_CONFIRMATION.coverage_threshold
+    relative_match_floor: float = DEFAULT_CONFIRMATION.relative_match_floor
+    inflection_tail: int = DEFAULT_CONFIRMATION.inflection_tail
+
+    def confirmation(self) -> Confirmation:
+        """The three as one value, validated.
+
+        Raises on a value outside its range rather than clamping. A
+        `coverage_threshold` of 2.0 silently clamped to 1.0 is a setting that
+        looks applied and is not, which is the failure this repository keeps
+        finding in its own claims.
+        """
+        return Confirmation(
+            coverage_threshold=self.coverage_threshold,
+            relative_match_floor=self.relative_match_floor,
+            inflection_tail=self.inflection_tail,
+        )
 
     def selected_ordering(self) -> Ordering:
         """The ordering this configuration names, ready to pass to a build.
@@ -161,6 +189,16 @@ class TsumugiConfig:
                     "TSUMUGI_REDUNDANCY_THRESHOLD must be a number between 0 and 1, "
                     f"not {threshold!r}"
                 ) from error
+        for variable, field, cast in (
+            ("TSUMUGI_COVERAGE_THRESHOLD", "coverage_threshold", float),
+            ("TSUMUGI_RELATIVE_MATCH_FLOOR", "relative_match_floor", float),
+            ("TSUMUGI_INFLECTION_TAIL", "inflection_tail", int),
+        ):
+            if raw := source.get(variable):
+                try:
+                    values[field] = cast(raw)
+                except ValueError as error:
+                    raise ConfigurationError(f"{variable} must be a number, not {raw!r}") from error
         return cls.from_mapping(values)
 
     def merged_with(

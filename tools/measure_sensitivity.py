@@ -219,6 +219,48 @@ def _score(cases: list[Any], extra: dict[str, Any]) -> tuple[float, float]:
     )
 
 
+#: How many cases to re-search when asking whether a knob reorders anything.
+#: Enough to catch a change that happens in one case in six, cheap enough to
+#: run for every knob that scored flat.
+REORDER_SAMPLE = 40
+
+
+def _reorders(cases: list[Any], knob: Knob) -> bool:
+    """Does moving this knob change the order results come back in?
+
+    Asked only when recall and trap did not move, to tell a knob *the metric
+    cannot see* from a knob that does nothing at all. `search` is called
+    directly rather than `build_context`, because the budget is exactly the
+    thing that hides the difference.
+
+    A knob that acts after search -- `SHINGLE` and `redundancy_threshold` both
+    act in `fit_to_budget` -- cannot show up here, and is reported as "no
+    effect" by this corpus rather than as dead. The distinction the sweep can
+    draw is between *observable here* and *not observable here*, and saying
+    more than that would be the overreach this file exists to avoid.
+    """
+    if knob.as_argument:
+        return True  # a build-time argument; ordering is not where it acts
+
+    def order(value: float) -> list[tuple[str, ...]]:
+        with _moved(knob, value):
+            seen = []
+            for case in cases:
+                with prepared_case(case) as (store, index, _root):
+                    results, _ = search_module.search(
+                        case.question,
+                        store=store,
+                        index=index,
+                        limit=50,
+                        candidate_limit=50,
+                        context=400,
+                    )
+                seen.append(tuple(r.source_path for r in results))
+            return seen
+
+    return order(knob.values[0]) != order(knob.values[-1])
+
+
 def main() -> int:
     cases = [c for c in load_cases(Path("tests/cases")) if c.must_include]
     assert cases, "no cases with a required fact; measuring nothing"
@@ -247,9 +289,20 @@ def main() -> int:
 
         swing = max(r for _, r, _ in rows) - min(r for _, r, _ in rows)
         traps = max(t for _, _, t in rows) - min(t for _, _, t in rows)
-        verdict = "CLIFF" if swing >= CLIFF or traps >= CLIFF else "plateau"
+        moved = max(swing, traps)
+        if moved >= CLIFF:
+            verdict = "CLIFF"
+        else:
+            # **A flat score is not the same as a dead knob**, and reporting
+            # both as "plateau" was wrong. `MATCH_WEIGHT` changes a score in 54
+            # of 60 cases and reorders 10 of them, while recall and trap do not
+            # move -- because these budgets are loose enough to fit everything
+            # confirmed, so reordering never changes what ends up in the
+            # package. On a tighter budget it would decide. Calling that a
+            # plateau invites somebody to delete it.
+            verdict = "plateau" if _reorders(cases[:REORDER_SAMPLE], knob) else "no effect"
         print(f"    range: recall {swing:.1f} pts, trap {traps:.1f} pts -> {verdict}")
-        verdicts.append((knob.name, verdict, max(swing, traps)))
+        verdicts.append((knob.name, verdict, moved))
 
     print(f"{chr(10)}{'-' * 62}")
     for name, verdict, swing in sorted(verdicts, key=lambda v: -v[2]):
@@ -265,6 +318,10 @@ def main() -> int:
         + "carry off this corpus: it belongs in configuration, or wants measuring"
         + chr(10)
         + "on data nobody here wrote."
+        + chr(10)
+        + "'no effect' is the one to act on: nothing observable moved at all, and"
+        + chr(10)
+        + "a constant nothing can observe is one nobody will notice going wrong."
     )
     if cliffs:
         print(f"{chr(10)}cliffs: {', '.join(cliffs)}")

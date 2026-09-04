@@ -559,6 +559,7 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         budget=budget,
         candidate_limit=config.candidate_limit,
         redundancy_threshold=config.redundancy_threshold,
+        confirmation=config.confirmation(),
         minimum_score=args.min_score,
         version=__version__,
         # On by default. A check the caller has to remember to turn on is a
@@ -681,6 +682,7 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
             ledger=None if getattr(args, "no_ledger", False) else SqliteLedger(connection),
             candidate_limit=config.candidate_limit,
             redundancy_threshold=config.redundancy_threshold,
+            confirmation=config.confirmation(),
             minimum_score=args.min_score,
             version=__version__,
             freshness=(

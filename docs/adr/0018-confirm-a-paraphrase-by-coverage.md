@@ -69,11 +69,33 @@ Held-out agrees on the shape — 80.0% / 100% / 6.7% across 0.8–1.0, against
 Whole corpus, before and after: recall **86.7% → 91.7%**, precision 99.1%
 unchanged, trap rate 6.0% unchanged. It costs nothing measurable.
 
-**The corpus cannot separate 0.8 from 1.0**, so the value is chosen rather than
-measured, and it is chosen strict: where evidence is absent this library fails
-closed. At 1.0 the rule also states plainly — *every content term of the
-question appears in the candidate* — and a rule a reader can hold in their head
-is worth something on its own.
+~~**The corpus cannot separate 0.8 from 1.0**, so the value is chosen rather
+than measured~~ — **superseded 2026-09-05, and it separates them.**
+`tools/measure_sensitivity.py` moves the threshold and re-scores the whole
+labelled corpus:
+
+| coverage_threshold | recall | trap |
+|---|---|---|
+| 0.6 | 87.8% | 18.3% |
+| 0.8 | 87.2% | 5.8% |
+| **1.0** | **87.2%** | **5.0%** |
+
+The corpus at the time this was written was smaller and could not see the
+difference; it can now, and it agrees with the choice. Loosening the rule to
+0.6 buys **0.6 recall points for 13.3 trap points** — the trade this ADR
+guessed at, with the numbers it lacked.
+
+So 1.0 is measured rather than chosen, and the reason to keep it is unchanged:
+where evidence is absent this library fails closed. At 1.0 the rule also states
+plainly — *every content term of the question appears in the candidate* — and a
+rule a reader can hold in their head is worth something on its own.
+
+It is a **setting** now rather than a constant
+([ADR-0026 measured all three](0026-a-lead-is-offered-only-when-there-is-nothing-to-confuse-it-with.md)
+is the leads decision; the sweep is described in `docs/measurements.md`). A
+value that swings the trap rate 13 points across its range is a value fitted to
+one corpus, and the only way to disagree with it used to be editing this file's
+implementation.
 
 ## What it costs
 

@@ -36,7 +36,7 @@ from ..ports.index import Index
 from ..ports.store import DocumentStore
 from ..version import __version__
 from .instructions import DEFAULT
-from .search import search
+from .search import Confirmation, search
 
 __all__ = ["build_context"]
 
@@ -60,6 +60,10 @@ def build_context(
     # How alike two passages must be to be marked near-duplicates. Reachable
     # from configuration because the corpus it was chosen on is one corpus.
     redundancy_threshold: float = DEFAULT_THRESHOLD,
+    # The three numbers that decide whether a candidate is confirmed. All three
+    # sit on cliffs (`tools/measure_sensitivity.py`), so the only honest place
+    # for them is a parameter -- see `search.Confirmation`.
+    confirmation: Confirmation | None = None,
     # Which candidate is tried first (`domain/ordering.py`). `None` keeps the
     # score order every number in `docs/measurements.md` was taken on.
     ordering: Ordering | None = None,
@@ -78,6 +82,7 @@ def build_context(
         limit=candidate_limit,
         candidate_limit=candidate_limit,
         context=context_characters,
+        confirmation=confirmation,
     )
 
     candidates: list[Candidate] = []

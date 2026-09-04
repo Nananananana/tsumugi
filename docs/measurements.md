@@ -1161,3 +1161,45 @@ stands: this corpus has read 455 and 571 documents/second an hour apart with no
 code change, and three consecutive runs agreeing to ±1% is what made that
 dangerous. The ratios above are large enough to survive that; the absolute
 numbers are not load-independent.
+
+## Which constants are on a cliff
+
+`python tools/measure_sensitivity.py`. Every number in the retrieval path is
+moved and the whole labelled corpus re-scored. The output is not "the best
+value" — that would be fitting them harder — it is the **shape** around the
+value already shipped.
+
+| constant | shipped | range moved | verdict |
+|---|---|---|---|
+| `INFLECTION_TAIL` | 2 | 16.7 recall pts | **cliff** |
+| `RELATIVE_MATCH_FLOOR` | 0.8 | 16.7 trap pts | **cliff** |
+| `COVERAGE_THRESHOLD` | 1.0 | 13.3 trap pts | **cliff** |
+| `MATCH_WEIGHT` | 0.1 | 0.0 | plateau |
+| `redundancy_threshold` | 0.75 | 0.0 | plateau |
+| `SHINGLE` | 5 | 0.0 | no effect *here* |
+
+All three cliffs are **settings** now (`Confirmation`, `TSUMUGI_COVERAGE_THRESHOLD`,
+`TSUMUGI_RELATIVE_MATCH_FLOOR`, `TSUMUGI_INFLECTION_TAIL`). The defaults do not
+move, and each sits on the safe shoulder of its cliff rather than the steep
+side — 2 and 3 score identically for the tail, 0.8 and 0.95 for the floor. What
+changed is that disagreeing no longer means editing the source.
+
+`INFLECTION_TAIL` is the one most likely to need changing. It exists because
+Japanese glues grammar to its nouns, and 2 is the number that suits Japanese; a
+language with longer suffixes will want more, and at 1 this corpus loses 16.7
+recall points.
+
+**Two things the sweep had to learn about itself**, and both are the failure
+this project keeps finding:
+
+- `SHINGLE` and `redundancy_threshold` are default *arguments*, bound when the
+  function was defined, so assigning the module attribute changed a name
+  nothing reads. **A plateau and a disconnected wire look identical in the
+  output.** Each knob now carries a `witness` that must differ between its
+  extremes, and one that does not move is reported as INERT rather than scored.
+- A flat recall is not a dead constant. `MATCH_WEIGHT` changes a score in 54 of
+  60 cases and reorders 10 of them; recall and trap do not move because these
+  budgets are loose enough to fit everything confirmed, so reordering never
+  changes what is in the package. On a tighter budget it would decide. The
+  sweep now separates *plateau* (observable, but the metric cannot see it) from
+  *no effect* (nothing observable moved at all).

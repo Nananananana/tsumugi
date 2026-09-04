@@ -66,14 +66,23 @@ def search(
     limit: int = 10,
     candidate_limit: int = 50,
     context: int = 120,
+    confirmation: Confirmation | None = None,
 ) -> tuple[list[SearchResult], Truncation | None]:
     """Find spans of the corpus that bear on ``query``.
+
+    ``confirmation`` carries the three numbers that decide whether a candidate
+    is confirmed. They are a parameter rather than three constants because the
+    sweep in ``tools/measure_sensitivity.py`` found all three sitting on
+    cliffs -- between 13 and 17 points of recall or trap ride on each, and
+    every one of them was chosen against this corpus.
+
 
     Returns the results and, when a cap bound the work, what it was. The
     caller is responsible for reporting the truncation: an index that returns
     exactly its limit has told you it may have had more, and swallowing that
     makes a partial search look like a complete one.
     """
+    settings = confirmation or DEFAULT_CONFIRMATION
     candidates = index.search(query, limit=candidate_limit)
     truncated = (
         Truncation(candidate_limit, "candidate retrieval")
@@ -107,7 +116,7 @@ def search(
             # Coverage confirms without a phrase, so there is no matched run to
             # score. It ranks on bm25 and occurrence count alone, which is the
             # right order of preference: a phrase is stronger evidence.
-            spans, matched = _confirm_by_coverage(scoped, terms), 0
+            spans, matched = _confirm_by_coverage(scoped, terms, settings), 0
         spans = [Span(s.start + region.start, s.end + region.start) for s in spans]
         if not spans:
             results.append(
@@ -153,7 +162,7 @@ def search(
     # nothing in another.
     strongest = max((result.matched for result in results), default=0)
     if strongest:
-        floor = strongest * RELATIVE_MATCH_FLOOR
+        floor = strongest * settings.relative_match_floor
         results = [
             r
             if r.unconfirmed or r.matched >= floor or not r.matched
@@ -229,9 +238,13 @@ def _needles(query: str) -> list[str]:
 #: its own cases. Below 0.8 the trap rate climbs fast: 0.7 doubles it, 0.5
 #: takes it to 28.6% on train and 40% held-out.
 #:
-#: The corpus cannot separate 0.8 from 1.0, so this is chosen rather than
-#: measured, and it is chosen strict. Where evidence is absent this library
-#: fails closed. Lowering it wants a corpus with compound terms that are
+#: **Measured now, not chosen.** ADR-0018 recorded that the corpus could not
+#: separate 0.8 from 1.0; it can, as of 2026-09-05, and it agrees -- 0.6 buys
+#: 0.6 recall points for 13.3 trap points, and 0.8 costs 0.8. A setting rather
+#: than a constant, because a value that swings the trap rate 13 points across
+#: its range is fitted to one corpus: see `Confirmation` at the foot of this
+#: file. It stays strict, so that where evidence is absent this library fails
+#: closed. Lowering it wants a corpus with compound terms that are
 #: partially shared -- ``集合場所`` asked of a document that says ``集合`` --
 #: which this one does not have.
 COVERAGE_THRESHOLD: Final = 1.0
@@ -321,7 +334,7 @@ def _longest_present(term: str, folded: str) -> tuple[int, str]:
     return -1, ""
 
 
-def _counted(term: str, piece: str) -> int:
+def _counted(term: str, piece: str, tail: int = INFLECTION_TAIL) -> int:
     """How much of ``term`` a match on ``piece`` is worth.
 
     A stem match counts as the whole term, so a language that glues its grammar
@@ -330,7 +343,7 @@ def _counted(term: str, piece: str) -> int:
     ``INFLECTION_TAIL`` short of the whole.
     """
     missing = len(term) - len(piece)
-    if missing and (missing > INFLECTION_TAIL or len(piece) < 2 or not term.startswith(piece)):
+    if missing and (missing > tail or len(piece) < 2 or not term.startswith(piece)):
         return len(piece)
     return len(term)
 
@@ -436,7 +449,9 @@ def _origin(origins: tuple[int, ...], at: int, length: int) -> int:
     return origins[at] if at < len(origins) else length
 
 
-def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
+def _confirm_by_coverage(
+    content: str, terms: Sequence[str], confirmation: Confirmation | None = None
+) -> list[Span]:
     """Confirm when enough of the question's content is present, and say where.
 
     **A fallback, never a replacement.** It runs only where the phrase rule
@@ -452,6 +467,7 @@ def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
     evidence should have been. Terms are located together instead: the answer
     is where they crowd, not where the first one happens to sit.
     """
+    settings = confirmation or DEFAULT_CONFIRMATION
     total = sum(len(term) for term in terms)
     if not total:
         return []
@@ -463,10 +479,10 @@ def _confirm_by_coverage(content: str, terms: Sequence[str]) -> list[Span]:
         at, piece = _longest_present(term, folded)
         if at == -1:
             continue
-        matched += _counted(term, piece)
+        matched += _counted(term, piece, settings.inflection_tail)
         located.append((piece, _occurrences(piece, folded)))
 
-    if matched / total < COVERAGE_THRESHOLD or not located:
+    if matched / total < settings.coverage_threshold or not located:
         return []
 
     # Anchor on the longest term -- the most specific one -- and take each
@@ -522,7 +538,8 @@ MATCH_WEIGHT: Final = 0.1
 #: and **costs no recall at all** against the floor turned off, while taking
 #: the trap rate from 21.4% to 3.6% on train and 30.6% to 2.8% held-out.
 #:
-#: The corpus cannot separate 0.8 from 1.0, so this is chosen. It is chosen
+#: Measured, not chosen, as of 2026-09-05: the sweep moves the trap rate
+#: 16.7 points across this knob's range. A setting now. It is chosen
 #: *permissive*, which is the opposite of ADR-0018's choice and for a reason
 #: that fits both: at 1.0 a document is discarded unless its evidence is the
 #: strongest found, and every case in this corpus has exactly one answer, so
@@ -619,3 +636,64 @@ def _widen(content: str, span: Span, context: int) -> Span:
 def _section_name(document: Document, offset: int) -> str:
     section: Section | None = document.section_at(offset)
     return section.heading if section is not None else ""
+
+
+@dataclass(frozen=True, slots=True)
+class Confirmation:
+    """The three numbers that decide whether a candidate becomes a result.
+
+    They were module constants until `tools/measure_sensitivity.py` moved each
+    one and re-scored the whole labelled corpus. All three are on **cliffs** --
+    the sweep's word for a value that swings the numbers when nudged, which is
+    the signature of a number fitted to one corpus:
+
+        INFLECTION_TAIL       16.7 recall points between 1 and 2
+        RELATIVE_MATCH_FLOOR  16.7 trap points between 0.5 and 0.8
+        COVERAGE_THRESHOLD    13.3 trap points between 0.6 and 1.0
+
+    A plateau would have meant the value was not doing fine work and somebody
+    else's corpus would not need a different one. A cliff means the opposite,
+    and leaving it as a constant meant the only way to disagree was to edit the
+    source.
+
+    **The defaults do not move.** Every number in `docs/measurements.md` was
+    taken on these, and each is on the safe shoulder of its cliff rather than
+    the steep side -- 2 and 3 score identically for the tail, 0.8 and 0.95 for
+    the floor. What changes is that disagreeing is now possible.
+    """
+
+    #: How much of a question must be present before coverage confirms it.
+    #: Lowering it to 0.6 buys 0.6 recall points and costs 13.3 trap points on
+    #: this corpus, which is the measurement that made 1.0 a decision rather
+    #: than a guess -- ADR-0018 recorded that the corpus could not separate 0.8
+    #: from 1.0, and it now can.
+    coverage_threshold: float = COVERAGE_THRESHOLD
+    #: How weak a match may be, against the best found for the same query.
+    relative_match_floor: float = RELATIVE_MATCH_FLOOR
+    #: Characters allowed to hang off the end of a term before a stem match
+    #: stops counting as the whole word. **The most corpus-shaped of the
+    #: three**: it exists because Japanese glues grammar to its nouns, and 2 is
+    #: the number that suits Japanese. A language with longer suffixes needs
+    #: more, and at 1 this corpus loses 16.7 recall points.
+    inflection_tail: int = INFLECTION_TAIL
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.coverage_threshold <= 1.0:
+            raise ValueError(
+                f"coverage_threshold is a share of a question and must be above 0 "
+                f"and at most 1, not {self.coverage_threshold}"
+            )
+        if not 0.0 <= self.relative_match_floor <= 1.0:
+            raise ValueError(
+                f"relative_match_floor is a share of the best match and must be "
+                f"between 0 and 1, not {self.relative_match_floor}"
+            )
+        if self.inflection_tail < 0:
+            raise ValueError(
+                f"inflection_tail counts characters and cannot be negative, "
+                f"not {self.inflection_tail}"
+            )
+
+
+#: What every number in `docs/measurements.md` was measured on.
+DEFAULT_CONFIRMATION: Final = Confirmation()
