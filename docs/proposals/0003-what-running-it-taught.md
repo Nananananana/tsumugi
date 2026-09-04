@@ -90,6 +90,57 @@ shipped*, both eras answered.
 
 ### Next — the residual has a name now
 
+**0. Chunking. The unit that is scored and the unit that is returned should be
+the same thing.** *(raised 2026-09-01, and it displaces everything below it.)*
+
+Recall is **87.2%** on a corpus whose median document is 143 characters, and
+**65.6%** when the same cases are padded to 12,528 — which is roughly a real
+document. A real document in the two sibling repositories measured is 6,811
+characters. **The published number is a property of documents forty-eight times
+smaller than the ones this library is for**, and at realistic length it falls
+below the baseline that never reads the question.
+
+Nothing here chunks. The whole file is one FTS5 row, bm25 scores whole
+documents, and a passage is a window widened around wherever the match landed.
+Every comparable library splits first, and the recent literature — late
+chunking, contextual retrieval — is entirely about how. On 143-character
+documents none of that can matter, which is exactly why the corpus never
+showed it.
+
+Diagnosed: **68% of the loss is the window, not the ranking** — the right
+document is found and confirmed and the window lands on the wrong occurrence.
+A local fix was tried and reverted: choosing the occurrence whose window
+carries most of the question bought 0.5 points of recall and cost 0.7 points of
+trap rate ([measurements](../measurements.md)).
+
+**The shape this has to take**, because two constraints are not negotiable:
+
+- **anchors stay exact.** A chunk is a span of its document, not a copy, so
+  `document_id` and offsets keep meaning what they mean and `verify` is
+  unchanged. This is why chunking here is not the same problem it is elsewhere:
+  most libraries chunk into new documents and lose the parent's coordinates,
+  which this contract cannot do (ADR-0010, and the anchor bug fixed today).
+- **the split is reported.** How a document was divided is a decision the
+  package has to be able to state, the way `omissions` states the others
+  (ADR-0005). A reader who gets one section of a file should be able to see
+  that the file had others.
+
+Sections are the obvious unit — `Document` already carries them, headings
+already anchor — and *obvious* is what the last four of these items were before
+they were measured.
+
+**Closes** when recall at 12,000-character documents is within a few points of
+recall at 150, **with the trap rate not worse**, both measured before and after
+on the same cases. **Does not close** by improving the padded number alone: the
+short-corpus figures are what every other measurement here is anchored to, and
+a change that trades them is a different library.
+
+**Does not close by chunking into copies**, however well it scores. An anchor
+into a chunk that cannot be resolved against the file on disk is the thing this
+project exists not to do.
+
+
+
 **1. An embedding candidate source, and a fourth thing a package can say.**
 
 *Retitled 2026-08-30.* It read "...fused, **with confirmation unchanged**"

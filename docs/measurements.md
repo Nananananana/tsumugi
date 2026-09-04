@@ -307,6 +307,69 @@ Recovering from it took four changes to the confirmation stage
 match much weaker than the strongest found for the same query is no longer
 treated as evidence:
 
+### Recall on documents the size of real ones *(measured 2026-09-01)*
+
+**This is the largest gap between what is published here and what a user would
+get, and it was found by asking what the corpus cannot show.**
+
+The evaluation corpus has a median document of **143 characters**. Measured on
+two sibling repositories, a real document is **6,811**. Every number on this
+page was taken on documents forty-eight times smaller than the ones this
+library is for.
+
+Padding each case's documents with unrelated prose in the same language,
+leaving the answer and the traps exactly where they were:
+
+| padding | median document | evidence recall | trap rate |
+|---|---|---|---|
+| none — the corpus as it ships | 150 | **87.2%** | 4.2% |
+| 1,000 | 1,397 | 78.3% | 4.2% |
+| 4,000 | 4,329 | 77.8% | 4.2% |
+| 12,000 | 12,528 | **65.6%** | 4.2% |
+
+**Twenty-one points.** At realistic length, recall is *below* the `first_fit`
+baseline that never reads the question — which scored 70.0% on the short corpus.
+
+**The safety property holds:** the trap rate does not move. What degrades is
+finding the answer, not admitting a wrong one, which is the right way round and
+is not an accident — confirmation is exact and does not care how long the
+document is.
+
+**The cause is that nothing chunks.** The whole file is one FTS5 row, bm25
+scores whole documents, and the passage is a window widened around the match.
+Every comparable library splits first. Diagnosed at 12,000 characters, of 180
+cases:
+
+| | |
+|---|---|
+| the fact is in the package | 118 |
+| **right document confirmed, window on the wrong occurrence** | **42** |
+| the answer document never ranked | 20 |
+
+**Sixty-eight percent of the loss is the window, not the ranking.**
+
+#### The obvious fix, tried and reverted
+
+`search` takes `spans[0]` — the *earliest* confirmed occurrence. Of the 42
+window failures, 28 have the fact inside a *different* confirmed span's window,
+so choosing better looked worth 28 cases. Implemented as *pick the occurrence
+whose window carries the most of the question*, which is the rule
+`_confirm_by_coverage` already uses to place its anchor.
+
+| | recall at 12,000 | trap on the short corpus |
+|---|---|---|
+| before | 65.6% | **3.3%** |
+| the density heuristic | 66.1% | **4.0%** |
+
+**Half a point of recall, bought with seven-tenths of a point of trap rate.**
+Reverted. The 28 was a ceiling — what fraction of it a heuristic reaches is a
+different number, and this one reached almost none of it while moving windows
+in ways that admitted traps.
+
+The diagnosis stands and the fix does not: this needs chunking, where the unit
+that is scored and the unit that is returned are the same thing, rather than a
+better guess about where to cut a document that was never divided.
+
 ### The thing it cannot say, and the threshold that will not fix it
 
 `tsumugi eval` reports it in its own output: **13 unanswerable questions still
