@@ -391,6 +391,36 @@ tsumugi does not eliminate hallucination and will never claim to. It makes the
 relationship between a generated sentence and the evidence behind it checkable,
 which is a smaller promise and a keepable one.
 
+## When it finds nothing
+
+It says so, and then it offers you the best thing it found anyway:
+
+```console
+$ tsumugi context "what is the refund turnaround for cancelled bookings"
+0 items, 0/300 characters via characters@1
+3 candidates were left out; --why to see them
+
+no confirmed evidence. the closest passage found, NOT confirmed:
+
+  notes/travel.md[60:106]  (unconfirmed)
+  | ## Fuel
+  | We carried 250g of gas for the stove.
+
+  this shares no confirmed wording with your question. treat it as a place
+  to look, not as an answer. `--no-leads` turns this off.
+```
+
+That passage is **not evidence and never becomes it** — it has no hash to
+verify against, it is absent from `--json` (the contract is frozen), and the
+exit code stays `1`. It is a place to look.
+
+Only the single best one, and only when nothing was confirmed. Measured over
+the 23 labelled cases that come back empty: the best lead holds the answer
+43.5% of the time and something misleading 21.7% of the time, while offering
+*all* the near misses is 65% / 65% — a coin flip.
+[ADR-0026](docs/adr/0026-a-lead-is-offered-only-when-there-is-nothing-to-confuse-it-with.md)
+has the reasoning; `leads_from()` is the same thing from Python.
+
 ## What it does not do
 
 It is **not a redactor** — it has no idea whether a document holds a secret, and
@@ -404,13 +434,27 @@ file that is as sensitive as your whole notes folder.
 
 Everything above runs with no model and no network. But the loop does not close
 without one — `verify` needs an answer, and an answer needs something that
-answers — so there is one adapter, for [ollama](https://ollama.com):
+answers — so there are two adapters — and between them they cover most local servers:
 
 ```bash
 ollama pull qwen2.5:7b-instruct
 tsumugi ask  "テントの重量は?"
 tsumugi demo --model qwen2.5:7b-instruct   # the same walk-through, with a real one
 ```
+
+The second speaks `POST /v1/chat/completions`, which **vLLM, llama.cpp's
+server, LM Studio and TGI** all serve. Point it at whichever you run:
+
+```bash
+vllm serve Qwen/Qwen2.5-7B-Instruct --port 8000
+tsumugi ask "how heavy is the tent" --server openai --model Qwen/Qwen2.5-7B-Instruct
+```
+
+vLLM is worth the setup when you are asking a lot of questions at once: ollama
+serves one request at a time, vLLM batches continuously. tsumugi does not know
+the difference — it asks for text and gets text — which is the point of having
+a port. Both adapters **refuse a non-local URL** unless you pass
+`--allow-remote`, because a mistyped host would post your notes to it.
 
 ```console
 $ tsumugi ask "テントの重量は?" --model qwen2.5:14b-instruct
