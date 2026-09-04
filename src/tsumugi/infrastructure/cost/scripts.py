@@ -53,8 +53,24 @@ def _in(code: int, ranges: tuple[tuple[int, int], ...]) -> bool:
     return any(low <= code <= high for low, high in ranges)
 
 
+#: Answers already worked out, keyed by the character. Same reasoning as the
+#: tokenizer's cache: the classification is pure, a corpus holds a few thousand
+#: distinct characters, and this was called 383,000 times in twenty queries --
+#: 28% of the time `build_context` took, to reach one of seven answers.
+_CACHE: dict[str, ScriptClass] = {}
+
+
 def classify(character: str) -> ScriptClass:
     """Which class one character belongs to."""
+    remembered = _CACHE.get(character)
+    if remembered is not None:
+        return remembered
+    found = _classify(character)
+    _CACHE[character] = found
+    return found
+
+
+def _classify(character: str) -> ScriptClass:
     if character.isspace():
         return ScriptClass.SPACE
     code = ord(character)
@@ -72,8 +88,13 @@ def classify(character: str) -> ScriptClass:
 
 
 def profile(text: str) -> Counter[ScriptClass]:
-    """How many characters of each class ``text`` holds."""
+    """How many characters of each class ``text`` holds.
+
+    Counted over the *distinct* characters and weighted, rather than one
+    increment per character. A passage of 400 characters is typically 60
+    distinct ones, and `Counter(text)` does the counting in C.
+    """
     counts: Counter[ScriptClass] = Counter()
-    for character in text:
-        counts[classify(character)] += 1
+    for character, seen in Counter(text).items():
+        counts[classify(character)] += seen
     return counts

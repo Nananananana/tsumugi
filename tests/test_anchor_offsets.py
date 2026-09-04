@@ -78,7 +78,7 @@ class TestTheFold:
         # Non-decreasing: folding never reorders, so a later folded character
         # cannot come from an earlier place. A span built from a map that went
         # backwards would have `end < start`.
-        assert origins == sorted(origins)
+        assert list(origins) == sorted(origins)
 
     def test_the_awkward_characters_are_actually_awkward(self) -> None:
         """The fixture has to be able to show the defect.

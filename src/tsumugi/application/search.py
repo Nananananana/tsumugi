@@ -15,6 +15,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from typing import Final
 
 from ..domain.anchor import Anchor
@@ -350,7 +351,7 @@ def _occurrences(piece: str, folded: str) -> list[int]:
     return found
 
 
-def _fold_with_origins(content: str) -> tuple[str, list[int]]:
+def _fold_with_origins(content: str) -> tuple[str, tuple[int, ...]]:
     """NFKC-casefold ``content``, and say where each folded character came from.
 
     **Matching happens in folded space and anchors live in original space, and
@@ -372,7 +373,42 @@ def _fold_with_origins(content: str) -> tuple[str, list[int]]:
     normalising a pair jointly and separately and seeing whether the results
     differ -- because a rule based on combining class alone misses the
     halfwidth voiced marks, whose combining class is 0.
+
+    **Cached, and the origins are a tuple so that the cache cannot hand two
+    callers the same mutable list.** Confirmation folds a candidate's document
+    once for the phrase rule and again for the coverage rule, and a query with
+    fifty candidates folded 84 documents to look at 50 -- 25% of the time a
+    `build_context` call took, spent re-deriving an answer it already had.
     """
+    # A document larger than this is not cached. `origins` holds one entry per
+    # folded character, so the cache costs memory in proportion to what it
+    # holds, and 64 copies of a 10 MiB document is not a cache -- it is a leak
+    # with a hit rate. Above the limit the work is simply done again.
+    if len(content) > _CACHEABLE:
+        return _fold(content)
+    return _folded(content)
+
+
+#: Characters. Comfortably above a real document (6,811 measured across two
+#: sibling repositories) and far below anything that would hurt to hold 64 of.
+_CACHEABLE: Final = 262_144
+
+
+#: 64 rather than more: a query confirms at most `candidate_limit` documents and
+#: folds each of them twice, so this is sized to hold one query's working set.
+@lru_cache(maxsize=64)
+def _folded(content: str) -> tuple[str, tuple[int, ...]]:
+    return _fold(content)
+
+
+def _fold(content: str) -> tuple[str, tuple[int, ...]]:
+    # ASCII cannot compose and its casefold is one character for one character
+    # (`A`-`Z` map to `a`-`z`, everything else is unchanged), so the offsets are
+    # their own map and none of the work below is needed. This is every corpus
+    # of English or of source code.
+    if content.isascii():
+        return content.lower(), tuple(range(len(content)))
+
     folded: list[str] = []
     origins: list[int] = []
     index = 0
@@ -388,10 +424,10 @@ def _fold_with_origins(content: str) -> tuple[str, list[int]]:
         folded.append(piece)
         origins.extend([index] * len(piece))
         index += size
-    return "".join(folded), origins
+    return "".join(folded), tuple(origins)
 
 
-def _origin(origins: list[int], at: int, length: int) -> int:
+def _origin(origins: tuple[int, ...], at: int, length: int) -> int:
     """The index in the original string for folded index ``at``.
 
     Past the end maps to ``length``, so a span that ends on the last folded

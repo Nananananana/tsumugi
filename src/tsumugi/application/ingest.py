@@ -75,10 +75,15 @@ def ingest_paths(
     folder moves.
     """
     outcome = report if report is not None else IngestReport()
+    # Resolved once. It was being recomputed twice per file -- once for the
+    # relative path and once for `corpus_root` -- which is three `resolve()`
+    # syscalls per document to answer a question that cannot change mid-walk.
+    resolved_root = root.resolve()
+    corpus_root = str(resolved_root)
 
     for path in paths:
         try:
-            relative = path.resolve().relative_to(root.resolve()).as_posix()
+            relative = path.resolve().relative_to(resolved_root).as_posix()
         except ValueError:
             relative = path.as_posix()
 
@@ -113,7 +118,7 @@ def ingest_paths(
         )
 
         had_before = store.current_version(document.document_id)
-        is_new = store.put(document, corpus_root=str(root.resolve()))
+        is_new = store.put(document, corpus_root=corpus_root)
         entry = Ingested(
             source_path=relative,
             document_id=document.document_id,

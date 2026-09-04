@@ -183,5 +183,22 @@ module = [
 ]
 ignore_missing_imports = true
 
+# The one file whose correct annotation depends on what is installed.
+#
+# `MamoriRedactor` takes a `PrivacySession`; the fixtures hand it an `object`,
+# so every construction needs `# type: ignore[arg-type]` -- and when `mamori`
+# is *absent* the parameter degrades to `Any`, the ignore stops being needed,
+# and `warn_unused_ignores` calls all seven of them errors.
+#
+# **Both states are real.** The `siblings` CI job installs mamori; the lint job
+# does not; a developer may have either. Removing the ignores turns lint green
+# and turns every machine with the sibling installed red, which is how this
+# came to be red on `main` for three pushes -- the local gate and CI disagreed
+# because the two environments disagreed, and each was correct about itself.
+# Silencing the warning for this file is the only answer that is true in both.
+[[tool.mypy.overrides]]
+module = "tests.test_adapter_mamori"
+warn_unused_ignores = false
+
 [tool.coverage.run]
 source = ["src/tsumugi"]
