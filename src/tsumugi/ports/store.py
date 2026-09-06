@@ -12,7 +12,7 @@ resolving.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Protocol, runtime_checkable
 
 from ..domain.document import Document, DocumentId
@@ -58,6 +58,34 @@ class DocumentStore(Protocol):
         Stable because a build has to be reproducible (ADR-0003), and a store
         that iterates in insertion or hash order makes that impossible from the
         bottom up.
+        """
+        ...
+
+    def current_versions(self) -> Sequence[ContentHash]:
+        """Every current document's version, and nothing else.
+
+        `corpus_state` hashes these, once per build, to say which corpus a
+        package was built against. Doing it through `all_current` rehydrated
+        every document in the store -- parsing each one's structure and
+        metadata JSON -- to read one column: **68% of a `context` call at
+        10,000 documents**, and it grew with the corpus rather than with the
+        answer.
+
+        Order does not matter here, because `corpus_state` sorts before
+        hashing; a store is free to return whatever the cheapest query gives.
+        """
+        ...
+
+    def current_roots(self) -> Mapping[DocumentId, str]:
+        """Where each current document was read from, for the ones that know.
+
+        Same shape of waste as `current_versions`, plus a query per document:
+        `remembered_roots` walked every document and then asked the store for
+        each one's root by id. One query, two columns.
+
+        Documents ingested before schema 2 have no recorded root and are absent
+        from the mapping -- which reads as "cannot check" rather than
+        "unchanged", and the freshness check is told which it is.
         """
         ...
 

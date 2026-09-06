@@ -51,6 +51,14 @@ surface.
   The guard is `EXPLAIN QUERY PLAN`, not a clock: FTS5 plans the new statement
   as a rowid lookup (`INDEX 0:=`) and the old one as a scan (`INDEX 0:`), and a
   test holds both halves.
+- **`context` at 10,000 documents: 2,452 ms to 593 ms.** Two things walked the
+  whole corpus on every query -- `corpus_state` rehydrated every document (two
+  JSON columns each) to read one column, and `remembered_roots` did the same
+  walk plus one query per document. `DocumentStore` gained `current_versions`
+  and `current_roots`; both are one narrow query. A test asserts a build issues
+  no per-document read and never calls `all_current`, because counting
+  statements could not see the first defect: `all_current` is a single
+  statement that returns every row.
 
 ### Changed
 

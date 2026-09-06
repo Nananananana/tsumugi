@@ -112,9 +112,4 @@ def remembered_roots(store: RemembersRoots) -> FilesystemFreshness:
     turn on is a check that is off, and ADR-0010's whole point is that evidence
     from an edited file must not be offered as current.
     """
-    roots = {
-        document.document_id: root
-        for document in store.all_current()
-        if (root := store.corpus_root_of(document.document_id)) is not None
-    }
-    return FilesystemFreshness(roots=roots)
+    return FilesystemFreshness(roots=dict(store.current_roots()))

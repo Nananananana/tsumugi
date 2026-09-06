@@ -214,7 +214,7 @@ def build_context(
         budget=report,
         provenance=PackageProvenance(
             tsumugi_version=version,
-            corpus_state=corpus_state([d.version for d in store.all_current()]),
+            corpus_state=corpus_state(store.current_versions()),
             providers=(
                 "filesystem",
                 freshness.name if freshness is not None else "freshness/unchecked",

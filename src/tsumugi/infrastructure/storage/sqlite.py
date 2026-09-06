@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 
 from ...domain.document import Block, Document, DocumentId, Section
@@ -106,6 +106,19 @@ class SqliteDocumentStore:
         ).fetchall()
         for row in rows:
             yield _document(row)
+
+    def current_versions(self) -> Sequence[ContentHash]:
+        rows = self._connection.execute(
+            "SELECT version FROM documents WHERE is_current = 1"
+        ).fetchall()
+        return [ContentHash.parse(row["version"]) for row in rows]
+
+    def current_roots(self) -> Mapping[DocumentId, str]:
+        rows = self._connection.execute(
+            "SELECT document_id, corpus_root FROM documents "
+            "WHERE is_current = 1 AND corpus_root IS NOT NULL"
+        ).fetchall()
+        return {row["document_id"]: row["corpus_root"] for row in rows}
 
     def forget(self, document_id: DocumentId) -> int:
         with self._connection:

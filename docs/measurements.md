@@ -1303,7 +1303,31 @@ nobody rebuilds. Re-measured, same harness:
 Flat per document, which is what linear looks like. What remains is `_io.open`
 at about 6 ms per file — Windows opening files — and the FTS insert itself.
 
-**The `context` row stays open.** 1,361 ms at 10,000 documents, 1,661 ms on a
-second run under load; something after the FTS query still scales with the
-corpus, and it has not been profiled at that size. `sora` has the crossing
-point so its screen can degrade deliberately instead of being surprised.
+### And then `context`, for the same reason in a different place
+
+Profiled at 10,000 documents rather than guessed at. `index.search` was 325 ms
+of a 2,452 ms call; `_document` was **68% of it**, 50,500 calls for five
+queries. Two things walked the whole corpus on every single query:
+
+- `corpus_state([d.version for d in store.all_current()])` -- one hash saying
+  which corpus a package was built against, obtained by rehydrating every
+  document in the store and parsing each one's structure and metadata JSON, to
+  read one column;
+- `remembered_roots`, which did the same walk and then asked the store for each
+  document's root **one query at a time**.
+
+Both are one narrow query now (`current_versions`, `current_roots`):
+
+| documents | context before | context after | of which `index.search` |
+|---|---|---|---|
+| 10,000 | 2,452 ms | **593 ms** | 365 ms |
+
+The FTS query is now the largest single part of a build, which is what correct
+looks like. Below a thousand documents this was never visible: at 300 the whole
+corpus is 300 documents and rehydrating it is cheap.
+
+**Held by a count, not a clock.** `tests/test_query_cost_is_bounded.py` asserts
+that a build issues no per-document read and never calls `all_current` at all.
+The count of *statements* could not see the first defect -- `all_current` is
+one statement that returns every row -- so the test that catches it counts the
+call instead. `sora` has the numbers for its one-second screen budget.
