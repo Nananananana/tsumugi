@@ -39,6 +39,19 @@ surface.
   rendered prompt by somebody else is their record and travels beside the
   package, never inside it; there is no recompute path for `package_id`.
 
+### Fixed — ingest was quadratic
+
+- **Ten thousand documents took ten minutes; they take 84 seconds.** Before
+  every insert, `FtsIndex.add` ran `DELETE FROM search WHERE document_id = ?`
+  on an FTS5 column declared UNINDEXED, which FTS5 cannot seek on: every
+  document ingested scanned every row already in the table, whether or not
+  there was anything to delete. A side table (`search_rows`) now maps each
+  document to the FTS rowids it owns, so the delete is an indexed seek. Schema
+  4 backfills it from an existing index in one pass; no `--rebuild` needed.
+  The guard is `EXPLAIN QUERY PLAN`, not a clock: FTS5 plans the new statement
+  as a rowid lookup (`INDEX 0:=`) and the old one as a scan (`INDEX 0:`), and a
+  test holds both halves.
+
 ### Changed
 
 - `context` at the MCP surface now honours the configured `ordering`,

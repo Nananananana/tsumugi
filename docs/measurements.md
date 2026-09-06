@@ -1279,12 +1279,31 @@ over a growing number of section rows, or per-candidate work that grows with
 document count. Not yet profiled at this size; the 300-document profile above
 was taken before this was measured and cannot see it.
 
-Ingest is **superlinear**: 4.6× the documents took 5× the time, and then 10×
-the documents took **46×**. At 10,000 documents that is ten minutes for a
-corpus a news feed accumulates in a season. Per-document commits were noted
-above as 6% of the cost at 300 documents; at 10,000 something else is growing
-with the size of what is already there. This is the next thing to profile.
+Ingest **was** superlinear: 4.6× the documents took 5× the time, and then 10×
+the documents took **46×** — ten minutes for a corpus a news feed accumulates
+in a season. Profiled at 500 and 2,000 documents, the per-statement cost of
+SQLite `execute` quadrupled, which is the signature of a statement scanning a
+table that grows. It was one line: `DELETE FROM search WHERE document_id = ?`
+before every insert, on an FTS5 column declared UNINDEXED — FTS5 cannot seek
+on one of those, so every document ingested scanned every row already there,
+whether or not anything was to delete. Timed directly: 3.2 ms at 14,000 rows,
+12.9 ms at 70,000.
 
-Both rows are recorded as open rather than smoothed over, and `sora` has been
-told the crossing point so its screen can degrade deliberately instead of
-being surprised.
+Fixed with `search_rows`, an ordinary table with an index that maps each
+document to the FTS rowids it owns, so the delete is a seek and a handful of
+rowid deletes. Schema 4 backfills it from an existing index in one pass —
+nobody rebuilds. Re-measured, same harness:
+
+| documents | ingest before | ingest after | per document |
+|---|---|---|---|
+| 300 | 2.7 s | 2.6 s | 8.7 ms |
+| 1,000 | 13.4 s | 8.9 s | 8.9 ms |
+| 10,000 | 613 s | **84 s** | 8.4 ms |
+
+Flat per document, which is what linear looks like. What remains is `_io.open`
+at about 6 ms per file — Windows opening files — and the FTS insert itself.
+
+**The `context` row stays open.** 1,361 ms at 10,000 documents, 1,661 ms on a
+second run under load; something after the FTS query still scales with the
+corpus, and it has not been profiled at that size. `sora` has the crossing
+point so its screen can degrade deliberately instead of being surprised.

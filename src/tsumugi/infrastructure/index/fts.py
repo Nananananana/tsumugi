@@ -123,13 +123,11 @@ class FtsIndex:
         lose the parent's coordinates; this one cannot (ADR-0010).
         """
         with self._connection:
-            self._connection.execute(
-                "DELETE FROM search WHERE document_id = ?", (document.document_id,)
-            )
+            self._disown(document.document_id)
             for span in _own_spans(document):
                 body = span.slice(document.content)
                 terms = " ".join(self._tokenizer.index_terms(body))
-                self._connection.execute(
+                cursor = self._connection.execute(
                     "INSERT INTO search (terms, document_id, version, start, end) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (
@@ -140,10 +138,37 @@ class FtsIndex:
                         span.end,
                     ),
                 )
+                # Claimed in the same transaction it was written, so the two
+                # tables cannot disagree about a row that exists.
+                self._connection.execute(
+                    "INSERT INTO search_rows (rowid_ref, document_id) VALUES (?, ?)",
+                    (cursor.lastrowid, document.document_id),
+                )
 
     def remove(self, document_id: DocumentId) -> None:
         with self._connection:
-            self._connection.execute("DELETE FROM search WHERE document_id = ?", (document_id,))
+            self._disown(document_id)
+
+    def _disown(self, document_id: DocumentId) -> None:
+        """Drop every FTS row a document owns, by rowid.
+
+        **Never `DELETE FROM search WHERE document_id = ?`.** That column is
+        UNINDEXED and FTS5 cannot seek on it, so the statement scans the whole
+        table -- for every document ingested, whether or not there is anything
+        to delete. Ingest was quadratic because of that one line: 3.2 ms per
+        document at 14,000 rows, 12.9 ms at 70,000, ten minutes for ten
+        thousand documents. `search_rows` is an ordinary table with an index,
+        so this is a seek and a handful of rowid deletes.
+
+        Must run inside the caller's transaction, so a failure between the
+        two statements leaves nothing half-owned.
+        """
+        self._connection.execute(
+            "DELETE FROM search WHERE rowid IN "
+            "(SELECT rowid_ref FROM search_rows WHERE document_id = ?)",
+            (document_id,),
+        )
+        self._connection.execute("DELETE FROM search_rows WHERE document_id = ?", (document_id,))
 
     def search(self, query: str, limit: int = 50) -> Sequence[IndexHit]:
         terms = [t for t in self._tokenizer.query_terms(query) if _usable(t)]

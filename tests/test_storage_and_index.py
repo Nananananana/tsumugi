@@ -14,7 +14,7 @@ from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 
-from .helpers import build_document
+from .helpers import build_document, rewind_to_schema
 
 JAPANESE = "# 装備\n\nテントは 2.4kg。東京の会議は明日です。\n"
 ENGLISH = "# Budget\n\nThe unit is explicit at the call site.\n"
@@ -243,9 +243,7 @@ class TestTheDatabase:
         connection = connect(path)
         store = SqliteDocumentStore(connection)
         store.put(build_document("a.md", JAPANESE))
-        connection.execute("PRAGMA user_version = 1")
-        connection.execute("ALTER TABLE documents DROP COLUMN corpus_root")
-        connection.commit()
+        rewind_to_schema(connection, 1)
         connection.close()
 
         migrated = SqliteDocumentStore(connect(path))

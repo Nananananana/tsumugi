@@ -19,7 +19,7 @@ from ...errors import StorageError
 
 __all__ = ["SCHEMA_VERSION", "connect", "empty", "requires_fts5"]
 
-SCHEMA_VERSION: Final = 3
+SCHEMA_VERSION: Final = 4
 
 _MIGRATIONS: dict[int, str] = {
     1: """
@@ -83,6 +83,25 @@ _MIGRATIONS: dict[int, str] = {
         tokenize    = 'unicode61 remove_diacritics 0'
     );
     DELETE FROM index_meta WHERE key = 'tokenizer';
+    """,
+    4: """
+    -- Which FTS rows each document owns, so they can be found by seek and
+    -- deleted by rowid. `document_id` on the FTS table is UNINDEXED, and FTS5
+    -- cannot seek on one of those: `DELETE FROM search WHERE document_id = ?`
+    -- scanned every row in the table, for every document ingested, whether or
+    -- not anything was there to delete -- 3.2 ms at 14,000 rows, 12.9 ms at
+    -- 70,000, so ten thousand documents took ten minutes.
+    --
+    -- Backfilled from what is already there, in one pass, so an existing index
+    -- keeps working without `ingest --rebuild`. The tokenizer marker is left
+    -- alone: nothing about the stored terms changed.
+    CREATE TABLE search_rows (
+        rowid_ref   INTEGER PRIMARY KEY,
+        document_id TEXT    NOT NULL
+    );
+    CREATE INDEX search_rows_by_document ON search_rows (document_id);
+    INSERT INTO search_rows (rowid_ref, document_id)
+        SELECT rowid, document_id FROM search;
     """,
 }
 
@@ -150,6 +169,7 @@ def empty(connection: sqlite3.Connection) -> None:
     with connection:
         connection.execute("DELETE FROM documents")
         connection.execute("DELETE FROM search")
+        connection.execute("DELETE FROM search_rows")
         connection.execute("DELETE FROM index_meta")
     connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     connection.execute("VACUUM")
