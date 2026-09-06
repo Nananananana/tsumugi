@@ -25,8 +25,9 @@ import urllib.parse
 import urllib.request
 from typing import Any, Final
 
-from ...errors import ConfigurationError, TsumugiError
+from ...errors import TsumugiError
 from ...ports.llm import Endpoint
+from ._boundary import endpoint_of, refuse_remote_unless_allowed
 
 __all__ = ["DEFAULT_MODEL", "DEFAULT_URL", "OllamaProvider", "ProviderError"]
 
@@ -34,19 +35,9 @@ DEFAULT_URL: Final = "http://127.0.0.1:11434"
 #: Small enough to run on a laptop, and multilingual, which this library needs.
 DEFAULT_MODEL: Final = "qwen2.5:7b-instruct"
 
-#: Hosts that are this machine. Anything else is outside the boundary.
-_LOCAL: Final = frozenset({"localhost", "127.0.0.1", "::1", "[::1]", ""})
-
 
 class ProviderError(TsumugiError):
     """The model could not be reached, or did not answer."""
-
-
-def _endpoint(url: str) -> Endpoint:
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ConfigurationError(f"{url!r} is not an http or https URL")
-    return Endpoint(url=url, is_local=(parsed.hostname or "") in _LOCAL)
 
 
 class OllamaProvider:
@@ -61,15 +52,10 @@ class OllamaProvider:
         allow_remote: bool = False,
     ) -> None:
         self._model = model
-        self._endpoint = _endpoint(url)
+        self._endpoint = endpoint_of(url)
         self._timeout = timeout
 
-        if not self._endpoint.is_local and not allow_remote:
-            raise ConfigurationError(
-                f"{url} is not this machine, and sending a ContextPackage there would "
-                f"put your notes on somebody else's host. Pass allow_remote=True (or "
-                f"--allow-remote) if that is genuinely what you want."
-            )
+        refuse_remote_unless_allowed(self._endpoint, allow_remote)
 
     @property
     def name(self) -> str:

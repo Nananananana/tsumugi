@@ -24,6 +24,7 @@ expensive way.
 | `docs/concept.md` | The conceptual model, and the whole picture across three projects |
 | `docs/architecture.md` | The current architecture, its dependencies and its principles |
 | `docs/context-package.md` | The ContextPackage contract, for producers and consumers |
+| `docs/mcp.md` | The MCP surface around the contract: tools, arguments, the `search` hit shape, named indexes, error kinds |
 | `docs/threat-model.md` | What tsumugi protects, what it does not, and what it becomes |
 | `docs/evaluation-corpus.md` | The labelled dataset: its shape, its traps, and what it cannot tell you |
 | `docs/measurements.md` | What the index costs and what the estimator is wrong by, on real corpora, with the tools that produced them |

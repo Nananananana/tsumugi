@@ -1253,3 +1253,38 @@ holds it.
 at all, which is why `HANGUL_STEM = 2` is chosen rather than measured — four
 cases cannot separate 2 from 3. Real Korean will meet this far more often than
 a corpus this project generated for itself.
+
+## How `context` scales with the corpus, and how ingest does
+
+Asked by `sora`, which draws its screen on a one-second budget for a
+conversational turn and wanted one line saying when tsumugi crosses it.
+Synthetic documents of 6,800 characters (the size a real one measured at),
+mixed English and Japanese, twenty distinct queries after one warm-up, in one
+process with the index already open — so none of this is Python start-up.
+
+| documents | corpus | ingest | `context` median | p95 |
+|---|---|---|---|---|
+| 300 | 2 MiB | 2.7 s | 86 ms | 88 ms |
+| 1,000 | 6.8 MiB | 13.4 s | 178 ms | 193 ms |
+| 10,000 | 68 MiB | 613 s | 1,361 ms | 1,384 ms |
+
+**Two things this says, and neither is comfortable.**
+
+`context` grows close to linearly with the corpus — 86 → 178 → 1,361 ms for
+300 → 1,000 → 10,000 documents — and **crosses one second at roughly 7,000
+documents of this size**. A query over an FTS5 index should not scale with the
+number of documents that *do not* match, so something after the index does:
+the candidate cap is 50 whatever the corpus, which leaves the FTS query itself
+over a growing number of section rows, or per-candidate work that grows with
+document count. Not yet profiled at this size; the 300-document profile above
+was taken before this was measured and cannot see it.
+
+Ingest is **superlinear**: 4.6× the documents took 5× the time, and then 10×
+the documents took **46×**. At 10,000 documents that is ten minutes for a
+corpus a news feed accumulates in a season. Per-document commits were noted
+above as 6% of the cost at 300 documents; at 10,000 something else is growing
+with the size of what is already there. This is the next thing to profile.
+
+Both rows are recorded as open rather than smoothed over, and `sora` has been
+told the crossing point so its screen can degrade deliberately instead of
+being surprised.

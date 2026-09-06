@@ -253,7 +253,7 @@ of roadmap item 4.
 
 ## For an agent
 
-`tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — four tools,
+`tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — five tools,
 no dependency, and nothing that can write to your corpus or your index is
 reachable from it.
 
@@ -264,7 +264,8 @@ reachable from it.
 | Tool | |
 |---|---|
 | `search` | ranked passages with anchors |
-| `context` | a full ContextPackage, **including what was left out** |
+| `context` | a full ContextPackage, **including what was left out**; `instructions: answering` for the shape `verify` can check |
+| `render` | the exact prompt for a package — so a caller running its own model never composes one |
 | `trace` | from a quotation back to document, section and line |
 | `verify` | claim classifications for an answer |
 
@@ -272,6 +273,11 @@ The agent is the reason the contract is a document rather than a Python class:
 `context` builds a package in one process, the agent answers, and `verify`
 resolves the citations in another — through JSON, with no shared objects. That
 round trip is what the contract was frozen on.
+
+One process can serve several corpora by name (`TSUMUGI_INDEXES=personal=...;news=...`),
+and a caller with its own record can pass `ledger: false`.
+[docs/mcp.md](docs/mcp.md) is the full surface, including the `search` hit shape
+and how to tell one kind of error from another.
 
 ## Already using LangChain or LlamaIndex
 

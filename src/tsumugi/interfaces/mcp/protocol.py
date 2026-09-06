@@ -113,6 +113,26 @@ class Request:
             raise RpcError(INVALID_PARAMS, f"{name!r} must be a number")
         return float(value)
 
+    def boolean(self, name: str, default: bool) -> bool:
+        """A flag. Strictly a JSON boolean: ``"false"`` is a string and is refused.
+
+        Coercing strings would make ``ledger: "false"`` silently *true*, which
+        is the exact failure a caller passing it was trying to avoid.
+        """
+        value = self.params.get(name, default)
+        if not isinstance(value, bool):
+            raise RpcError(INVALID_PARAMS, f"{name!r} must be true or false")
+        return value
+
+    def optional_string(self, name: str) -> str | None:
+        """A string that may be absent. Present-but-not-a-string is refused."""
+        value = self.params.get(name)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise RpcError(INVALID_PARAMS, f"{name!r} must be a string")
+        return value
+
 
 def read_requests(stream: IO[str] | None = None) -> Iterator[Request | RpcError]:
     """Parse messages until the stream ends.

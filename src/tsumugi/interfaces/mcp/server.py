@@ -1,4 +1,4 @@
-"""The agent-facing surface: four read-only tools over the same use cases.
+"""The agent-facing surface: five read-only tools over the same use cases.
 
 The thing that most wants a ContextPackage is not a person composing a prompt.
 It is an agent already holding a conversation, which needs a slice of local
@@ -9,8 +9,17 @@ Three constraints make this safe to run inside somebody else's agent loop:
 
 **Read-only.** ``ingest`` and ``forget`` are not exposed. A tool an agent can
 call must not be able to rewrite the corpus or the index. That is the rule that
-bounds the damage rather than trying to prevent every case, and adding a fifth
-tool that writes would end it.
+bounds the damage rather than trying to prevent every case, and adding a tool
+that writes would end it. The fifth tool, ``render``, touches nothing at all --
+not even the index -- it turns a package the caller already holds into the
+prompt tsumugi would send, so that a consumer running its own model never has
+to compose one (``docs/context-package.md``: a package with a paragraph
+stapled on afterwards no longer describes what was sent).
+
+**Several indexes, by name.** A process may serve more than one corpus --
+`sora` keeps `personal` and `news` -- and a tool call may say which. **Names,
+never paths, cross this boundary.** An agent that could pass a path could
+point the server at any SQLite file on the machine.
 
 **The full package, including omissions.** An agent that cannot see the edge of
 a selection has the same problem as a person who cannot.
@@ -32,19 +41,19 @@ from typing import IO, Any, Final
 
 from ... import __version__
 from ...application.build_context import build_context
+from ...application.instructions import INSTRUCTION_SETS, instruction_set
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
 from ...config import TsumugiConfig
-from ...domain.budget import Budget, Unit
+from ...domain.budget import Budget
 from ...domain.package import ContextPackage
 from ...errors import TsumugiError
-from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.storage.database import connect
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
-from ...ports.cost import CostModel
+from ..wiring import cost_model_for
 from .protocol import (
     INTERNAL_ERROR,
     INVALID_PARAMS,
@@ -55,7 +64,7 @@ from .protocol import (
     write_message,
 )
 
-__all__ = ["TOOLS", "McpServer", "serve"]
+__all__ = ["SEARCH_HITS_CONTRACT", "TOOLS", "McpServer", "serve"]
 
 #: The version of the MCP spec this speaks. A client asking for another one is
 #: answered with this rather than refused: the handshake is a negotiation, and
@@ -81,10 +90,24 @@ META_CLIENT_CAPABILITIES: Final = "io.modelcontextprotocol/clientCapabilities"
 META_SERVER_INFO: Final = "io.modelcontextprotocol/serverInfo"
 
 #: How long a client may cache a list result, and how widely. `tools/list` here
-#: is a constant: four read-only tools compiled into the module, which cannot
+#: is a constant: five read-only tools compiled into the module, which cannot
 #: change while the process runs. An hour is arbitrary and conservative.
 LIST_TTL_MS: Final = 3_600_000
 LIST_CACHE_SCOPE: Final = "server"
+
+#: What `search` returns, named so a consumer can write it down. **Not the
+#: frozen contract and not a promise of one** -- the `-draft` says so. What is
+#: promised: each hit's ``anchor`` has exactly the keys an item's anchor has in
+#: `tsumugi.context-package/1`, so a hit can be shown, traced and verified with
+#: the code a consumer already has for packages. `sora` builds news cards from
+#: these with no model in the loop, and asked for the name rather than writing
+#: `tsumugi.search-hit/unnamed`.
+SEARCH_HITS_CONTRACT: Final = "tsumugi.search-hits/1-draft"
+
+_INDEX_HELP = (
+    "Which named index to use, when the server is configured with several "
+    "(TSUMUGI_INDEXES). Omit for the default index. A name, never a path."
+)
 
 _BUDGET_HELP = (
     "tokens:8000, characters:20000 or bytes:65536. The unit is required. Tokens are "
@@ -105,6 +128,7 @@ TOOLS: Final[list[dict[str, Any]]] = [
             "properties": {
                 "query": {"type": "string", "description": "What to look for."},
                 "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100},
+                "index": {"type": "string", "description": _INDEX_HELP},
             },
         },
     },
@@ -129,6 +153,49 @@ TOOLS: Final[list[dict[str, Any]]] = [
                     "description": _BUDGET_HELP,
                 },
                 "min_score": {"type": "number", "default": 0.0},
+                "instructions": {
+                    "type": "string",
+                    "enum": sorted(INSTRUCTION_SETS),
+                    "default": "default",
+                    "description": (
+                        "Which instruction set the package carries. `default` addresses a "
+                        "person reading the prompt. `answering` asks the model for JSON "
+                        "claims with verbatim citations and carries the OUTPUT_SCHEMA, "
+                        "which is the only shape `verify` can check. They are different "
+                        "prompts, so they have different package_ids."
+                    ),
+                },
+                "ledger": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": (
+                        "Record this package in tsumugi's own ledger. A caller keeping "
+                        "its own record may pass false, so the question's hash is not "
+                        "kept in two places."
+                    ),
+                },
+                "index": {"type": "string", "description": _INDEX_HELP},
+            },
+        },
+    },
+    {
+        "name": "render",
+        "description": (
+            "Turn a ContextPackage into the exact prompt tsumugi would send: the "
+            "instructions, the passages with their citation labels, the NOT INCLUDED "
+            "section, and the OUTPUT_SCHEMA when the package carries one. Use this "
+            "rather than composing a prompt from the package yourself -- a prompt with "
+            "anything added no longer matches the package that records it. Touches "
+            "nothing: no index, no ledger."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["package"],
+            "properties": {
+                "package": {
+                    "type": "string",
+                    "description": "The ContextPackage JSON that `context` returned.",
+                },
             },
         },
     },
@@ -145,6 +212,7 @@ TOOLS: Final[list[dict[str, Any]]] = [
             "properties": {
                 "quotation": {"type": "string"},
                 "limit": {"type": "integer", "default": 20, "minimum": 1, "maximum": 100},
+                "index": {"type": "string", "description": _INDEX_HELP},
             },
         },
     },
@@ -177,33 +245,32 @@ TOOLS: Final[list[dict[str, Any]]] = [
 ]
 
 
-def _cost_model(unit: Unit) -> CostModel:
-    if unit is Unit.TOKENS:
-        return HeuristicTokenCost()
-    if unit is Unit.BYTES:
-        return ByteCost()
-    return CharacterCost()
-
-
 class McpServer:
     """One session. Opens the index lazily, so an empty corpus is a tool error
     rather than a server that will not start."""
 
     def __init__(self, config: TsumugiConfig) -> None:
         self._config = config
-        self._connection: sqlite3.Connection | None = None
+        #: One connection per index, opened on first use. Keyed by the name the
+        #: caller used; ``None`` is the default index.
+        self._connections: dict[str | None, sqlite3.Connection] = {}
 
     # -- wiring ----------------------------------------------------------
 
-    def _open(self) -> sqlite3.Connection:
-        if self._connection is None:
-            self._connection = connect(self._config.resolved_index_path(), create=False)
-        return self._connection
+    def _open(self, name: str | None = None) -> sqlite3.Connection:
+        found = self._connections.get(name)
+        if found is None:
+            # `resolved_index_path` raises on an unknown name and lists the
+            # known ones; `connect(create=False)` raises on a missing file. Both
+            # arrive at the caller as tool errors naming their kind.
+            found = connect(self._config.resolved_index_path(name), create=False)
+            self._connections[name] = found
+        return found
 
     def close(self) -> None:
-        if self._connection is not None:
-            self._connection.close()
-            self._connection = None
+        for connection in self._connections.values():
+            connection.close()
+        self._connections.clear()
 
     # -- dispatch --------------------------------------------------------
 
@@ -222,7 +289,7 @@ class McpServer:
         elif request.method == "ping":
             result = {}
         elif request.method == "tools/list":
-            # Cacheable: these four tools are compiled into the module and
+            # Cacheable: these five tools are compiled into the module and
             # cannot change while the process runs.
             result = {"tools": TOOLS, "ttlMs": LIST_TTL_MS, "cacheScope": LIST_CACHE_SCOPE}
         elif request.method == "tools/call":
@@ -266,10 +333,11 @@ class McpServer:
             "instructions": (
                 "Local knowledge with its evidence attached. Use `context` to get "
                 "passages for a question -- and read its omissions[], which names what "
-                "was considered and left out. Use `trace` to check where a quotation "
-                "came from, and `verify` to check an answer's citations. A resolved "
-                "citation means the text is where it was said to be; it does not mean "
-                "the claim is true."
+                "was considered and left out. Use `render` to turn that package into "
+                "the prompt to send, rather than composing one. Use `trace` to check "
+                "where a quotation came from, and `verify` to check an answer's "
+                "citations. A resolved citation means the text is where it was said to "
+                "be; it does not mean the claim is true."
             ),
         }
 
@@ -283,6 +351,7 @@ class McpServer:
         handlers = {
             "search": self._search,
             "context": self._context,
+            "render": self._render,
             "trace": self._trace,
             "verify": self._verify,
         }
@@ -298,35 +367,50 @@ class McpServer:
 
         try:
             return _content(handler(call))
-        except TsumugiError as error:
+        except (TsumugiError, ValueError, sqlite3.DatabaseError) as error:
             # A tool failure is a result with isError, not a protocol error:
             # the request was well-formed and the agent can act on the message.
-            return _content(str(error), is_error=True)
-        except (ValueError, sqlite3.DatabaseError) as error:
-            return _content(str(error), is_error=True)
+            #
+            # **The kind leads the message.** A caller mapping failures onto
+            # its own states -- `sora` wants "no index" to be *unavailable* and
+            # "empty query" to be *failed* -- needs one word it can match, and
+            # the class name is that word: `StorageError: no index at ...`.
+            return _content(f"{type(error).__name__}: {error}", is_error=True)
 
-    # -- the four tools --------------------------------------------------
+    # -- the five tools --------------------------------------------------
 
     def _search(self, call: Request) -> Any:
-        connection = self._open()
+        index_name = call.optional_string("index")
+        connection = self._open(index_name)
         results, truncation = run_search(
             call.string("query"),
             store=SqliteDocumentStore(connection),
             index=FtsIndex(connection),
             limit=call.integer("limit", 10),
             candidate_limit=self._config.candidate_limit,
+            confirmation=self._config.confirmation(),
         )
         return {
-            "results": [
+            "contract": SEARCH_HITS_CONTRACT,
+            "index": index_name or "default",
+            "hits": [
                 {
                     "text": result.text,
-                    "source_path": result.source_path,
-                    "section": result.section,
-                    "document_id": result.anchor.document_id,
-                    "start": result.anchor.span.start,
-                    "end": result.anchor.span.end,
                     "score": round(result.score, 4),
                     "confirmed": not result.unconfirmed,
+                    # The same seven keys as an item's anchor in the package
+                    # contract, so a consumer's anchor code works on both.
+                    # Checked by a test against `to_json()`, which sorts keys,
+                    # so the set is the promise and the order is not.
+                    "anchor": {
+                        "document_id": result.anchor.document_id,
+                        "source_path": result.source_path,
+                        "section": result.section,
+                        "start": result.anchor.span.start,
+                        "end": result.anchor.span.end,
+                        "text_hash": str(result.anchor.text_hash),
+                        "document_hash": str(result.anchor.version),
+                    },
                 }
                 for result in results
             ],
@@ -335,22 +419,47 @@ class McpServer:
 
     def _context(self, call: Request) -> Any:
         budget = Budget.parse(call.string("budget", "characters:4000"))
-        connection = self._open()
+        instructions, output_schema = instruction_set(call.string("instructions", "default"))
+        connection = self._open(call.optional_string("index"))
         package = build_context(
             call.string("query"),
             store=SqliteDocumentStore(connection),
             index=FtsIndex(connection),
-            cost_model=_cost_model(budget.unit),
+            cost_model=cost_model_for(budget.unit),
             budget=budget,
             candidate_limit=self._config.candidate_limit,
+            redundancy_threshold=self._config.redundancy_threshold,
+            confirmation=self._config.confirmation(),
+            ordering=self._config.selected_ordering(),
             minimum_score=call.number("min_score", 0.0),
+            instructions=instructions,
+            output_schema=output_schema,
             version=__version__,
         )
-        SqliteLedger(connection).open(package)
+        # Off by request, never by accident. A caller with its own record may
+        # decline to have the question's hash kept here as well (ADR-0011's
+        # `--no-ledger`, for the same reason).
+        if call.boolean("ledger", True):
+            SqliteLedger(connection).open(package)
         return json.loads(package.to_json())
 
+    def _render(self, call: Request) -> Any:
+        """The prompt, exactly as tsumugi would send it. Nothing else touched.
+
+        `docs/context-package.md`: a consumer that appends its own paragraph on
+        the way out has a package that no longer describes what was sent. The
+        CLI has always printed this; a consumer holding the MCP connection open
+        had no way to get it without starting a Python process per turn.
+        """
+        package = ContextPackage.from_json(call.string("package"))
+        return {
+            "package_id": str(package.package_id),
+            "contract": package.contract,
+            "rendered": package.render(),
+        }
+
     def _trace(self, call: Request) -> Any:
-        connection = self._open()
+        connection = self._open(call.optional_string("index"))
         traces = trace_quotation(
             call.string("quotation"),
             SqliteDocumentStore(connection),

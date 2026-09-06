@@ -103,6 +103,15 @@ FORBIDDEN_ANYWHERE_IN_CORE = frozenset(
     {"socket", "ssl", "http", "asyncio", "urllib", "ftplib", "smtplib", "telnetlib"}
 )
 
+#: Submodules of a forbidden root that cannot reach the network at all.
+#: `urllib.parse` turns a string into its parts; `urllib.request` opens the
+#: socket. Two adapters share a URL-parsing helper that must stay outside the
+#: allow-list below, because listing it there would say it connects, and the
+#: list would then be true about the wrong thing. Kept to exactly this: an
+#: entry here is a claim that a module *cannot* connect, checked by reading
+#: the standard library rather than by trusting the name.
+PARSES_BUT_CANNOT_CONNECT = frozenset({"urllib.parse"})
+
 #: The adapters that are allowed to reach the network, by name. An allow-list
 #: rather than a rule about the package, so that adding one is a decision
 #: somebody makes on purpose (ADR-0016).
@@ -202,6 +211,8 @@ def test_nothing_in_the_core_opens_a_socket(module: Path) -> None:
         pytest.skip("named in NETWORKED_ADAPTERS; see the test below")
 
     for name, line in sorted(_imported_roots(module)):
+        if name in PARSES_BUT_CANNOT_CONNECT:
+            continue
         root = name.split(".")[0]
         assert root not in FORBIDDEN_ANYWHERE_IN_CORE, (
             f"{module.relative_to(SRC)}:{line} imports {name!r}. Everything but the "
@@ -222,7 +233,9 @@ def test_the_adapters_that_reach_the_network_are_the_ones_named() -> None:
         for module in ALL_MODULES
         if _is_adapter(module)
         and any(
-            name.split(".")[0] in FORBIDDEN_ANYWHERE_IN_CORE for name, _ in _imported_roots(module)
+            name.split(".")[0] in FORBIDDEN_ANYWHERE_IN_CORE
+            for name, _ in _imported_roots(module)
+            if name not in PARSES_BUT_CANNOT_CONNECT
         )
     }
     assert reaching == NETWORKED_ADAPTERS, (

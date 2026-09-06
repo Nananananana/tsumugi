@@ -40,6 +40,7 @@ later ADR supersedes it and says so.
 | [0024](0024-the-ordering-is-a-setting.md) | The ordering is a setting, and the default is the measured one |
 | [0025](0025-outside-the-domain-a-library-may-help.md) | Outside the domain, a library may help — if it is measured first |
 | [0026](0026-a-lead-is-offered-only-when-there-is-nothing-to-confuse-it-with.md) | A lead is offered only when there is nothing to confuse it with |
+| [0027](0027-a-package-records-what-tsumugi-built.md) | A package records what tsumugi built, not what happened to it afterwards |
 
 Several are borrowed, with thanks, from the sibling projects `mamori` and
 `kiseki`. Where that is the case the ADR says so and names the original: a

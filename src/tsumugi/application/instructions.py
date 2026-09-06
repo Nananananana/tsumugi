@@ -27,7 +27,9 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-__all__ = ["ANSWERING", "ANSWER_SCHEMA", "DEFAULT"]
+from ..errors import ConfigurationError
+
+__all__ = ["ANSWERING", "ANSWER_SCHEMA", "DEFAULT", "INSTRUCTION_SETS", "instruction_set"]
 
 #: What a package says when nobody has said otherwise. A person reading this in
 #: a chat window is the assumed consumer: no output format, because they can
@@ -112,3 +114,34 @@ ANSWER_SCHEMA: Final[dict[str, Any]] = {
         }
     },
 }
+
+
+#: The sets a caller may name. A name maps to the instructions *and* the output
+#: schema, because the two go together: `ANSWERING` without `ANSWER_SCHEMA` asks
+#: for JSON matching a section that is not there.
+INSTRUCTION_SETS: Final[dict[str, tuple[dict[str, Any], dict[str, Any] | None]]] = {
+    "default": (DEFAULT, None),
+    "answering": (ANSWERING, ANSWER_SCHEMA),
+}
+
+
+def instruction_set(name: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The instructions and output schema a name stands for.
+
+    Raises rather than falling back. `--instructions answerng` that quietly
+    became `default` would render a prompt nobody chose and report a
+    `package_id` for it, which is the failure this repository keeps finding in
+    its own settings.
+
+    This exists because the answering set was reachable only through `ask`,
+    which brings its own model. A consumer that runs the model itself -- `sora`
+    holds the device and calls tsumugi only for what to send -- had no way to
+    get the prompt that `verify` can check, and its verification chip read
+    *uncited* on every answer.
+    """
+    try:
+        return INSTRUCTION_SETS[name]
+    except KeyError:
+        raise ConfigurationError(
+            f"unknown instruction set {name!r}; choose one of {', '.join(sorted(INSTRUCTION_SETS))}"
+        ) from None

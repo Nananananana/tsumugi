@@ -9,6 +9,44 @@ All notable changes to this project are documented here. The format follows
 Nothing is released. The version is `0.1.0.dev0` and the public API is not
 stable.
 
+### Added — what the orchestration layer asked for
+
+Requested by `sora`, the family's orchestration layer, which holds the model
+and calls tsumugi only for what to send and what was left out. All of it sits
+outside the frozen `tsumugi.context-package/1` contract; `docs/mcp.md` is the
+surface.
+
+- **MCP `render` tool.** The exact prompt for a package a caller already
+  holds. Touches no index and no ledger. A consumer holding the connection
+  open had no way to get the prompt without starting a Python process per
+  turn, and composing one itself would leave a package that no longer
+  describes what was sent.
+- **`instructions: answering`** on MCP `context` and `--instructions` on the
+  CLI. The answering set, with its `OUTPUT_SCHEMA`, was reachable only through
+  `ask`; a consumer running its own model verified every answer as *uncited*.
+- **`ledger: false`** on MCP `context`, for a caller with its own record. A
+  JSON boolean only: the string `"false"` is refused, because coerced it would
+  be true.
+- **Named indexes.** `TSUMUGI_INDEXES=personal=...;news=...` and `index:
+  "news"` on `search`, `context` and `trace`. Names, never paths, cross the
+  tool boundary.
+- **`search` hits carry `contract: "tsumugi.search-hits/1-draft"`** and an
+  `anchor` with exactly the seven keys a package item's anchor has, held by a
+  test against `to_json()`. The result key is `hits`, was `results`.
+- **Tool errors begin with their kind** (`StorageError: ...`), so a caller can
+  map a missing index to *unavailable* and a bad call to *failed*.
+- **ADR-0027**: a package records what tsumugi built. Protection applied to the
+  rendered prompt by somebody else is their record and travels beside the
+  package, never inside it; there is no recompute path for `package_id`.
+
+### Changed
+
+- `context` at the MCP surface now honours the configured `ordering`,
+  `redundancy_threshold` and confirmation settings, as the CLI already did. A
+  behaviour available in one composition root and not the other is a defect.
+- The two LLM adapters share one boundary check (`adapters/_boundary.py`);
+  both composition roots share one cost-model wiring (`interfaces/wiring.py`).
+
 ### Added — the loop closed, and one place the network may live
 
 - **`tsumugi ask`** and `application/ask.py`. Everything in it already worked

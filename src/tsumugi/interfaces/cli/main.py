@@ -23,12 +23,13 @@ from ...application.ask import ask
 from ...application.build_context import build_context
 from ...application.forgetting import forget_documents
 from ...application.ingest import ingest_paths
+from ...application.instructions import INSTRUCTION_SETS, instruction_set
 from ...application.leads import DEFAULT_LIMIT, Lead, leads_from
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
 from ...application.verify import verify_answer
 from ...config import TsumugiConfig
-from ...domain.budget import Budget, Unit
+from ...domain.budget import Budget
 from ...domain.ordering import ORDERINGS, Ordering
 from ...domain.package import ContextPackage
 from ...errors import ConfigurationError, TsumugiError
@@ -40,7 +41,6 @@ from ...infrastructure.adapters.mamori import open_session
 from ...infrastructure.adapters.ollama import DEFAULT_MODEL, DEFAULT_URL, OllamaProvider
 from ...infrastructure.adapters.openai_compatible import DEFAULT_URL as OPENAI_URL
 from ...infrastructure.adapters.openai_compatible import OpenAICompatibleProvider
-from ...infrastructure.cost.heuristic import ByteCost, CharacterCost, HeuristicTokenCost
 from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.freshness import FilesystemFreshness, remembered_roots
 from ...infrastructure.index.fts import FtsIndex
@@ -48,9 +48,9 @@ from ...infrastructure.parsers import parser_for, registered_suffixes
 from ...infrastructure.storage.database import SCHEMA_VERSION, connect, empty
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
-from ...ports.cost import CostModel
 from ...ports.llm import LLMProvider
 from ..mcp.server import serve
+from ..wiring import cost_model_for
 from .demo import run_demo
 
 __all__ = ["build_parser", "main"]
@@ -116,6 +116,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "where the corpus lives now, if it has moved. The index remembers where "
             "each document was read from, so staleness is checked without this"
+        ),
+    )
+    context.add_argument(
+        "--instructions",
+        choices=sorted(INSTRUCTION_SETS),
+        default="default",
+        help=(
+            "which instruction set the package carries. `default` addresses a person; "
+            "`answering` asks the model for JSON claims with verbatim citations and "
+            "carries the OUTPUT_SCHEMA, which is the only shape `verify` can check. "
+            "Different prompts, so different package_ids (default: default)"
         ),
     )
     context.add_argument("--json", action="store_true", help="emit the package itself")
@@ -532,21 +543,13 @@ def _ordering(args: argparse.Namespace, config: TsumugiConfig) -> Ordering:
     return chosen.selected_ordering()
 
 
-def _cost_model(unit: Unit) -> CostModel:
-    """The composition root's one job for budgets."""
-    if unit is Unit.TOKENS:
-        return HeuristicTokenCost()
-    if unit is Unit.BYTES:
-        return ByteCost()
-    return CharacterCost()
-
-
 def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
     try:
         budget = Budget.parse(args.budget)
     except ValueError as error:
         raise ConfigurationError(str(error)) from error
 
+    chosen_instructions, chosen_schema = instruction_set(args.instructions)
     connection = _connect(config.resolved_index_path(), create=False)
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
@@ -554,13 +557,15 @@ def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:
         args.query,
         store=store,
         index=index,
-        cost_model=_cost_model(budget.unit),
+        cost_model=cost_model_for(budget.unit),
         ordering=_ordering(args, config),
         budget=budget,
         candidate_limit=config.candidate_limit,
         redundancy_threshold=config.redundancy_threshold,
         confirmation=config.confirmation(),
         minimum_score=args.min_score,
+        instructions=chosen_instructions,
+        output_schema=chosen_schema,
         version=__version__,
         # On by default. A check the caller has to remember to turn on is a
         # check that is off, and offering a passage from an edited file as
@@ -674,7 +679,7 @@ def _ask(args: argparse.Namespace, config: TsumugiConfig) -> int:
             args.query,
             store=store,
             index=index,
-            cost_model=_cost_model(budget.unit),
+            cost_model=cost_model_for(budget.unit),
             ordering=_ordering(args, config),
             budget=budget,
             provider=provider,

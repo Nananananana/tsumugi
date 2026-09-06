@@ -35,6 +35,7 @@ from typing import Any, Final
 
 from ...errors import ConfigurationError
 from ...ports.llm import Endpoint
+from ._boundary import endpoint_of, refuse_remote_unless_allowed
 from .ollama import ProviderError
 
 __all__ = ["DEFAULT_URL", "OpenAICompatibleProvider"]
@@ -42,9 +43,6 @@ __all__ = ["DEFAULT_URL", "OpenAICompatibleProvider"]
 #: vLLM's default. llama.cpp's server uses 8080, LM Studio 1234, and Ollama
 #: exposes the same API at 11434/v1 -- all of them this class, another URL.
 DEFAULT_URL: Final = "http://127.0.0.1:8000/v1"
-
-#: Hosts that are this machine. Anything else is outside the boundary.
-_LOCAL: Final = frozenset({"localhost", "127.0.0.1", "::1", "[::1]", ""})
 
 
 class OpenAICompatibleProvider:
@@ -71,17 +69,12 @@ class OpenAICompatibleProvider:
                 "other name; pass the one it was started with (--model)"
             )
         self._model = model
-        self._endpoint = _endpoint(url)
+        self._endpoint = endpoint_of(url)
         self._timeout = timeout
         self._api_key = api_key
         self._label = label
 
-        if not self._endpoint.is_local and not allow_remote:
-            raise ConfigurationError(
-                f"{url} is not this machine, and sending a ContextPackage there would "
-                f"put your notes on somebody else's host. Pass allow_remote=True (or "
-                f"--allow-remote) if that is genuinely what you want."
-            )
+        refuse_remote_unless_allowed(self._endpoint, allow_remote)
 
     @property
     def name(self) -> str:
@@ -165,10 +158,3 @@ def _text_of(body: Any, name: str) -> str:
     if not isinstance(answer, str) or not answer.strip():
         raise ProviderError(f"{name} returned no text")
     return answer
-
-
-def _endpoint(url: str) -> Endpoint:
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ConfigurationError(f"{url!r} is not an http or https URL")
-    return Endpoint(url=url, is_local=(parsed.hostname or "") in _LOCAL)

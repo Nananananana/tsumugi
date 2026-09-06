@@ -18,15 +18,22 @@ import pytest
 from tsumugi.config import TsumugiConfig
 from tsumugi.interfaces.cli.main import main
 from tsumugi.interfaces.mcp.protocol import Request, RpcError, read_requests, write_message
-from tsumugi.interfaces.mcp.server import TOOLS, McpServer, serve
+from tsumugi.interfaces.mcp.server import SEARCH_HITS_CONTRACT, TOOLS, McpServer, serve
 
 
-def drive(messages: list[dict[str, Any]], index: Path) -> list[dict[str, Any]]:
+def drive(
+    messages: list[dict[str, Any]], index: Path, config: TsumugiConfig | None = None
+) -> list[dict[str, Any]]:
     """Run one session over a list of requests and return the responses."""
     stdin = io.StringIO("\n".join(json.dumps(m) for m in messages) + "\n")
     stdout = io.StringIO()
-    serve(TsumugiConfig(index_path=index), stdin=stdin, stdout=stdout)
+    serve(config or TsumugiConfig(index_path=index), stdin=stdin, stdout=stdout)
     return [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+
+
+def text_of(response: dict[str, Any]) -> str:
+    """The tool result's text -- the JSON string a caller would hold."""
+    return str(response["result"]["content"][0]["text"])
 
 
 def call(name: str, arguments: dict[str, Any], identifier: int = 2) -> dict[str, Any]:
@@ -140,11 +147,12 @@ class TestTheHandshake:
 class TestTheToolsAreReadOnly:
     """The constraint that makes this safe inside somebody else's agent loop."""
 
-    def test_exactly_four_tools_are_offered(self, index: Path) -> None:
+    def test_exactly_five_tools_are_offered(self, index: Path) -> None:
         (response,) = drive([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}], index)
         assert {tool["name"] for tool in response["result"]["tools"]} == {
             "search",
             "context",
+            "render",
             "trace",
             "verify",
         }
@@ -174,11 +182,32 @@ class TestTheToolsAreReadOnly:
 
 
 class TestSearch:
-    def test_it_returns_anchored_spans(self, index: Path) -> None:
+    def test_it_returns_anchored_spans_under_a_named_shape(self, index: Path) -> None:
         (response,) = drive([call("search", {"query": "東京"}, identifier=1)], index)
-        result = body(response)["results"][0]
-        assert result["source_path"] == "notes/mountain.md"
-        assert result["end"] > result["start"]
+        payload = body(response)
+        assert payload["contract"] == SEARCH_HITS_CONTRACT
+        assert payload["index"] == "default"
+        hit = payload["hits"][0]
+        assert hit["anchor"]["source_path"] == "notes/mountain.md"
+        assert hit["anchor"]["end"] > hit["anchor"]["start"]
+
+    def test_a_hit_anchor_has_exactly_the_keys_a_package_anchor_has(self, index: Path) -> None:
+        """The promise the -draft shape makes: a consumer's anchor code works on both.
+
+        Compared against a real package's item anchor from `to_json()`, not a
+        list written here, so the two cannot drift apart unnoticed.
+        """
+        search_response, context_response = drive(
+            [
+                call("search", {"query": "テント"}, identifier=1),
+                call("context", {"query": "テント", "budget": "characters:2000"}, identifier=2),
+            ],
+            index,
+        )
+        hit_anchor = body(search_response)["hits"][0]["anchor"]
+        item_anchor = body(context_response)["items"][0]["anchor"]
+        assert sorted(hit_anchor) == sorted(item_anchor), "the same seven keys"
+        assert all(hit_anchor[key] is not None for key in hit_anchor)
 
     def test_a_missing_query_is_an_invalid_parameter(self, index: Path) -> None:
         (response,) = drive([call("search", {}, identifier=1)], index)
@@ -480,3 +509,181 @@ class TestBothProtocolEras:
         from tsumugi.interfaces.mcp.server import PROTOCOL_VERSION
 
         assert PROTOCOL_VERSION == "2026-07-28"
+
+
+class TestRender:
+    """The fifth tool: the exact prompt, touching nothing."""
+
+    def test_it_renders_the_package_context_returned(self, index: Path) -> None:
+        (context_response,) = drive(
+            [call("context", {"query": "テント", "budget": "characters:2000"}, identifier=1)],
+            index,
+        )
+        package_text = text_of(context_response)
+        (rendered,) = drive([call("render", {"package": package_text}, identifier=2)], index)
+        payload = body(rendered)
+        assert payload["package_id"] == json.loads(package_text)["package_id"]
+        assert payload["contract"].startswith("tsumugi.context-package/")
+        assert "# TASK" in payload["rendered"]
+        assert "テント" in payload["rendered"]
+
+    def test_it_needs_no_index(self, tmp_path: Path, index: Path) -> None:
+        """A package from anywhere renders here; `render` never opens a store."""
+        (context_response,) = drive(
+            [call("context", {"query": "テント", "budget": "characters:2000"}, identifier=1)],
+            index,
+        )
+        (rendered,) = drive(
+            [call("render", {"package": text_of(context_response)}, identifier=2)],
+            tmp_path / "does-not-exist.db",
+        )
+        assert "# TASK" in body(rendered)["rendered"]
+
+    def test_a_malformed_package_is_a_tool_error_naming_its_kind(self, index: Path) -> None:
+        (response,) = drive([call("render", {"package": "{not json"}, identifier=1)], index)
+        assert response["result"]["isError"] is True
+        kind = text_of(response).split(":")[0]
+        assert kind.endswith("Error"), kind
+
+
+class TestContextArguments:
+    """What sora asked for on `context`, and that each argument is connected."""
+
+    def test_answering_instructions_carry_the_schema_and_change_the_id(self, index: Path) -> None:
+        """Different prompts, different ids: an id that called them the same
+        would be the thing that is wrong."""
+        person, machine = drive(
+            [
+                call("context", {"query": "テント", "budget": "characters:2000"}, identifier=1),
+                call(
+                    "context",
+                    {"query": "テント", "budget": "characters:2000", "instructions": "answering"},
+                    identifier=2,
+                ),
+            ],
+            index,
+        )
+        assert body(person)["output_schema"] is None
+        assert body(machine)["output_schema"] is not None
+        assert body(person)["package_id"] != body(machine)["package_id"]
+
+        (rendered,) = drive([call("render", {"package": text_of(machine)}, identifier=3)], index)
+        assert "OUTPUT_SCHEMA" in body(rendered)["rendered"]
+
+    def test_an_unknown_instruction_set_is_refused_and_the_choices_named(self, index: Path) -> None:
+        (response,) = drive(
+            [call("context", {"query": "テント", "instructions": "answerng"}, identifier=1)],
+            index,
+        )
+        assert response["result"]["isError"] is True
+        assert text_of(response).startswith("ConfigurationError:")
+        assert "answering" in text_of(response)
+
+    def test_ledger_false_records_nothing_and_the_default_records_one(self, index: Path) -> None:
+        """Both halves, or the test proves nothing about the flag."""
+        from tsumugi.infrastructure.storage.database import connect
+        from tsumugi.infrastructure.storage.ledger import SqliteLedger
+
+        def entries() -> int:
+            connection = connect(index)
+            try:
+                return len(SqliteLedger(connection).entries())
+            finally:
+                connection.close()
+
+        drive([call("context", {"query": "テント", "ledger": False}, identifier=1)], index)
+        assert entries() == 0, "ledger: false still wrote an entry"
+        drive([call("context", {"query": "テント"}, identifier=2)], index)
+        assert entries() == 1, "the default must record, or the assertion above is vacuous"
+
+    def test_a_string_where_a_boolean_was_needed_is_refused(self, index: Path) -> None:
+        """`ledger: "false"` coerced would be *true*: the exact thing the caller
+        was trying to avoid. Refused as a malformed request."""
+        (response,) = drive(
+            [call("context", {"query": "テント", "ledger": "false"}, identifier=1)], index
+        )
+        assert "error" in response and response["error"]["code"] == -32602
+
+
+class TestNamedIndexes:
+    """Two corpora, one process, addressed by name and never by path."""
+
+    @pytest.fixture
+    def two(self, corpus: Path, tmp_path: Path) -> TsumugiConfig:
+        personal = tmp_path / "personal.db"
+        main(["--index", str(personal), "ingest", str(corpus)])
+        news_root = tmp_path / "news"
+        news_root.mkdir()
+        (news_root / "today.md").write_text(
+            "# Today\n\nThe harbour reopened after the storm.\n", encoding="utf-8"
+        )
+        news = tmp_path / "news.db"
+        main(["--index", str(news), "ingest", str(news_root)])
+        return TsumugiConfig.from_mapping(
+            {"index_path": personal, "indexes": {"personal": personal, "news": news}}
+        )
+
+    def test_each_name_reaches_its_own_corpus(self, two: TsumugiConfig, tmp_path: Path) -> None:
+        news, personal = drive(
+            [
+                call("search", {"query": "harbour", "index": "news"}, identifier=1),
+                call("search", {"query": "harbour", "index": "personal"}, identifier=2),
+            ],
+            tmp_path,
+            config=two,
+        )
+        assert body(news)["index"] == "news"
+        assert body(news)["hits"], "the news corpus must answer, or nothing is tested"
+        assert body(personal)["hits"] == [], "the notes must not know about the harbour"
+
+    def test_omitting_the_name_is_the_default_index(
+        self, two: TsumugiConfig, tmp_path: Path
+    ) -> None:
+        (response,) = drive(
+            [call("search", {"query": "テント"}, identifier=1)], tmp_path, config=two
+        )
+        assert body(response)["index"] == "default"
+        assert body(response)["hits"]
+
+    def test_an_unknown_name_is_a_tool_error_listing_the_known_ones(
+        self, two: TsumugiConfig, tmp_path: Path
+    ) -> None:
+        (response,) = drive(
+            [call("search", {"query": "テント", "index": "nws"}, identifier=1)],
+            tmp_path,
+            config=two,
+        )
+        assert response["result"]["isError"] is True
+        assert text_of(response).startswith("ConfigurationError:")
+        assert "news" in text_of(response) and "personal" in text_of(response)
+
+    def test_a_path_is_not_accepted_as_a_name(self, two: TsumugiConfig, tmp_path: Path) -> None:
+        """The whole point of names. A path that exists must still be refused."""
+        (response,) = drive(
+            [
+                call(
+                    "search", {"query": "harbour", "index": str(tmp_path / "news.db")}, identifier=1
+                )
+            ],
+            tmp_path,
+            config=two,
+        )
+        assert response["result"]["isError"] is True
+
+
+class TestErrorKinds:
+    """One word a caller can match, at the front of every tool error."""
+
+    def test_a_missing_index_is_a_storage_error(self, tmp_path: Path) -> None:
+        (response,) = drive(
+            [call("search", {"query": "テント"}, identifier=1)], tmp_path / "missing.db"
+        )
+        assert response["result"]["isError"] is True
+        assert text_of(response).startswith("StorageError:"), text_of(response)
+
+    def test_a_bad_budget_names_its_kind(self, index: Path) -> None:
+        (response,) = drive(
+            [call("context", {"query": "テント", "budget": "4000"}, identifier=1)], index
+        )
+        assert response["result"]["isError"] is True
+        assert text_of(response).split(":", 1)[0] in {"ValueError", "ConfigurationError"}

@@ -56,6 +56,12 @@ class TsumugiConfig:
 
     #: Where the index file lives. Printed by every command that touches it.
     index_path: Path | None = None
+    #: Further indexes, by name, for a process that serves more than one corpus.
+    #: `sora` keeps `personal` (notes) and `news` (a feed corpus) and wants one
+    #: MCP process rather than two. **Names, never paths, cross the tool
+    #: boundary**: an agent may say ``index: "news"`` and may not say where any
+    #: file is. Pairs rather than a dict so the config stays hashable.
+    indexes: tuple[tuple[str, Path], ...] = ()
     #: Extra ignore patterns, on top of the corpus's own ignore files.
     ignore: tuple[str, ...] = ()
     #: Follow symlinks while walking a corpus. Off, because a corpus folder
@@ -139,8 +145,23 @@ class TsumugiConfig:
             return chosen
         return partial(maximal_marginal_relevance, diversity=self.diversity)
 
-    def resolved_index_path(self) -> Path:
-        return self.index_path if self.index_path is not None else default_index_path()
+    def resolved_index_path(self, name: str | None = None) -> Path:
+        """The index a caller means: the default, or one of the named ones.
+
+        An unknown name raises and lists what is known. Falling back to the
+        default index would answer a question about the news corpus out of
+        somebody's notes and call it a success.
+        """
+        if name is None:
+            return self.index_path if self.index_path is not None else default_index_path()
+        for known, path in self.indexes:
+            if known == name:
+                return path
+        offered = ", ".join(sorted(known for known, _ in self.indexes)) or "none"
+        raise ConfigurationError(
+            f"no index named {name!r}; this configuration knows: {offered}. "
+            f"Name indexes with TSUMUGI_INDEXES=name=path{os.pathsep}name=path"
+        )
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, Any]) -> TsumugiConfig:
@@ -155,6 +176,12 @@ class TsumugiConfig:
             settings["index_path"] = Path(str(settings["index_path"])).expanduser()
         if "ignore" in settings:
             settings["ignore"] = tuple(settings["ignore"])
+        if "indexes" in settings:
+            given = settings["indexes"]
+            pairs = given.items() if isinstance(given, Mapping) else given
+            settings["indexes"] = tuple(
+                (str(name), Path(str(path)).expanduser()) for name, path in pairs
+            )
         return cls(**settings)
 
     @classmethod
@@ -165,6 +192,17 @@ class TsumugiConfig:
             values["index_path"] = index
         if ignore := source.get("TSUMUGI_IGNORE"):
             values["ignore"] = tuple(p for p in ignore.split(os.pathsep) if p)
+        if named := source.get("TSUMUGI_INDEXES"):
+            pairs = []
+            for entry in (e for e in named.split(os.pathsep) if e):
+                name, separator, path = entry.partition("=")
+                if not separator or not name or not path:
+                    raise ConfigurationError(
+                        f"TSUMUGI_INDEXES entries are name=path, separated by "
+                        f"{os.pathsep!r}; {entry!r} is not one"
+                    )
+                pairs.append((name, path))
+            values["indexes"] = pairs
         if limit := source.get("TSUMUGI_CANDIDATE_LIMIT"):
             try:
                 values["candidate_limit"] = int(limit)
