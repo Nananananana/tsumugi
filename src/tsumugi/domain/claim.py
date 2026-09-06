@@ -35,7 +35,16 @@ from .matching import find_all
 from .selection import ContextItem
 from .span import Span
 
-__all__ = ["Citation", "Claim", "Support", "VerificationReport", "verify_claims"]
+__all__ = ["CONTRACT", "Citation", "Claim", "Support", "VerificationReport", "verify_claims"]
+
+#: What a verification report is, named so a consumer can write it down.
+#: `-draft` because it is not frozen; only `tsumugi.context-package/1` is.
+#:
+#: `sora` was recording it as `tsumugi.verify/unnamed` in its own ledger. A
+#: report is a document -- it is what a reader keeps to show that an answer was
+#: checked -- and a document nobody can name is one every consumer names
+#: differently.
+CONTRACT = "tsumugi.verification-report/1-draft"
 
 
 class Support(Enum):
@@ -173,6 +182,7 @@ class VerificationReport:
         against still holds what was sent.
         """
         return {
+            "contract": CONTRACT,
             "package_id": self.package_id,
             "counts": dict(self.counts),
             "claims": [

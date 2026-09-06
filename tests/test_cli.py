@@ -44,13 +44,39 @@ class TestIngest:
         out = capsys.readouterr().out
         assert "3 new" in out
 
-    def test_it_always_says_where_the_index_is(
+    def test_it_always_says_where_the_index_is_on_stderr(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # A file you do not know about is a file you cannot protect, and this
-        # one is a complete plaintext copy of the corpus.
+        """A file you do not know about is a file you cannot protect, and this
+        one is a complete plaintext copy of the corpus.
+
+        **On stderr**, because it says what is about to happen rather than what
+        happened. On stdout it was the last line before a failure, in the same
+        shape as a success summary, so a consumer reading stdout's final line
+        saw `corpus: <path>` and nothing saying to look elsewhere.
+        """
         run("ingest", str(corpus), index=index_path)
-        assert str(index_path) in capsys.readouterr().out
+        captured = capsys.readouterr()
+        assert str(index_path) in captured.err
+        assert str(index_path) not in captured.out, (
+            "the header is back on stdout, where a failure looks like a summary"
+        )
+
+    def test_a_failure_leaves_nothing_summary_shaped_on_stdout(
+        self, corpus: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The property the move exists for, stated directly.
+
+        A consumer reading only stdout must not see a line that looks like the
+        run went fine. `sora`'s probe printed `exit 1: corpus: C:/.../notes`
+        and lost the reason entirely.
+        """
+        missing = tmp_path / "not-a-corpus"
+        code = run("ingest", str(missing), index=tmp_path / "i.db")
+        captured = capsys.readouterr()
+        assert code != 0
+        assert captured.out.strip() == "", captured.out
+        assert "no such path" in captured.err
 
     def test_a_credential_file_is_named_without_being_asked(
         self, corpus: Path, index_path: Path, capsys: pytest.CaptureFixture[str]

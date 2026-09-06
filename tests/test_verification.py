@@ -8,6 +8,7 @@ its user to ignore the signal, and the signal is the product.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -23,6 +24,7 @@ from tsumugi.application.verify import (
 from tsumugi.domain.anchor import Anchor, ResolutionStatus, resolve
 from tsumugi.domain.budget import Budget
 from tsumugi.domain.claim import (
+    CONTRACT,
     Citation,
     Claim,
     Located,
@@ -40,6 +42,7 @@ from tsumugi.domain.package import (
 )
 from tsumugi.domain.selection import ContextItem
 from tsumugi.domain.span import Span
+from tsumugi.interfaces.cli.main import main
 
 from .helpers import build_document
 
@@ -462,3 +465,46 @@ class TestOneToleranceAndItsEdge:
     def test_prose_is_still_refused(self) -> None:
         with pytest.raises(AnswerFormatError):
             parse_answer("The tent weighs 2.4kg, according to the notes.")
+
+
+class TestTheReportSaysWhatItIs:
+    """A report is a document, so it carries its name.
+
+    `sora` was recording it in its own ledger as `tsumugi.verify/unnamed`,
+    because there was nothing in the payload to record. A document nobody can
+    name is one every consumer names differently.
+
+    Checked at all three places it is emitted, because the name is only useful
+    where a consumer actually reads it, and `to_dict` alone passing would not
+    prove the CLI or the server pass it through.
+    """
+
+    def test_the_dictionary_form_carries_the_contract(self) -> None:
+        report = verify_answer(
+            json.dumps({"claims": [{"text": "a claim with no citation", "citations": []}]}),
+            a_package(),
+        )
+        assert report.to_dict()["contract"] == CONTRACT
+        assert CONTRACT.startswith("tsumugi.verification-report/")
+
+    def test_the_cli_emits_it(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        package_path = tmp_path / "package.json"
+        package_path.write_text(a_package().to_json(), encoding="utf-8")
+        answer_path = tmp_path / "answer.json"
+        quoted = a_package().items[0].text[:12]
+        answer_path.write_text(
+            json.dumps({"claims": [{"text": "a claim", "citations": [quoted]}]}),
+            encoding="utf-8",
+        )
+        main(
+            [
+                "--index",
+                str(tmp_path / "i.db"),
+                "verify",
+                "--package",
+                str(package_path),
+                str(answer_path),
+                "--json",
+            ]
+        )
+        assert json.loads(capsys.readouterr().out)["contract"] == CONTRACT

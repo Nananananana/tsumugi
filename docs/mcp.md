@@ -120,7 +120,9 @@ one as an item ([ADR-0022](adr/0022-an-unconfirmed-candidate-is-an-omission-not-
 
 Unchanged from before this document, except that `trace` takes `index`.
 `verify` takes the package JSON string — the same string `render` takes — and
-needs no index of its own.
+needs no index of its own. Its result carries
+`contract: "tsumugi.verification-report/1-draft"`, so a caller keeping its own
+record has a name to write down.
 
 ### `indexes`
 
@@ -172,7 +174,7 @@ one word to match:
 
 | Message begins | Meaning | A reasonable mapping |
 |---|---|---|
-| `StorageError:` | the index is missing, unreadable, or built by another tokenizer | unavailable |
+| `StorageError:` | the index is missing, unreadable, or built by an older tokenizer or indexing rule | unavailable |
 | `ConfigurationError:` | an unknown index name, instruction set, or unparseable budget | failed, and fix the call |
 | `ValueError:` | a malformed package or answer, an empty query | failed |
 | `UnsupportedContractError:` | a package from a contract this tsumugi does not know | failed |
@@ -201,6 +203,14 @@ Two of these are ordinary rather than broken, and a caller that maps them to
   with **no claims at all** — `all()` over nothing is true, so "asserts
   nothing" would otherwise verify clean. Read `claims[]` to tell the three
   apart; the exit code deliberately does not.
+
+**On the CLI, the reason for a failure is on stderr.** stdout carries the
+command's output and nothing else: the `index:` and `corpus:` lines an ingest
+prints go to stderr, because they say what is about to happen rather than what
+happened. A consumer reading only stdout's last line used to see
+`corpus: <path>` after a failure, in the same shape as a success summary, with
+nothing saying to look elsewhere. Read the exit code, and read stderr when it
+is non-zero.
 
 Protocol errors (JSON-RPC `error`, code `-32602`) are for malformed *requests*
 — a missing required parameter, a string where a boolean was needed. Those are

@@ -19,6 +19,7 @@ from typing import Final
 from ...domain.document import Document, DocumentId
 from ...domain.hashing import ContentHash
 from ...domain.span import Span
+from ...errors import StorageError
 from ...ports.index import IndexHit
 from .tokenization import BigramTokenizer
 
@@ -157,7 +158,14 @@ class FtsIndex:
                     (self._identity,),
                 )
         elif row["value"] != self._identity:
-            raise ValueError(
+            # `StorageError`, not `ValueError`. A caller mapping error kinds --
+            # `sora` maps them onto *unavailable* and *failed* -- is told the
+            # right thing by this one: the index is there and cannot be used
+            # until it is rebuilt, which is a state of storage rather than a
+            # malformed argument. It read as `ValueError` for one release, in
+            # the same table that told consumers `ValueError` meant their call
+            # was wrong.
+            raise StorageError(
                 f"this index was built as {row['value']!r} and is being searched as "
                 f"{self._identity!r}. Run `tsumugi ingest --rebuild` to read the "
                 f"corpus again."

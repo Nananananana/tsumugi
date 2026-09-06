@@ -224,7 +224,9 @@ class TestTheIndex:
             def query_terms(self, query: str) -> list[str]:  # pragma: no cover - shape
                 return [query]
 
-        with pytest.raises(ValueError, match="--rebuild"):
+        # `StorageError`, so a caller mapping kinds is told "the index cannot
+        # be used" rather than "your call was malformed".
+        with pytest.raises(StorageError, match="--rebuild"):
             FtsIndex(connection, Different())  # type: ignore[arg-type]
 
 

@@ -55,6 +55,20 @@ surface.
 
 ### Fixed — front matter was evidence, and ingest was quadratic
 
+- **A failure left a success-shaped line on stdout.** `ingest` printed its
+  `index:` and `corpus:` headers to stdout, so a consumer reading stdout's last
+  line saw `corpus: <path>` after a failure and no sign anything was wrong --
+  the reason was on stderr, and nothing on stdout said to look. They are
+  diagnostics and go to stderr now. Reported by `sora`, whose probe displayed
+  `exit 1: corpus: C:/.../notes`.
+- **The index-marker mismatch raised `ValueError`, in the same release whose
+  error table told consumers `ValueError` meant their call was malformed.** It
+  raises `StorageError`: the index exists and cannot be used until rebuilt,
+  which is a state of storage.
+- **A verification report carries
+  `contract: "tsumugi.verification-report/1-draft"`.** It had no name, and
+  `sora` was recording it as `tsumugi.verify/unnamed`.
+
 - **A `source_url:` line could be returned as a citable item.** Front matter is
   read into `metadata` by the parser, and the sections then tiled the whole
   document, so the index took it as ordinary text. A package built from a

@@ -29,6 +29,7 @@ import pytest
 from tests.helpers import build_document
 from tsumugi.application.indexes import CONTRACT, summarise_indexes
 from tsumugi.config import TsumugiConfig
+from tsumugi.errors import StorageError
 from tsumugi.infrastructure.index.fts import FtsIndex
 from tsumugi.infrastructure.storage.database import connect
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
@@ -211,7 +212,7 @@ class TestTheIndexSaysHowItWasBuilt:
 
         reopened = connect(path)
         try:
-            with pytest.raises(ValueError) as raised:
+            with pytest.raises(StorageError) as raised:
                 FtsIndex(reopened)
             assert "--rebuild" in str(raised.value)
             assert "rule" in str(raised.value)
