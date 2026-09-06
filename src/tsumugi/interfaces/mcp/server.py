@@ -1,4 +1,4 @@
-"""The agent-facing surface: five read-only tools over the same use cases.
+"""The agent-facing surface: six read-only tools over the same use cases.
 
 The thing that most wants a ContextPackage is not a person composing a prompt.
 It is an agent already holding a conversation, which needs a slice of local
@@ -41,6 +41,8 @@ from typing import IO, Any, Final
 
 from ... import __version__
 from ...application.build_context import build_context
+from ...application.indexes import CONTRACT as INDEXES_CONTRACT
+from ...application.indexes import summarise_indexes
 from ...application.instructions import INSTRUCTION_SETS, instruction_set
 from ...application.search import search as run_search
 from ...application.trace import trace_quotation
@@ -90,7 +92,7 @@ META_CLIENT_CAPABILITIES: Final = "io.modelcontextprotocol/clientCapabilities"
 META_SERVER_INFO: Final = "io.modelcontextprotocol/serverInfo"
 
 #: How long a client may cache a list result, and how widely. `tools/list` here
-#: is a constant: five read-only tools compiled into the module, which cannot
+#: is a constant: six read-only tools compiled into the module, which cannot
 #: change while the process runs. An hour is arbitrary and conservative.
 LIST_TTL_MS: Final = 3_600_000
 LIST_CACHE_SCOPE: Final = "server"
@@ -200,6 +202,18 @@ TOOLS: Final[list[dict[str, Any]]] = [
         },
     },
     {
+        "name": "indexes",
+        "description": (
+            "Which named indexes this server can reach, and how much is in each. "
+            "Returns names, document counts and when each was last ingested -- never "
+            "paths. An index that cannot be opened appears as a row saying so rather "
+            "than failing the listing. Empty when the server was started with no named "
+            "indexes, which is not an error: the default index is reached by omitting "
+            "`index` and is not listed here. Read-only."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "trace",
         "description": (
             "Find where a quotation came from. Exact matching only: a quotation either "
@@ -289,7 +303,7 @@ class McpServer:
         elif request.method == "ping":
             result = {}
         elif request.method == "tools/list":
-            # Cacheable: these five tools are compiled into the module and
+            # Cacheable: these six tools are compiled into the module and
             # cannot change while the process runs.
             result = {"tools": TOOLS, "ttlMs": LIST_TTL_MS, "cacheScope": LIST_CACHE_SCOPE}
         elif request.method == "tools/call":
@@ -349,6 +363,7 @@ class McpServer:
         call = Request(method=name, params=arguments, id=request.id)
 
         handlers = {
+            "indexes": self._indexes,
             "search": self._search,
             "context": self._context,
             "render": self._render,
@@ -377,7 +392,19 @@ class McpServer:
             # the class name is that word: `StorageError: no index at ...`.
             return _content(f"{type(error).__name__}: {error}", is_error=True)
 
-    # -- the five tools --------------------------------------------------
+    # -- the six tools ----------------------------------------------------
+
+    def _indexes(self, _call: Request) -> Any:
+        """Names and counts. Takes nothing, and reveals no path."""
+        return {
+            "contract": INDEXES_CONTRACT,
+            "indexes": [
+                summary.as_dict()
+                for summary in summarise_indexes(
+                    [name for name, _ in self._config.indexes], self._open
+                )
+            ],
+        }
 
     def _search(self, call: Request) -> Any:
         index_name = call.optional_string("index")

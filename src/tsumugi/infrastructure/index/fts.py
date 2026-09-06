@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Sequence
+from typing import Final
 
 from ...domain.document import Document, DocumentId
 from ...domain.hashing import ContentHash
@@ -33,9 +34,39 @@ def _usable(term: str) -> bool:
     return any(_MEANINGFUL(character) for character in term)
 
 
+#: Which rule decided what a searchable unit is. Bumped when that rule
+#: changes, so an index built by an older one is refused rather than half
+#: believed.
+#:
+#: The tokenizer marker below could not carry this. The tokenizer says how a
+#: span becomes terms and is unchanged; what changed at 2 is **which spans
+#: exist** -- front matter stopped being indexed. An index built at rule 1
+#: still holds `source_url:` lines as citable text, and nothing about its terms
+#: would ever say so. Silently searching it would be the "slightly false"
+#: this library exists to avoid, so it is a loud refusal and a rebuild.
+#:
+#: 1. every section's own text, front matter included
+#: 2. front matter subtracted (2026-09-07)
+INDEXING_RULE: Final = 2
+
+
 def _quote(term: str) -> str:
     """A term as an FTS5 phrase. Everything is quoted, so nothing is syntax."""
     return '"' + term.replace('"', '""') + '"'
+
+
+def _after_front_matter(start: int, end: int, withheld: list[Span]) -> int:
+    """``start``, moved past any front matter it begins inside.
+
+    Front matter sits at the head of a document, so a span either starts inside
+    one or is clear of it; there is no case where a block has to be cut out of
+    the middle. Returning ``end`` means the span was entirely front matter and
+    the caller drops it.
+    """
+    for block in withheld:
+        if block.start <= start < block.end:
+            start = min(block.end, end)
+    return start
 
 
 def _own_spans(document: Document) -> list[Span]:
@@ -52,7 +83,23 @@ def _own_spans(document: Document) -> list[Span]:
     child: what a reader means by "the part under this heading", as opposed to
     "this heading and everything beneath it". The pieces tile, so every
     character is indexed exactly once.
+
+    **Front matter is subtracted**, and that is not a tidying-up. A parser
+    already lifts it into `metadata`, and the sections tile the *whole*
+    document -- so a file beginning with
+
+        ---
+        source_url: https://example.com/a
+        ---
+
+    put `source_url: https://example.com/a` into the index as ordinary text,
+    and a package handed it back as a **citable item**. Front matter is what a
+    document says *about itself*: a provenance URL, a fetch timestamp, an id.
+    None of it is evidence for anything a reader asked, and a citation
+    resolving to it is a citation to bookkeeping. Reported by `sora`, whose
+    corpus arrives from `musubi` with exactly that shape.
     """
+    withheld = [block.span for block in document.blocks or () if block.kind == "front_matter"]
     sections = sorted(document.sections or (), key=lambda s: (s.span.start, -s.span.end))
     spans: list[Span] = []
     for index, section in enumerate(sections):
@@ -62,9 +109,14 @@ def _own_spans(document: Document) -> list[Span]:
             if section.span.contains(other.span) and other.span != section.span
         ]
         end = min(children) if children else section.span.end
-        if end > section.span.start:
-            spans.append(Span(section.span.start, end))
-    return spans or [Span(0, len(document.content))]
+        start = _after_front_matter(section.span.start, end, withheld)
+        if end > start:
+            spans.append(Span(start, end))
+    if spans:
+        return spans
+    # No sections at all: the whole document, less any front matter at its head.
+    whole = _after_front_matter(0, len(document.content), withheld)
+    return [Span(whole, len(document.content))] if whole < len(document.content) else []
 
 
 class FtsIndex:
@@ -81,12 +133,19 @@ class FtsIndex:
     def name(self) -> str:
         return f"fts5+{self._tokenizer.name}"
 
+    @property
+    def _identity(self) -> str:
+        """How this index was built: its tokenizer, and its indexing rule."""
+        return f"{self._tokenizer.name}+rule{INDEXING_RULE}"
+
     def _record_identity(self) -> None:
-        """Write down which tokenizer built this index.
+        """Write down how this index was built.
 
         An index built by one tokenizer cannot be searched by another: the
         terms would simply not line up, and the failure would look like an
-        empty corpus rather than a mismatch.
+        empty corpus rather than a mismatch. The same is true of the rule that
+        decides which spans are indexed at all -- an index that still holds
+        front matter answers questions the current code would never ask it.
         """
         row = self._connection.execute(
             "SELECT value FROM index_meta WHERE key = 'tokenizer'"
@@ -95,13 +154,13 @@ class FtsIndex:
             with self._connection:
                 self._connection.execute(
                     "INSERT INTO index_meta (key, value) VALUES ('tokenizer', ?)",
-                    (self._tokenizer.name,),
+                    (self._identity,),
                 )
-        elif row["value"] != self._tokenizer.name:
+        elif row["value"] != self._identity:
             raise ValueError(
-                f"this index was built by {row['value']!r} and is being searched by "
-                f"{self._tokenizer.name!r}. Run `tsumugi ingest --rebuild` to read "
-                f"the corpus again."
+                f"this index was built as {row['value']!r} and is being searched as "
+                f"{self._identity!r}. Run `tsumugi ingest --rebuild` to read the "
+                f"corpus again."
             )
 
     def add(self, document: Document) -> None:

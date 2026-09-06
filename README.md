@@ -253,7 +253,7 @@ of roadmap item 4.
 
 ## For an agent
 
-`tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — five tools,
+`tsumugi mcp` is a **read-only** MCP server on JSON-RPC over stdio — six tools,
 no dependency, and nothing that can write to your corpus or your index is
 reachable from it.
 
@@ -263,6 +263,7 @@ reachable from it.
 
 | Tool | |
 |---|---|
+| `indexes` | which named indexes exist, and how much is in each |
 | `search` | ranked passages with anchors |
 | `context` | a full ContextPackage, **including what was left out**; `instructions: answering` for the shape `verify` can check |
 | `render` | the exact prompt for a package — so a caller running its own model never composes one |

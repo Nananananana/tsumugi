@@ -32,13 +32,42 @@ surface.
   tool boundary.
 - **`search` hits carry `contract: "tsumugi.search-hits/1-draft"`** and an
   `anchor` with exactly the seven keys a package item's anchor has, held by a
-  test against `to_json()`. The result key is `hits`, was `results`.
+  test against `to_json()`. **Renamed: the result key `results` is now `hits`**
+  (old name written out at `sora`'s request, so a consumer holding contract and
+  key names as strings can fix its side in one line rather than discovering the
+  change as an unknown shape).
+- **MCP `indexes` tool and `tsumugi indexes [--json]`**, returning
+  `tsumugi.indexes/1-draft`: which named indexes exist, how many documents each
+  holds, and when each was last ingested. Never a path -- including in the
+  `unavailable` field, which carries only the *kind* of failure, because the
+  message it would otherwise repeat names a file. An index that will not open
+  is a row rather than an error, so a deleted profile does not take the working
+  ones down with it.
+- **`docs/mcp.md` gains an exit-code table**, verified by running every row. Two
+  non-zero exits are ordinary rather than broken: `context` returns 1 when
+  nothing was confirmed, and `verify` returns 1 for an unsupported claim, an
+  uncited one, *or an answer with no claims at all*.
 - **Tool errors begin with their kind** (`StorageError: ...`), so a caller can
   map a missing index to *unavailable* and a bad call to *failed*.
 - **ADR-0027**: a package records what tsumugi built. Protection applied to the
   rendered prompt by somebody else is their record and travels beside the
   package, never inside it; there is no recompute path for `package_id`.
 
+### Fixed — front matter was evidence, and ingest was quadratic
+
+- **A `source_url:` line could be returned as a citable item.** Front matter is
+  read into `metadata` by the parser, and the sections then tiled the whole
+  document, so the index took it as ordinary text. A package built from a
+  `musubi` feed handed back `source_url: https://example.com/a` as evidence.
+  Front matter is what a document says *about itself*; a citation resolving to
+  it is a citation to bookkeeping. It is now subtracted from what is indexed.
+  The stored document is untouched, so anchors still resolve against the real
+  bytes; only what is searchable narrows.
+- **An index now records the rule that built it, not only its tokenizer.** An
+  index built before the change still holds those lines and its terms would
+  never say so. The tokenizer marker could not carry this: the terms for a
+  given span did not change, *which spans exist* did. An older index is refused
+  with a message naming `tsumugi ingest --rebuild` rather than quietly searched.
 ### Fixed — ingest was quadratic
 
 - **Ten thousand documents took ten minutes; they take 84 seconds.** Before

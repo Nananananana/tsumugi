@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -147,9 +147,10 @@ class TestTheHandshake:
 class TestTheToolsAreReadOnly:
     """The constraint that makes this safe inside somebody else's agent loop."""
 
-    def test_exactly_five_tools_are_offered(self, index: Path) -> None:
+    def test_exactly_six_tools_are_offered(self, index: Path) -> None:
         (response,) = drive([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}], index)
         assert {tool["name"] for tool in response["result"]["tools"]} == {
+            "indexes",
             "search",
             "context",
             "render",
@@ -172,13 +173,29 @@ class TestTheToolsAreReadOnly:
         for tool in TOOLS:
             assert hasattr(server, f"_{tool['name']}")
 
+    #: The tools that take no arguments at all. Named rather than inferred, so
+    #: that a tool losing its `required` list by accident is a failure here
+    #: instead of a tool an agent can call wrongly.
+    NO_ARGUMENTS: ClassVar[set[str]] = {"indexes"}
+
     def test_every_tool_declares_a_schema_with_its_required_fields(self) -> None:
         for tool in TOOLS:
             schema = tool["inputSchema"]
             assert schema["type"] == "object"
-            assert schema["required"]
+            if tool["name"] in self.NO_ARGUMENTS:
+                assert not schema.get("required"), f"{tool['name']} takes no arguments"
+                continue
+            assert schema["required"], tool["name"]
             for field in schema["required"]:
                 assert field in schema["properties"]
+
+    def test_the_no_argument_list_is_not_a_way_to_skip_the_check(self) -> None:
+        """Every name in `NO_ARGUMENTS` must be a real tool that really takes
+        none -- otherwise the exemption above is a hole somebody can widen."""
+        declared = {tool["name"]: tool["inputSchema"] for tool in TOOLS}
+        for name in self.NO_ARGUMENTS:
+            assert name in declared, name
+            assert not declared[name].get("properties"), f"{name} declares arguments"
 
 
 class TestSearch:
@@ -605,23 +622,29 @@ class TestContextArguments:
         assert "error" in response and response["error"]["code"] == -32602
 
 
+@pytest.fixture
+def two(corpus: Path, tmp_path: Path) -> TsumugiConfig:
+    """Two ingested corpora and a configuration naming both.
+
+    Module scope because the listing tests need it as much as the routing
+    tests do.
+    """
+    personal = tmp_path / "personal.db"
+    main(["--index", str(personal), "ingest", str(corpus)])
+    news_root = tmp_path / "news"
+    news_root.mkdir()
+    (news_root / "today.md").write_text(
+        "# Today\n\nThe harbour reopened after the storm.\n", encoding="utf-8"
+    )
+    news = tmp_path / "news.db"
+    main(["--index", str(news), "ingest", str(news_root)])
+    return TsumugiConfig.from_mapping(
+        {"index_path": personal, "indexes": {"personal": personal, "news": news}}
+    )
+
+
 class TestNamedIndexes:
     """Two corpora, one process, addressed by name and never by path."""
-
-    @pytest.fixture
-    def two(self, corpus: Path, tmp_path: Path) -> TsumugiConfig:
-        personal = tmp_path / "personal.db"
-        main(["--index", str(personal), "ingest", str(corpus)])
-        news_root = tmp_path / "news"
-        news_root.mkdir()
-        (news_root / "today.md").write_text(
-            "# Today\n\nThe harbour reopened after the storm.\n", encoding="utf-8"
-        )
-        news = tmp_path / "news.db"
-        main(["--index", str(news), "ingest", str(news_root)])
-        return TsumugiConfig.from_mapping(
-            {"index_path": personal, "indexes": {"personal": personal, "news": news}}
-        )
 
     def test_each_name_reaches_its_own_corpus(self, two: TsumugiConfig, tmp_path: Path) -> None:
         news, personal = drive(
@@ -687,3 +710,62 @@ class TestErrorKinds:
         )
         assert response["result"]["isError"] is True
         assert text_of(response).split(":", 1)[0] in {"ValueError", "ConfigurationError"}
+
+
+class TestIndexesTool:
+    """Names and counts over the wire, and no path in the bytes.
+
+    `sora` switches profiles by switching index names and wants its screen to
+    say which one is live. The listing is the only way to find out that a name
+    works without using it and reading an error.
+    """
+
+    def test_it_lists_the_named_indexes_with_their_counts(
+        self, two: TsumugiConfig, tmp_path: Path
+    ) -> None:
+        (response,) = drive([call("indexes", {}, identifier=1)], tmp_path, config=two)
+        payload = body(response)
+        assert payload["contract"] == "tsumugi.indexes/1-draft"
+        rows = {row["name"]: row for row in payload["indexes"]}
+        assert set(rows) == {"personal", "news"}
+        assert rows["news"]["documents"] == 1
+        assert rows["personal"]["documents"] >= 1
+        assert rows["news"]["ingested_at"]
+
+    def test_no_named_indexes_is_an_empty_list_not_an_error(self, index: Path) -> None:
+        (response,) = drive([call("indexes", {}, identifier=1)], index)
+        assert response["result"].get("isError") is None
+        assert body(response)["indexes"] == []
+
+    def test_no_path_crosses_the_boundary(self, two: TsumugiConfig, tmp_path: Path) -> None:
+        """Checked against the raw bytes of the response, not a parsed field.
+
+        The first version of the listing reported the exception's message for
+        an index that would not open, and that message names the file.
+        """
+        broken = TsumugiConfig.from_mapping(
+            {
+                "indexes": {
+                    "personal": tmp_path / "personal.db",
+                    "gone": tmp_path / "deleted-profile.db",
+                }
+            }
+        )
+        (response,) = drive([call("indexes", {}, identifier=1)], tmp_path, config=broken)
+        raw = text_of(response)
+        assert "deleted-profile" not in raw, raw
+        assert str(tmp_path) not in raw, raw
+        rows = {row["name"]: row for row in json.loads(raw)["indexes"]}
+        assert rows["gone"]["documents"] is None
+        assert rows["gone"]["unavailable"] == "StorageError"
+
+    def test_a_deleted_profile_does_not_hide_the_working_ones(
+        self, two: TsumugiConfig, tmp_path: Path
+    ) -> None:
+        broken = TsumugiConfig.from_mapping(
+            {"indexes": {"gone": tmp_path / "nope.db", "news": tmp_path / "news.db"}}
+        )
+        (response,) = drive([call("indexes", {}, identifier=1)], tmp_path, config=broken)
+        rows = {row["name"]: row for row in body(response)["indexes"]}
+        assert rows["gone"]["documents"] is None
+        assert rows["news"]["documents"] == 1, "a broken row took a working one down with it"

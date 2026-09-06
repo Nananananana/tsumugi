@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sqlite3
 import sys
 from collections.abc import Mapping, Sequence
@@ -22,6 +23,8 @@ from ... import __version__
 from ...application.ask import ask
 from ...application.build_context import build_context
 from ...application.forgetting import forget_documents
+from ...application.indexes import CONTRACT as INDEXES_CONTRACT
+from ...application.indexes import summarise_indexes
 from ...application.ingest import ingest_paths
 from ...application.instructions import INSTRUCTION_SETS, instruction_set
 from ...application.leads import DEFAULT_LIMIT, Lead, leads_from
@@ -129,6 +132,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Different prompts, so different package_ids (default: default)"
         ),
     )
+    listing = commands.add_parser(
+        "indexes",
+        help="which named indexes are configured, and how much is in each",
+        description=(
+            "Names, document counts and last ingest, for the indexes named in "
+            "TSUMUGI_INDEXES. Never paths. The default index is reached by omitting "
+            "--index and is not listed here."
+        ),
+    )
+    listing.add_argument("--json", action="store_true", help="emit the listing as JSON")
+    listing.set_defaults(run=_indexes)
+
     context.add_argument("--json", action="store_true", help="emit the package itself")
     context.add_argument(
         "--leads",
@@ -541,6 +556,42 @@ def _ordering(args: argparse.Namespace, config: TsumugiConfig) -> Ordering:
         diversity=config.diversity if flagged is None else float(flagged),
     )
     return chosen.selected_ordering()
+
+
+def _indexes(args: argparse.Namespace, config: TsumugiConfig) -> int:
+    """List the named indexes. Zero of them is a fact, not a failure."""
+    summaries = summarise_indexes(
+        [name for name, _ in config.indexes],
+        lambda name: _connect(config.resolved_index_path(name), create=False),
+    )
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "contract": INDEXES_CONTRACT,
+                    "indexes": [summary.as_dict() for summary in summaries],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
+    if not summaries:
+        print("no named indexes configured.")
+        print(f"  TSUMUGI_INDEXES=personal=/path/one{os.pathsep}news=/path/two")
+        print("  the default index is used when no name is given.")
+        return 0
+
+    width = max(len(summary.name) for summary in summaries)
+    for summary in summaries:
+        if summary.unavailable:
+            print(f"{summary.name:<{width}}  unavailable  {summary.unavailable}")
+            continue
+        when = f"  last ingest {summary.ingested_at}" if summary.ingested_at else ""
+        print(f"{summary.name:<{width}}  {summary.documents:>7} documents{when}")
+    return 0
 
 
 def _context(args: argparse.Namespace, config: TsumugiConfig) -> int:

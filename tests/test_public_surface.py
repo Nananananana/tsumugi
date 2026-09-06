@@ -107,6 +107,7 @@ CLI_VERBS = frozenset(
         "doctor",
         "eval",
         "forget",
+        "indexes",
         "ingest",
         "ledger",
         "mcp",

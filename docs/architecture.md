@@ -65,7 +65,7 @@ interfaces ──> application ──> domain
 | `config.py` | `TsumugiConfig`, and where the index lives | `domain`, `ports`, `application`, `infrastructure` |
 | `interfaces/cli/` | Argument parsing, output. A composition root | everything above |
 | `evaluation/` | The labelled corpus, its loader, the six metrics, the runner | everything above |
-| `interfaces/mcp/` | JSON-RPC on stdio, five read-only tools. The other composition root | everything above |
+| `interfaces/mcp/` | JSON-RPC on stdio, six read-only tools. The other composition root | everything above |
 
 **This table is executable.** `tests/test_architecture.py` parses every module
 and asserts it; `.importlinter` asserts the direction. A diagram that stops

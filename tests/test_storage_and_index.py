@@ -194,13 +194,23 @@ class TestTheIndex:
             index.add(document)
         assert index.search("東京") == index.search("東京")
 
-    def test_an_index_records_which_tokenizer_built_it(
+    def test_an_index_records_how_it_was_built(
         self, connection: sqlite3.Connection, index: FtsIndex
     ) -> None:
-        # Terms from two tokenizers do not line up, and the failure would look
-        # like an empty corpus rather than a mismatch.
+        """Its tokenizer *and* its indexing rule.
+
+        Terms from two tokenizers do not line up, and the failure would look
+        like an empty corpus rather than a mismatch. The rule is here for the
+        same reason and could not ride on the tokenizer's name: when front
+        matter stopped being indexed, the terms for a given span did not
+        change -- which spans exist did.
+        """
         row = connection.execute("SELECT value FROM index_meta WHERE key = 'tokenizer'").fetchone()
-        assert row["value"] == index._tokenizer.name
+        assert row["value"] == index._identity
+        assert index._tokenizer.name in row["value"]
+        # A literal, not the constant read back: the first version moved with
+        # `INDEXING_RULE` and lowering it changed nothing.
+        assert row["value"].endswith("+rule2"), row["value"]
 
     def test_searching_an_index_built_by_another_tokenizer_is_refused(
         self, connection: sqlite3.Connection, index: FtsIndex
