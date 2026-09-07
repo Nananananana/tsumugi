@@ -65,6 +65,12 @@ def _after_front_matter(start: int, end: int, withheld: list[Span]) -> int:
     the caller drops it.
     """
     for block in withheld:
+        # `<` rather than `<=` on the right, and the two are **equivalent
+        # here**: a `start` sitting exactly on `block.end` is already clear of
+        # the block, and the assignment below would return it unchanged.
+        # Recorded because `tools/mutate.py` reports the mutation as surviving,
+        # and a survivor nobody has reasoned about looks the same as one nobody
+        # has tested.
         if block.start <= start < block.end:
             start = min(block.end, end)
     return start
@@ -104,14 +110,48 @@ def _own_spans(document: Document) -> list[Span]:
     sections = sorted(document.sections or (), key=lambda s: (s.span.start, -s.span.end))
     spans: list[Span] = []
     for index, section in enumerate(sections):
+        # Everything that begins after this one does: a section ends where the
+        # next one starts. **Simpler than the containment test it replaces, and
+        # true in one more case.** Containment answered "is this my child",
+        # which tiles a nested document and does not tile an overlapping one --
+        # `A(0,20)` beside `B(10,30)` indexed ten characters twice, and the
+        # docstring above promises every character exactly once.
+        #
+        # Sorted by start, so "begins after" is the only direction there is.
+        # Found by `tools/mutate.py`: weakening the condition survived every
+        # test, because the two agree on every well-formed shape.
+        #
+        # **`>` and `>=` are indistinguishable here and neither is right for
+        # the shape that separates them**: two sections sharing a start and
+        # differing in end (`A(0,20)` inside `B(0,10)`). `>` leaves them
+        # overlapping, `>=` drops the outer one entirely, and no parser in this
+        # repository emits it -- a section starts at its heading, and two
+        # headings cannot share an offset. Recorded as a precondition rather
+        # than chased: **sections are expected to be sorted and to start at
+        # distinct offsets where they nest.** A third-party parser that breaks
+        # that gets tiling for overlaps and no promise for this one case.
         children = [
             other.span.start
             for other in sections[index + 1 :]
-            if section.span.contains(other.span) and other.span != section.span
+            if other.span.start > section.span.start
         ]
-        end = min(children) if children else section.span.end
+        # Never past its own end: a later section that begins beyond this one
+        # does not extend it.
+        end = min([*children, section.span.end])
         start = _after_front_matter(section.span.start, end, withheld)
-        if end > start:
+        # `not in spans` is the whole of the deduplication, and it is load-
+        # bearing rather than tidy. Two sections that cover exactly the same
+        # text each contribute that text, and the index then holds the same
+        # span twice -- which is the failure the docstring above describes: one
+        # copy becomes an item, the other an omission, and `ContextPackage`
+        # refuses to be built. The `!= section.span` guard on the line above
+        # stops a section being its own child; it does not stop the twin from
+        # contributing separately.
+        #
+        # Found by `tools/mutate.py`: turning that `and` into an `or` survived,
+        # because the mutant happens to drop one of the two copies. A mutant
+        # that improves on the code is the code asking a question.
+        if end > start and Span(start, end) not in spans:
             spans.append(Span(start, end))
     if spans:
         return spans

@@ -103,6 +103,28 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Fixed — found by mutation testing
+
+`python tools/mutate.py` edits one expression and runs the tests. A surviving
+mutant is a change to shipped code that nothing objects to. Four modules were
+swept; 39 of 43 mutants are now killed, and the two real defects it found were
+both in what counts as one searchable unit:
+
+- **Two sections covering the same text indexed that text twice.** Each
+  contributed it separately, so the index held the same span twice, one copy
+  became an item and the other an omission, and `ContextPackage` refused to
+  assemble. The guard that stops a section being its own child never stopped
+  its twin contributing.
+- **Overlapping sections broke the tiling guarantee.** `_own_spans` says every
+  character is indexed exactly once; `A(0,20)` beside `B(10,30)` indexed ten of
+  them twice. The rule asked *is this section my child*; it now asks *where
+  does the next one start*, which is simpler and true in one more case. No
+  parser here emits overlaps, but `register_parser` is public and a guarantee
+  that holds only for the shapes we happen to emit is not one.
+
+The remaining survivors are recorded in the source with the reasoning that
+makes them equivalent programs, rather than left looking untested.
+
 ### Added — preferring newer passages
 
 - **`--ordering recent`** (`TSUMUGI_ORDERING=recent`), with `TSUMUGI_FRESHNESS`

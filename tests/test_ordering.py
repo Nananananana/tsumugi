@@ -188,3 +188,113 @@ class TestTheRerankOrdering:
         question = "how long is the warranty coverage period"
         assert by_score(candidates, question)[0].source_path == "returns.md"
         assert rerank(candidates, question)[0].source_path == "warranty.md"
+
+
+class TestTheEdgesMutationTestingFound:
+    """Four survivors from `python tools/mutate.py`, and what each one asks.
+
+    A surviving mutant is a change to shipped code that no test objects to.
+    These four were all in the arithmetic around `scale`, the divisor that
+    normalises scores into the blend:
+
+        `0.0 <= diversity`  ->  `0.0 < diversity`   the boundary itself
+        `ranked[0].score`   ->  `ranked[1].score`   normalise by the runner-up
+        `best > 0`          ->  `best > 1`, `>= 0`  the divide-by-zero guard
+
+    None of them is a defect. Every one is a question the suite could not
+    answer, and a suite that cannot answer them cannot notice the day one
+    becomes a defect.
+    """
+
+    @pytest.mark.parametrize("share", [0.0, 1.0])
+    def test_the_ends_of_the_range_are_allowed(self, share: float) -> None:
+        """0.0 and 1.0 are the two most meaningful values and were untested.
+
+        1.0 is pure relevance and 0.0 is pure novelty; both are legitimate
+        answers to "how much of this trade do I want", and neither may raise.
+        """
+        assert len(maximal_marginal_relevance(TRIPLE, QUERY, diversity=share)) == len(TRIPLE)
+
+    def test_pure_novelty_ignores_the_question_entirely(self) -> None:
+        """`diversity=0.0` is the opposite end from `by_score`.
+
+        It picks the best-scoring passage first -- there is nothing yet to be
+        unlike -- and then whatever is least like what it holds, which is the
+        distinct passage rather than the near-duplicate.
+        """
+        assert [
+            c.source_path for c in maximal_marginal_relevance(TRIPLE, QUERY, diversity=0.0)
+        ] == [
+            "a.md",
+            "c.md",
+            "b.md",
+        ]
+
+    def test_scores_of_zero_do_not_divide_by_zero(self) -> None:
+        """The guard `best > 0` exists for this and nothing tested it.
+
+        A corpus where every candidate scores 0.0 is reachable: bm25 returns it
+        for a document matched only on a term the query shares with everything.
+        """
+        flat = [
+            candidate("The warranty coverage period is 24 months.", 0.0, "a.md"),
+            candidate("Returns are accepted within 30 days.", 0.0, "b.md"),
+        ]
+        assert [c.source_path for c in maximal_marginal_relevance(flat, QUERY)] == ["a.md", "b.md"]
+
+    def test_negative_scores_do_not_invert_the_blend(self) -> None:
+        """`scale` falls back to 1.0 rather than to a negative number.
+
+        Dividing by a negative scale would flip the sign of the relevance term
+        and rank the *worst* passage first, silently.
+        """
+        negative = [
+            candidate("The warranty coverage period is 24 months.", -1.0, "a.md"),
+            candidate("Returns are accepted within 30 days.", -5.0, "b.md"),
+        ]
+        assert [c.source_path for c in maximal_marginal_relevance(negative, QUERY)] == [
+            "a.md",
+            "b.md",
+        ]
+
+    def test_the_top_score_is_the_divisor_not_the_runner_up(self) -> None:
+        """`ranked[0]` rather than `ranked[1]`.
+
+        `scale` exists to put the relevance term on 0..1 so the blend is a
+        trade between two comparable quantities. Dividing by the runner-up
+        instead multiplies every gap by `best / runner_up`, and where that
+        ratio is large the relevance term swamps the novelty term: the
+        near-duplicate wins a trade it should lose.
+
+        The gap here is 1000 to 100, which bm25 produces whenever one document
+        is squarely about the question and the rest brush past it.
+        """
+        wide = [
+            candidate("The warranty coverage period is 24 months from purchase.", 1000.0, "a.md"),
+            candidate("The warranty coverage period is 24 months from purchase!", 100.0, "b.md"),
+            candidate("Returns are accepted within 30 days of delivery.", 50.0, "c.md"),
+        ]
+        assert [c.source_path for c in maximal_marginal_relevance(wide, QUERY, diversity=0.9)] == [
+            "a.md",
+            "c.md",
+            "b.md",
+        ]
+
+    def test_a_top_score_below_one_is_still_the_divisor(self) -> None:
+        """The guard is `best > 0`, not `best > 1`.
+
+        A top score between 0 and 1 is ordinary -- bm25 returns it for a weak
+        match on a small corpus. Treating that as "no useful scale" and falling
+        back to 1.0 leaves the relevance term far smaller than the novelty
+        term, and novelty then decides an ordering that relevance should.
+        """
+        small = [
+            candidate("The warranty coverage period is 24 months from purchase.", 0.9, "a.md"),
+            candidate("The warranty coverage period is 24 months from purchase!", 0.2, "b.md"),
+            candidate("Returns are accepted within 30 days of delivery.", 0.1, "c.md"),
+        ]
+        assert [c.source_path for c in maximal_marginal_relevance(small, QUERY, diversity=0.9)] == [
+            "a.md",
+            "b.md",
+            "c.md",
+        ]
