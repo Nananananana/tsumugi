@@ -1,11 +1,17 @@
-# 0005 — What breaking it on purpose taught
+# 0005 — What breaking it on purpose taught, and what nobody had weighed
 
-*Written 2026-09-08, after a systematic mutation sweep of the assembly,
-verification and retrieval path. `0004` said the next thing this project needed
-was **a corpus it did not write**, because four defects came from one outside
-reader in a week and the corpus had produced none in a month. That is still
-true and still blocked. This is what the second-best instrument found while
-waiting.*
+*Written 2026-09-08. `0004` said the next thing this project needed was **a
+corpus it did not write**, because four defects came from one outside reader in
+a week and the corpus had produced none in a month. That is still true and
+still blocked. This is what two other instruments found while waiting: a
+systematic mutation sweep of the assembly, verification and retrieval path, and
+the first measurement of **space and speed on a corpus that is not half
+English**.*
+
+*They found the same thing twice, from opposite directions, and it is the same
+thing `0004` found: **the evaluation corpus has one shape, and everything
+measured on it is measured on that shape.** Four defects were invisible in it.
+So was 88% of a query.*
 
 ---
 
@@ -101,6 +107,59 @@ The tool now keeps a backup for the length of a run and refuses a stale one
 loudly, because which of the two files is the real one is a question only a
 person can answer.
 
+## What nobody had weighed
+
+`docs/measurements.md` runs to 1,300 lines and every number in it is time or
+accuracy. **Nothing had measured space**, and the speed numbers were taken on a
+corpus of mixed English and Japanese.
+
+**A cache of 608 MiB, almost all of it the identity.** The library has one
+deliberate cache — `_folded`, 64 entries, documents up to 256 KiB — sized by an
+argument about character counts: *"64 copies of a 10 MiB document is not a
+cache, it is a leak with a hit rate."* That argument counts the document. The
+cached value is a pair, and its second half is the map from folded index back
+to source index: **one Python integer per folded character, at 36 bytes each**.
+A 256 KiB document carried a 9,216 KiB map.
+
+Almost all of it was the identity map. A fold that produces one character for
+one character needs no map at all, and that is every ASCII document and,
+measured, **780 of the 780 documents in the evaluation corpus** — the same fact
+`tools/mutate.py` cites as the reason a wrong offset map once shipped
+unnoticed. It makes the cost free and the tests blind, and only one of those is
+good news. 912 MiB → 144 MiB worst case; **zero on every shape real text has**.
+
+**88% of a query, spent proving that nothing composes.** The scaling table was
+taken on mixed English and Japanese, so most of that corpus took the fold's
+ASCII short-circuit and the number that came out was about the half that did
+not. On a corpus that is entirely Japanese — which is what a Japanese user's
+notes folder is — the NFKC composition walk was 84–88% of a `context` call.
+
+Text that is already NFKC has nothing for that walk to find, and
+`unicodedata.is_normalized` settles it in one C pass. Japanese went 4.34 ms →
+0.035 ms on 6,811 characters; Greek and Turkish the same; German 3.92 → 1.20,
+because `ß` casefolds to `ss` and the map is then real.
+
+**Ingest waited for the disk twice a document.** WAL mode's default
+`synchronous = FULL` flushes on every commit and ingest commits twice a
+document: 30% at 300 documents, 14% on a quieter machine. Taken as a block
+around ingest rather than a setting on the connection, because **the ledger
+shares that database and is not derived from anything**.
+
+### The shape *these* share
+
+The same sentence again, in a third place:
+
+| finding | invisible when |
+|---|---|
+| the identity map | you measure time and never space |
+| the composition walk | half the corpus is English |
+| the fsync | the machine is quiet, or the profiler is running |
+
+And one correction that belongs with them: profiling put `_io.open` at 6 ms a
+file, which this project has repeated since the `search_rows` fix. Measured
+without the profiler, a warm read is **0.06 ms**. A number taken once under an
+instrument that distorts it, and then quoted.
+
 ## The roadmap this leaves
 
 ### Next — in the order I would do them
@@ -141,14 +200,47 @@ worth a property are the ones where a rule is stated in a docstring and checked
 nowhere: the offset map has one now, and the budget invariant and the "every
 candidate leaves as an item or an omission" rule already did.
 
-**4. The paraphrase residual, through leads.** *(Carried from `0004`,
+**4. Measure the corpus this project *does* have, in the shapes it does not.**
+*(New, and the cheapest item on the list.)*
+
+Three of the findings above came from running an existing measurement on a
+corpus of a different shape. None of them needed a new instrument; two needed a
+corpus that was entirely Japanese and one needed a scale that had never been
+weighed.
+
+So the shapes worth a harness run, named rather than discovered again:
+
+| shape | what it would show that the current corpus cannot |
+|---|---|
+| a corpus with no English in it | done — 88% of a query |
+| documents that fold unevenly (`㍿`, `ﬁ`, fullwidth) | the fold's slow path, which is now the only slow path |
+| a corpus of one very large document | `_CACHEABLE`'s limit, never crossed in any measurement |
+| a corpus with heavy near-duplication | `mark_duplicates` is pairwise |
+
+The fourth is the one I would expect to find something: redundancy is compared
+pairwise over the candidate list, and nothing has measured it above a handful
+of near-duplicates.
+
+**Closes** when each row has a number. **Does not close** by arguing that a
+shape is unlikely — that argument is what put 88% of a query out of sight.
+
+**5. The paraphrase residual, through leads.** *(Carried from `0004`,
 unchanged, and still likely undecidable at n=16 until item 1 lands.)*
 
 ### Answered since 0004
 
 - **`connect` ergonomics** — done, `tsumugi.opened`.
-- **Whether the FTS query cost needs work** — no. 593 ms at 10,000 documents
-  against sora's one-second budget.
+- **Whether the FTS query cost needs work** — **the answer has changed, and
+  the old one was wrong for a reason worth keeping.** `0004` said no: 593 ms at
+  10,000 documents, of which `index.search` was 365 ms, against sora's
+  one-second budget. That was measured on mixed English and Japanese. On a
+  corpus with no English in it, the FTS query was never the largest part —
+  the fold was, at 84–88%. With the fold's fast path the index is the largest
+  part again, and now genuinely so. The number to re-take is the 10,000-document
+  one, on a Japanese corpus, with `tools/measure_query_cost.py`, which exists
+  now precisely so it is not taken by hand again.
+- **How much memory a query holds** — asked and answered for the first time.
+  912 MiB → 144 MiB worst case, zero on real text.
 
 ### Not planned, and why
 
@@ -161,6 +253,16 @@ Everything in `0004`'s list, unchanged, plus:
   *where a term is*, not *which documents were seen* — the reader is not being
   told about a document that was skipped. Written down here so that the
   argument exists rather than the omission being an oversight.
+- **Memoising `unicodedata.normalize` inside the composition walk.** Measured:
+  **1.4× on fullwidth Japanese, 1.9× on `㍿`**, verified identical output. Not
+  taken. It restructures the one loop in this library where a subtly wrong
+  answer is a citation pointing at the wrong text, and it buys 1.5× on a path
+  already under 10 ms — against the 124× the fast path buys on the paths real
+  corpora take, from a branch that touches nothing. The number is recorded so
+  the trade can be re-made rather than re-measured.
+- **`synchronous = OFF` during ingest.** Five points beyond `NORMAL` and a
+  different kind of risk: `OFF` can leave the database corrupt after a power
+  cut, `NORMAL` can only lose whole commits from the end.
 
 ## What v1.0 would mean
 
