@@ -13,6 +13,7 @@ embedding store, a real morphological analyser -- without touching a guarantee.
 from __future__ import annotations
 
 import unicodedata
+from array import array
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -398,7 +399,24 @@ def _apply_relative_floor(
     ]
 
 
-def _fold_with_origins(content: str) -> tuple[str, tuple[int, ...]]:
+#: The map from a folded index back to the source index it came from.
+#:
+#: ``None`` is the **identity** -- the fold produced one character for one
+#: character, so folded index *i* came from source index *i* and there is
+#: nothing to store. That is not a rare case optimised for its own sake: every
+#: corpus of English or of source code folds this way, and so does every one of
+#: the 780 documents in this project's evaluation corpus. It is the same fact
+#: `tools/mutate.py` cites as the reason a wrong offset map once shipped
+#: unnoticed, which is worth stating twice: **it makes the cost free and the
+#: tests blind, and only one of those is good news.**
+#:
+#: Otherwise a read-only `memoryview` of unsigned 4-byte entries. Read-only
+#: because the value is cached and handed to every caller that folds the same
+#: document; four bytes because a Python integer in a tuple is thirty-six.
+Origins = memoryview | None
+
+
+def _fold_with_origins(content: str) -> tuple[str, Origins]:
     """NFKC-casefold ``content``, and say where each folded character came from.
 
     **Matching happens in folded space and anchors live in original space, and
@@ -421,8 +439,8 @@ def _fold_with_origins(content: str) -> tuple[str, tuple[int, ...]]:
     differ -- because a rule based on combining class alone misses the
     halfwidth voiced marks, whose combining class is 0.
 
-    **Cached, and the origins are a tuple so that the cache cannot hand two
-    callers the same mutable list.** Confirmation folds a candidate's document
+    **Cached, and the origins are read-only so that the cache cannot hand two
+    callers the same mutable map.** Confirmation folds a candidate's document
     once for the phrase rule and again for the coverage rule, and a query with
     fifty candidates folded 84 documents to look at 50 -- 25% of the time a
     `build_context` call took, spent re-deriving an answer it already had.
@@ -438,26 +456,60 @@ def _fold_with_origins(content: str) -> tuple[str, tuple[int, ...]]:
 
 #: Characters. Comfortably above a real document (6,811 measured across two
 #: sibling repositories) and far below anything that would hurt to hold 64 of.
+#:
+#: **That argument counted the document and not the map.** `origins` used to be
+#: a tuple of Python integers, one per folded character, and a tuple of 262,144
+#: of those is 9,216 KiB -- 36 times the text it describes. Sixty-four of them
+#: is 608 MiB, in a library whose whole claim is that it runs beside an editor
+#: and a model on somebody's laptop. Measured by `tools/measure_memory.py`.
 _CACHEABLE: Final = 262_144
 
 
 #: 64 rather than more: a query confirms at most `candidate_limit` documents and
 #: folds each of them twice, so this is sized to hold one query's working set.
 @lru_cache(maxsize=64)
-def _folded(content: str) -> tuple[str, tuple[int, ...]]:
+def _folded(content: str) -> tuple[str, Origins]:
     return _fold(content)
 
 
-def _fold(content: str) -> tuple[str, tuple[int, ...]]:
+def _fold(content: str) -> tuple[str, Origins]:
     # ASCII cannot compose and its casefold is one character for one character
     # (`A`-`Z` map to `a`-`z`, everything else is unchanged), so the offsets are
     # their own map and none of the work below is needed. This is every corpus
     # of English or of source code.
     if content.isascii():
-        return content.lower(), tuple(range(len(content)))
+        return content.lower(), None
+
+    # Text that is **already NFKC** has nothing for the walk below to find:
+    # normalising any part of it returns that part, so no two characters
+    # compose and no character expands. All that is left is the casefold, and
+    # `str.casefold` on the whole string is the same as folding each character
+    # -- Unicode case folding has no context-dependent rules.
+    #
+    # `is_normalized` is a C quick-check rather than a normalise-and-compare,
+    # so this costs one pass and no allocation. Measured on 6,811 characters,
+    # the size a real document is:
+    #
+    #     japanese    4.34 ms -> 0.035 ms
+    #     greek       4.17 ms -> 0.033 ms
+    #     turkish     4.00 ms -> 0.033 ms
+    #     german      3.92 ms -> 1.200 ms   (`ß` casefolds to `ss`)
+    #
+    # A query folds up to `candidate_limit` documents, so on ordinary Japanese
+    # this is most of what a build spends outside the index. The two shapes it
+    # does not help -- fullwidth ASCII (`２`, which NFKC rewrites) and one
+    # character folding to several -- fall through unchanged.
+    if unicodedata.is_normalized("NFKC", content):
+        return _casefold_only(content)
 
     folded: list[str] = []
-    origins: list[int] = []
+    # Built as an `array` rather than a list, so the *transient* cost of
+    # folding a document that turns out to be even is 4 bytes a character
+    # instead of 36.
+    origins = array("I")
+    #: Every piece so far has been one source character folding to one. See
+    #: `Origins`: when that holds to the end there is nothing worth keeping.
+    even = True
     index = 0
     while index < len(content):
         size = 1
@@ -469,12 +521,46 @@ def _fold(content: str) -> tuple[str, tuple[int, ...]]:
             size += 1
         piece = unicodedata.normalize("NFKC", content[index : index + size]).casefold()
         folded.append(piece)
+        if size != 1 or len(piece) != 1:
+            even = False
         origins.extend([index] * len(piece))
         index += size
-    return "".join(folded), tuple(origins)
+
+    text = "".join(folded)
+    if even:
+        return text, None
+    # Read-only, and that is the same guarantee the tuple used to give: the
+    # cache hands this value to every caller that folds the same document, and
+    # one of them editing it would move every later anchor into that document.
+    return text, memoryview(origins).toreadonly()
 
 
-def _source_span(origins: tuple[int, ...], content: str, start: int, end: int) -> Span:
+def _casefold_only(content: str) -> tuple[str, Origins]:
+    """Fold text that is already NFKC, where only case can change.
+
+    Casefolding still moves offsets: `ß` becomes `ss`, `ﬁ` becomes `fi`. But it
+    never *shortens* anything, so when the folded text is the same length as
+    the original nothing expanded, and the map is the identity. That check is
+    two C calls, and it is the answer for every script whose casefold is a
+    no-op or one-for-one -- which is all of CJK, Greek, Cyrillic and Turkish.
+    """
+    folded = content.casefold()
+    if len(folded) == len(content):
+        return folded, None
+
+    # Something expanded. Walk to find out where, one character at a time --
+    # still without the composition detection, which has nothing to detect
+    # here.
+    parts: list[str] = []
+    origins = array("I")
+    for index, character in enumerate(content):
+        piece = character.casefold()
+        parts.append(piece)
+        origins.extend([index] * len(piece))
+    return "".join(parts), memoryview(origins).toreadonly()
+
+
+def _source_span(origins: Origins, content: str, start: int, end: int) -> Span:
     """The span of ``content`` a folded match at ``[start, end)`` came from.
 
     **A source character the match ends inside is included**, which is the
@@ -509,16 +595,18 @@ def _source_span(origins: tuple[int, ...], content: str, start: int, end: int) -
     begins = _origin(origins, start, len(content))
     # `end - 1` is inside the map: `end > start >= 0` and `start` is a position
     # a `find` succeeded at, so the run has at least one folded character.
-    last = origins[end - 1] + 1
+    last = (end - 1 if origins is None else origins[end - 1]) + 1
     return Span(begins, max(_origin(origins, end, len(content)), last))
 
 
-def _origin(origins: tuple[int, ...], at: int, length: int) -> int:
+def _origin(origins: Origins, at: int, length: int) -> int:
     """The index in the original string for folded index ``at``.
 
     Past the end maps to ``length``, so a span that ends on the last folded
     character ends at the end of the document rather than one short of it.
     """
+    if origins is None:
+        return min(at, length)
     return origins[at] if at < len(origins) else length
 
 

@@ -1372,3 +1372,79 @@ Index-side unigrams do retrieve them. Measured on one document:
 confirmation still rejects. Refused. The Chinese residual is genuine
 paraphrase — a vocabulary difference, not a tokenization one — which is the
 subject of proposal 0004's item 2, not of the tokenizer.
+
+## What a query holds, and what folding costs *(measured 2026-09-08)*
+
+`python tools/measure_memory.py`, `python tools/measure_query_cost.py`.
+
+Every number above this line is time or accuracy. **Nothing had ever measured
+space**, and the library has one deliberate cache in it — `_folded`, 64
+entries, documents up to 256 KiB — sized by an argument about character counts:
+
+> 64 copies of a 10 MiB document is not a cache — it is a leak with a hit rate.
+
+That argument counts the *document*. The cached value is a pair, and its second
+half is the map from folded index back to source index — **one Python integer
+per folded character**, at 36 bytes each.
+
+| shape of document | content | map, as a tuple | map, now |
+|---|---|---|---|
+| ascii | 256 KiB | 9,216 KiB | *identity* |
+| japanese | 512 KiB | 9,216 KiB | *identity* |
+| japanese, fullwidth (`２`, `ＵＲＬ`) | 512 KiB | 9,216 KiB | *identity* |
+| uneven (`㍿` → `株式会社`) | 512 KiB | 13,824 KiB | 1,536 KiB |
+
+**912 MiB → 144 MiB** at the cache's full 64, and on every shape real text has,
+the map now costs nothing at all. Two changes, and the first is the one that
+matters: a fold that produced one character for one character has no map worth
+keeping — measured, **780 of the 780 documents in the evaluation corpus**. When
+a map *is* needed it holds four bytes an entry instead of a Python integer, and
+is read-only, which is the guarantee the tuple used to give.
+
+### And the same measurement found 88% of a query
+
+The scaling table below was taken on a corpus of mixed English and Japanese.
+English takes the fold's ASCII short-circuit, so **most of the corpus folded in
+no time at all** and the number that came out was about the half that did not.
+Measured again on a corpus that is entirely Japanese, which is what a Japanese
+user's notes folder is:
+
+| documents | `context` median | without the fold's fast path |
+|---|---|---|
+| 300 | **25.6 ms** | 206.7 ms |
+| 1,000 | **40.6 ms** | 246.7 ms |
+
+The NFKC composition walk was **84–88% of a `context` call**. It exists to find
+characters that compose — `ｶ` plus a voiced mark becoming `ガ` — by normalising
+each pair jointly and separately and comparing, three `unicodedata.normalize`
+calls per character.
+
+Text that is **already NFKC** has nothing for that walk to find: normalising
+any part of it returns that part, so nothing composes and nothing expands.
+`unicodedata.is_normalized` is a C quick-check, and it settles the question in
+one pass with no allocation. On 6,811 characters, the size a real document is:
+
+| | before | after |
+|---|---|---|
+| japanese | 4.34 ms | **0.035 ms** |
+| greek | 4.17 ms | **0.033 ms** |
+| turkish | 4.00 ms | **0.033 ms** |
+| german | 3.92 ms | **1.200 ms** — `ß` casefolds to `ss` |
+| japanese, fullwidth | 5.39 ms | 5.40 ms — NFKC rewrites `２`, so the walk runs |
+| uneven (`㍿`) | 7.26 ms | 7.27 ms — likewise |
+
+The two shapes it does not help fall through unchanged, and the fast path is
+sound rather than heuristic: it checks the property that makes the walk
+unnecessary rather than listing the characters that need it. **That distinction
+is the whole reason it is safe** — a list of exceptions is what once missed the
+halfwidth voiced marks, whose combining class is 0.
+
+### Measured and not taken
+
+Memoising `unicodedata.normalize` over single characters inside the composition
+walk: **1.4× on fullwidth Japanese, 1.9× on `㍿`**, verified identical output.
+Not taken. It restructures the one loop in this library where a subtly wrong
+answer is a citation pointing at the wrong text, and it buys 1.5× on a path
+that is already under 10 ms — against 124× on the paths real corpora take,
+bought by a branch that touches nothing. Written down so the number exists if
+the trade ever changes.

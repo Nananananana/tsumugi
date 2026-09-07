@@ -53,7 +53,7 @@ SQUARE = "㍿の記録"
 
 class TestTheMapFromFoldedBackToOriginal:
     @pytest.mark.parametrize(
-        ("source", "folded", "origins"),
+        ("source", "folded", "expected"),
         [
             # Two characters in, one out: the second origin skips to 2.
             (DECOMPOSED, "がす", (0, 2)),
@@ -69,9 +69,19 @@ class TestTheMapFromFoldedBackToOriginal:
         ],
     )
     def test_each_folded_character_names_the_source_character_it_came_from(
-        self, source: str, folded: str, origins: tuple[int, ...]
+        self, source: str, folded: str, expected: tuple[int, ...]
     ) -> None:
-        assert _fold(source) == (folded, origins)
+        """Read through `_origin` rather than off the map.
+
+        The map has two representations -- `None` for the identity and a
+        read-only buffer otherwise -- and which one a given text produces is
+        the storage decision, not the answer. A test that asserted the
+        representation would have to be rewritten by anyone who changed it,
+        which is how a test comes to be believed rather than read.
+        """
+        text, origins = _fold(source)
+        assert text == folded
+        assert tuple(_origin(origins, at, len(source)) for at in range(len(folded))) == expected
 
     def test_the_first_character_is_not_skipped(self) -> None:
         """`index = 0`. Starting the walk at 1 drops the first source
@@ -79,7 +89,7 @@ class TestTheMapFromFoldedBackToOriginal:
         early -- a citation that begins mid-word, on every passage."""
         folded, origins = _fold("重量２")
         assert folded.startswith("重")
-        assert origins[0] == 0
+        assert _origin(origins, 0, 3) == 0
 
     def test_the_scan_takes_one_character_at_a_time_unless_they_compose(self) -> None:
         """`size = 1`, and `size += 1` when a piece composes with the next.
@@ -90,11 +100,16 @@ class TestTheMapFromFoldedBackToOriginal:
         after it. Both are silent: the folded *text* is identical, and only
         the map is wrong.
         """
-        _, pairs = _fold("重量２．４")
-        assert pairs == (0, 1, 2, 3, 4), "unrelated characters are separate pieces"
+        source = "重量２．４"
+        text, pairs = _fold(source)
+        read = [_origin(pairs, at, len(source)) for at in range(len(text))]
+        assert read == [0, 1, 2, 3, 4], "unrelated characters are separate pieces"
+        assert pairs is None, "and so this text has no map worth keeping"
 
-        _, composing = _fold(DECOMPOSED)
-        assert composing == (0, 2), "the composed pair consumes exactly two"
+        composed, uneven = _fold(DECOMPOSED)
+        assert [_origin(uneven, at, len(DECOMPOSED)) for at in range(len(composed))] == [0, 2], (
+            "the composed pair consumes exactly two"
+        )
 
 
 class TestPastTheEnd:
@@ -108,9 +123,17 @@ class TestPastTheEnd:
         the passage it happens on is the one whose evidence runs to the end.
         """
         source = "重量２．４"
-        _, origins = _fold(source)
-        assert _origin(origins, len(origins), len(source)) == len(source)
-        assert _origin(origins, len(origins) + 5, len(source)) == len(source)
+        folded, origins = _fold(source)
+        assert _origin(origins, len(folded), len(source)) == len(source)
+        assert _origin(origins, len(folded) + 5, len(source)) == len(source)
+
+        # And on the identity map, where there is no buffer to run off the end
+        # of and the answer has to be arithmetic rather than a lookup.
+        even = "the tent weighs 2.4kg"
+        _, identity = _fold(even)
+        assert identity is None
+        assert _origin(identity, len(even), len(even)) == len(even)
+        assert _origin(identity, len(even) + 5, len(even)) == len(even)
 
     def test_an_index_inside_the_map_reads_the_map(self) -> None:
         """The positive control: the fallback is a fallback."""
@@ -137,9 +160,11 @@ class TestTheMapIsUsable:
         somewhere unrelated.
         """
         folded, origins = _fold(text)
-        assert len(origins) == len(folded)
-        assert all(0 <= origin < len(text) for origin in origins)
-        assert list(origins) == sorted(origins)
+        read = [_origin(origins, at, len(text)) for at in range(len(folded))]
+        assert all(0 <= origin < len(text) for origin in read)
+        assert read == sorted(read)
+        if origins is not None:
+            assert len(origins) == len(folded)
 
     @given(
         st.text(
@@ -206,7 +231,12 @@ class TestTheCache:
         first = _folded(SQUARE)
         second = _folded(SQUARE)
         assert first is second
-        assert isinstance(first[1], tuple)
+
+        origins = first[1]
+        assert origins is not None, "this document does not fold evenly, so it has a map"
+        assert origins.readonly
+        with pytest.raises(TypeError):
+            origins[0] = 3
 
     def test_the_cache_returns_what_the_uncached_path_would(self) -> None:
         """The cache is an optimisation and is checked as one: above
@@ -255,3 +285,77 @@ class TestAMatchThatEndsInsideOneCharacter:
         _, origins = _fold(text)
         span = _source_span(origins, text, 0, len("テント"))
         assert span.slice(text) == "テント"
+
+
+#: Already NFKC, and casefolds one character for one. The fast path's
+#: happy case, in four scripts that have nothing else in common.
+EVEN = ["テントの重量は2.4kg。", "Η σκηνή ζυγίζει 2.4 κιλά", "Çadır 2,4 kg", "Привет"]
+
+#: Already NFKC and casefolds *longer*: `ß` to `ss`, `İ` to `i` plus a
+#: combining dot. The fast path's length check has to notice and fall back.
+EXPANDING = ["Die Straße ist groß", "İstanbul"]
+
+#: Not NFKC, so the composition walk runs.
+COMPOSING = ["重量は２．４ｋｇ", "ｶﾞｽ", "㍿の記録", "か\u3099す"]
+
+
+class TestTheTwoRoadsThroughTheFold:
+    """`_fold` has three branches and they have to agree about everything.
+
+    ASCII short-circuits. Text that is already NFKC skips the composition walk,
+    because there is nothing in it to compose. Everything else takes the walk.
+    Which branch a document takes is a fact about its characters, and a reader
+    of a citation has no idea which one ran -- so the only acceptable
+    difference between them is speed.
+
+    The branch matters because it is most of what a query costs outside the
+    index: on 6,811 characters of ordinary Japanese, 4.34 ms became 0.035 ms.
+    A fast path that is subtly wrong is worse than a slow one, and this is the
+    function where a subtly wrong answer is a citation pointing at the wrong
+    text.
+    """
+
+    @pytest.mark.parametrize("text", [*EVEN, *EXPANDING, *COMPOSING])
+    def test_the_text_is_what_normalising_and_casefolding_gives(self, text: str) -> None:
+        """Whichever branch ran, the folded text is the definition.
+
+        Stated against the standard library rather than against the other
+        branch, so this cannot pass by two implementations being wrong in the
+        same way.
+        """
+        folded, _ = _fold(text)
+        assert folded == unicodedata.normalize("NFKC", text).casefold()
+
+    @pytest.mark.parametrize("text", EVEN)
+    def test_an_even_fold_keeps_no_map(self, text: str) -> None:
+        """The fast path's whole point. A map here would be the identity, and
+        storing the identity is what cost 9,216 KiB a document."""
+        _, origins = _fold(text)
+        assert origins is None
+
+    @pytest.mark.parametrize("text", EXPANDING)
+    def test_an_expanding_casefold_still_maps_back(self, text: str) -> None:
+        """`ß` is one character and `ss` is two, so every offset after it moves.
+
+        This is the case the length check exists to catch: skip it and a
+        German document's anchors drift by one for every sharp s before them.
+        """
+        folded, origins = _fold(text)
+        assert len(folded) > len(text)
+        assert origins is not None
+
+        for at in range(len(folded)):
+            source = _origin(origins, at, len(text))
+            assert folded[at] in unicodedata.normalize("NFKC", text[source]).casefold()
+
+    @pytest.mark.parametrize("text", [*EVEN, *EXPANDING, *COMPOSING])
+    def test_every_branch_produces_a_usable_map(self, text: str) -> None:
+        """The property from `TestTheMapIsUsable`, asserted once per branch so
+        that a failure names which road was taken."""
+        folded, origins = _fold(text)
+        for start in range(len(folded)):
+            for end in range(start + 1, len(folded) + 1):
+                span = _source_span(origins, text, start, end)
+                assert span.end > span.start
+                cut = unicodedata.normalize("NFKC", span.slice(text)).casefold()
+                assert folded[start:end] in cut, (text, start, end)

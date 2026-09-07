@@ -42,6 +42,7 @@ from tsumugi.application.search import (
     _content_terms,
     _fold_with_origins,
     _needles,
+    _origin,
 )
 
 #: One of each way NFKC changes length, plus a stable character to sit beside.
@@ -72,13 +73,21 @@ class TestTheFold:
 
     @given(st.text(max_size=120))
     def test_every_folded_character_names_a_real_original_index(self, text: str) -> None:
+        """Read through `_origin`, because the map has two representations.
+
+        A fold that produced one character for one character keeps no map at
+        all -- `None` is the identity, and storing the identity is what cost
+        9,216 KiB a document. Which representation a given text produces is
+        the storage decision; the answer is the same either way, and the
+        answer is what this is about.
+        """
         folded, origins = _fold_with_origins(text)
-        assert len(origins) == len(folded)
-        assert all(0 <= o < len(text) for o in origins)
+        read = [_origin(origins, at, len(text)) for at in range(len(folded))]
+        assert all(0 <= at < len(text) for at in read)
         # Non-decreasing: folding never reorders, so a later folded character
         # cannot come from an earlier place. A span built from a map that went
         # backwards would have `end < start`.
-        assert list(origins) == sorted(origins)
+        assert read == sorted(read)
 
     def test_the_awkward_characters_are_actually_awkward(self) -> None:
         """The fixture has to be able to show the defect.

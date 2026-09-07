@@ -27,3 +27,6 @@ uv.lock
 
 # A second environment for checking the Python matrix locally.
 .venv*
+
+# `tools/measure_query_cost.py` builds a corpus here and removes it again.
+.measure-query-cost/

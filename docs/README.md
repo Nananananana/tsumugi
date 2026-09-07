@@ -82,6 +82,11 @@ since.
 revises it once more from what being **used** taught: four defects that one
 outside consumer found in a week and this project's own corpus had not found
 in a month. None of the four is evidence that anything exists.
+[`0005-what-breaking-it-taught.md`](proposals/0005-what-breaking-it-taught.md)
+is what a systematic mutation sweep found while `0004`'s first item stayed
+blocked: four more defects, each of them invisible in the one shape of document
+the corpus contains -- which is the argument for that blocked item, restated
+from the inside.
 
 `architecture.md` was deliberately not written until there was an architecture to
 describe. An ADR before the code is legitimate, because it records a decision
