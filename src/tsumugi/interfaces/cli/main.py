@@ -483,17 +483,25 @@ def _ingest(args: argparse.Namespace, config: TsumugiConfig) -> int:
     index_path = config.resolved_index_path()
     root = args.path.resolve()
     if not root.exists():
-        print(f"tsumugi: no such path: {args.path}", file=sys.stderr)
-        return 2
+        # Raised rather than printed, so the top-level handler names the kind.
+        # It used to print `tsumugi: ...`, and `tsumugi` is a bare identifier
+        # before a colon -- a consumer reading the first name-shaped line would
+        # have recorded a failure kind called `tsumugi`.
+        raise ConfigurationError(f"no such path: {args.path}")
 
     # **To stderr: these say what is about to happen, not what happened.**
-    # On a failure they were the last thing on stdout, in the same shape as a
-    # success summary, so a consumer reading stdout's final line saw
-    # `corpus: <path>` and no sign that anything was wrong -- the reason was on
-    # stderr, where it belongs, and nothing on stdout said to look. Reported by
-    # `sora`, whose probe showed `exit 1: corpus: C:\...\notes`.
-    print(f"index:  {index_path}", file=sys.stderr)
-    print(f"corpus: {root}", file=sys.stderr)
+    # On stdout they were the last thing before a failure, in the same shape as
+    # a success summary, so a consumer reading stdout's final line saw
+    # `corpus: <path>` and no sign anything was wrong.
+    #
+    # **And indented, with no colon after the label**, which is the second half
+    # of the same story. `index: <path>` on stderr reads exactly like
+    # `StorageError: <message>` to a consumer that takes the first
+    # name-shaped line, and `index` is a perfectly good identifier -- so an
+    # ingest that failed for any reason reported a failure kind called
+    # `index`. Reported by `sora`, and caused by moving these here.
+    print(f"  index   {index_path}", file=sys.stderr)
+    print(f"  corpus  {root}", file=sys.stderr)
 
     connection = _connect(index_path)
     if args.rebuild:

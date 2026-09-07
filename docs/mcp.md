@@ -249,6 +249,22 @@ without cataloguing it breaks the build rather than passing quietly. It carries
 consumer folding failures together can only promise its own record holds
 nothing sensitive if the vocabulary it reads holds nothing either.
 
+**A `Kind:` line appears only when there is a kind.** `context` and `verify`
+exit 1 for outcomes rather than failures and write nothing to stderr at all.
+`ingest` exits 1 when a document failed to parse and writes its progress there,
+so those lines are deliberately shaped **not** to be read as a kind — indented,
+with no colon after the label:
+
+```text
+  index   /home/ada/.tsumugi/index.db
+  corpus  /home/ada/notes
+```
+
+A consumer taking the first name-shaped line gets nothing from those, which is
+correct: nothing failed that has a name. Held by a test that walks the stderr
+of every non-zero exit and requires any leading identifier to be a catalogued
+kind.
+
 Protocol errors (JSON-RPC `error`, code `-32602`) are for malformed *requests*
 — a missing required parameter, a string where a boolean was needed. Those are
 the caller's bug, not the corpus's state.

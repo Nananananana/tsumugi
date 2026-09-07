@@ -22,6 +22,7 @@ import json
 import pkgutil
 import re
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -41,6 +42,8 @@ OUTCOMES = frozenset({"refused", "unavailable", "failed", "timed_out"})
 #: Kinds that are not ours and can still be reported by name, so they are
 #: catalogued even though no class of ours defines them.
 FOREIGN = frozenset({"ValueError", "DatabaseError"})
+
+NL = chr(10)
 
 #: Ours, and never reported as a kind. Named with the reason, so that leaving
 #: one out of the catalogue is a decision rather than an oversight.
@@ -230,3 +233,97 @@ class TestStderrLeadsWithTheKind:
         main(["--index", str(tmp_path) + "/absent.db", "search", "tent"])
         first = capsys.readouterr().err.splitlines()[0]
         assert first.split(":")[0] in {kind.kind for kind in CATALOGUE}
+
+
+class TestNothingOnStderrPretendsToBeAKind:
+    """A consumer reads the first name-shaped line on stderr as the failure.
+
+    `sora` takes the text before the first colon, keeps it if it is a bare
+    identifier, and throws the sentence away — stderr may quote whatever it was
+    handed, so the name is the only part it can promise to hold.
+
+    That makes **every** `identifier:` at the start of a stderr line a claim
+    about what went wrong, whether it meant to be or not. Two lines here were
+    not: `tsumugi: no such path` and `index: <path>`, the second added by
+    moving diagnostics to stderr for an unrelated and correct reason. An ingest
+    that failed reported a failure kind called `index`.
+
+    So the rule is general rather than three fixes: **a leading identifier on
+    stderr must be a catalogued kind.**
+    """
+
+    KINDS = frozenset(kind.kind for kind in CATALOGUE)
+
+    def _leading_name(self, line: str) -> str | None:
+        """What a consumer would take from this line, or ``None``."""
+        head, separator, _rest = line.partition(":")
+        if not separator:
+            return None
+        return head if head.isidentifier() else None
+
+    def test_the_reader_agrees_with_soras_examples(self) -> None:
+        """The parser itself, against the cases sora wrote down."""
+        assert self._leading_name("StorageError: no index at /home/a/p.db") == "StorageError"
+        assert self._leading_name("error: unexpected argument '--state-dir' found") == "error"
+        assert self._leading_name("/home/someone/notes.db: not found") is None
+        windows = "  index   C" + chr(58) + chr(92) + "Users" + chr(92) + "a"
+        assert self._leading_name(windows) is None
+        assert self._leading_name("3 new, 0 revised") is None
+
+    def test_a_failing_ingest_names_a_kind_or_names_nothing(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Exit 1 from ingest: a document failed, the run did not."""
+        corpus = tmp_path / "notes"
+        corpus.mkdir()
+        (corpus / "ok.md").write_text("# G\n\ntext\n", encoding="utf-8", newline="")
+        (corpus / "bad.json").write_text("not json at all", encoding="utf-8")
+
+        code = main(["--index", str(tmp_path / "i.db"), "ingest", str(corpus)])
+        assert code == 1
+        for line in capsys.readouterr().err.splitlines():
+            name = self._leading_name(line)
+            assert name is None or name in self.KINDS, line
+
+    def test_a_missing_path_names_a_real_kind(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Exit 2, so there *is* a kind, and it is a catalogued one.
+
+        It printed `tsumugi: no such path` and would have been recorded as a
+        failure kind called `tsumugi` — the program's own name, attached to
+        every failure it has.
+        """
+        code = main(["--index", str(tmp_path / "i.db"), "ingest", str(tmp_path / "absent")])
+        assert code == 2
+        first = capsys.readouterr().err.splitlines()[0]
+        assert self._leading_name(first) == "ConfigurationError"
+
+    def test_the_quiet_exits_stay_quiet(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`context` and `verify` exit 1 for outcomes rather than failures, so
+        there must be nothing on stderr for a consumer to read as a kind."""
+        corpus = tmp_path / "notes"
+        corpus.mkdir()
+        (corpus / "g.md").write_text(
+            "# G" + NL * 2 + "The tent weighs 2.4kg." + NL,
+            encoding="utf-8",
+            newline="",
+        )
+        index = tmp_path / "i.db"
+        main(["--index", str(index), "ingest", str(corpus)])
+        capsys.readouterr()
+
+        code = main(
+            [
+                "--index",
+                str(index),
+                "context",
+                "unrelated refund policy",
+                "--budget",
+                "characters:300",
+            ]
+        )
+        assert code == 1
+        assert capsys.readouterr().err.strip() == ""

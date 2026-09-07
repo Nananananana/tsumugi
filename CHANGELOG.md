@@ -103,6 +103,21 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Fixed — two stderr lines pretended to be error kinds
+
+- **`ingest` exit 1 led with `index: <path>`**, and `index` is a bare
+  identifier before a colon — a consumer reading the first name-shaped line
+  recorded a failure kind called `index`. Caused by moving those diagnostics to
+  stderr last week for an unrelated and correct reason. They are indented now,
+  with no colon after the label.
+- **A missing corpus path printed `tsumugi: no such path`**, which would have
+  been recorded as a kind called `tsumugi` — the program's own name attached to
+  every failure it has. It raises `ConfigurationError` now, so the top-level
+  handler names it and the exit code is unchanged.
+- The rule is general rather than two fixes: **a leading identifier on stderr
+  must be a catalogued kind**, held by a test that walks every non-zero exit.
+  `context` and `verify` exit 1 for outcomes and write nothing to stderr.
+
 ### Added — an error catalogue, and the kind on stderr
 
 - **`tsumugi errors [--json]`** prints `tsumugi.errors/1-draft`: every kind
