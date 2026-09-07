@@ -63,7 +63,7 @@ package worth passing between programs — including across the boundary into
 
   "items": [
     {
-      "item_id": "itm_01",
+      "item_id": "itm_001",
       "kind": "document_span",
       "text": "The budget unit is explicit at the call site...",
       "anchor": {
@@ -83,7 +83,8 @@ package worth passing between programs — including across the boundary into
       "selection": {
         "rank": 1,
         "score": 0.81,
-        "signals": ["heading_match", "term_density", "recency"]
+        "signals": ["lexical_match", "heading_match",
+                    "confirmed_in_text", "confirmed_share:0.91"]
       },
       "cost": 142
     }
@@ -94,14 +95,14 @@ package worth passing between programs — including across the boundary into
       "anchor": {"document_id": "doc_77a2", "start": 0, "end": 2210,
                  "source_path": "notes/archive/2024-budgets.md"},
       "rule": "budget_exhausted",
-      "reason": "ranked 7th; 2210 estimated tokens would exceed the 8000 limit",
+      "reason": "ranked 7; 2210 tokens would exceed the limit of 8000 with 588 left",
       "score": 0.44,
       "cost": 2210
     },
     {
       "anchor": {"document_id": "doc_11c9", "start": 300, "end": 480},
       "rule": "redundant_candidate",
-      "reason": "94% overlap with itm_01; kept the earlier-dated source",
+      "reason": "94% overlap with itm_001, and the remaining 588 tokens would not hold it",
       "score": 0.79
     }
   ],
