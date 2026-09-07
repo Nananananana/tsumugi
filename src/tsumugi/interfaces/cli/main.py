@@ -35,7 +35,13 @@ from ...config import TsumugiConfig
 from ...domain.budget import Budget
 from ...domain.ordering import ORDERINGS, Ordering
 from ...domain.package import ContextPackage
-from ...errors import ConfigurationError, TsumugiError
+from ...errors import (
+    CATALOGUE,
+    OPEN_NAMESPACES,
+    ConfigurationError,
+    TsumugiError,
+    catalogue,
+)
 from ...evaluation.answering import AnswerScore, answer_cases, summarise_answers
 from ...evaluation.dataset import Case, load_cases
 from ...evaluation.runner import run_cases
@@ -132,6 +138,19 @@ def build_parser() -> argparse.ArgumentParser:
             "Different prompts, so different package_ids (default: default)"
         ),
     )
+    failures = commands.add_parser(
+        "errors",
+        help="every failure this version can report, and what to make of it",
+        description=(
+            "The catalogue a caller needs to fold failures together and translate "
+            "them: the kind as it appears before the colon on stderr, the exit code, "
+            "an outcome, and whether the same call could succeed if repeated. Carries "
+            "no paths, no examples and no message templates."
+        ),
+    )
+    failures.add_argument("--json", action="store_true", help="emit the catalogue as JSON")
+    failures.set_defaults(run=_errors)
+
     listing = commands.add_parser(
         "indexes",
         help="which named indexes are configured, and how much is in each",
@@ -440,10 +459,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             config = replace(config, index_path=args.index)
         return int(args.run(args, config))
     except TsumugiError as error:
-        print(f"tsumugi: {error}", file=sys.stderr)
+        # **The kind first, then the sentence.** A caller folding repeated
+        # failures together needs one word it can match, and `tsumugi:` is the
+        # same word for every failure there is. `tsumugi errors --json` is the
+        # catalogue of what can appear here.
+        print(f"{type(error).__name__}: {error}", file=sys.stderr)
         return 2
     except sqlite3.DatabaseError as error:
-        print(f"tsumugi: the index could not be read: {error}", file=sys.stderr)
+        # `DatabaseError` rather than the subclass SQLite happened to raise, so
+        # the word on stderr is one the catalogue contains.
+        print(f"DatabaseError: the index could not be read: {error}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:  # pragma: no cover
         return 130
@@ -562,6 +587,25 @@ def _ordering(args: argparse.Namespace, config: TsumugiConfig) -> Ordering:
         diversity=config.diversity if flagged is None else float(flagged),
     )
     return chosen.selected_ordering()
+
+
+def _errors(args: argparse.Namespace, _config: TsumugiConfig) -> int:
+    """Print the error catalogue. Reads nothing and needs no index."""
+    payload = catalogue(__version__)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    kinds = CATALOGUE
+    width = max(len(kind.kind) for kind in kinds)
+    for kind in kinds:
+        retry = "retryable" if kind.retryable else "not retryable"
+        print(f"{kind.kind:<{width}}  exit {kind.exit_code}  {kind.outcome:<12} {retry}")
+        print(f"{'':<{width}}  {kind.detail}")
+    if not OPEN_NAMESPACES:
+        print()
+        print("no open namespaces: every kind above is one tsumugi names itself.")
+    return 0
 
 
 def _indexes(args: argparse.Namespace, config: TsumugiConfig) -> int:

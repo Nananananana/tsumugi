@@ -212,6 +212,43 @@ happened. A consumer reading only stdout's last line used to see
 nothing saying to look elsewhere. Read the exit code, and read stderr when it
 is non-zero.
 
+### The catalogue
+
+`tsumugi errors --json` prints every kind that can be reported, as
+`tsumugi.errors/1-draft`:
+
+```json
+{
+  "contract": "tsumugi.errors/1-draft",
+  "by": "tsumugi/0.1.0.dev0",
+  "errors": [
+    {"kind": "StorageError", "exit_code": 2, "outcome": "unavailable",
+     "retryable": false, "detail": "...", "detail_ja": "..."}
+  ],
+  "open_namespaces": []
+}
+```
+
+**`retryable` is not a synonym for `unavailable`, and the difference is the
+part only this library knows.** A missing or stale index is *unavailable* and
+**not** retryable: the same call fails identically until somebody runs `ingest`
+or `ingest --rebuild`. A model that is not listening is *unavailable* and **is**
+retryable: it may be listening in a minute. A caller that retries the first
+forever learns nothing.
+
+`exit_code` is `null` for two kinds, and that is a claim rather than a gap:
+`ValueError` and `UnsupportedContractError` reach a caller through an MCP tool
+result, which has no exit code. On the command line they are either wrapped in
+a `ConfigurationError` or left to traceback, because one raised deep in a call
+is a bug and should be loud rather than tidy.
+
+The catalogue is **exhaustive by test**: a walk over the package finds every
+exception class it defines and fails if one is not listed, so adding an error
+without cataloguing it breaks the build rather than passing quietly. It carries
+**no values** — no paths, no examples, no message templates — because a
+consumer folding failures together can only promise its own record holds
+nothing sensitive if the vocabulary it reads holds nothing either.
+
 Protocol errors (JSON-RPC `error`, code `-32602`) are for malformed *requests*
 — a missing required parameter, a string where a boolean was needed. Those are
 the caller's bug, not the corpus's state.

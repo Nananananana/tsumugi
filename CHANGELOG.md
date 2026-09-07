@@ -103,6 +103,25 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Added — an error catalogue, and the kind on stderr
+
+- **`tsumugi errors [--json]`** prints `tsumugi.errors/1-draft`: every kind
+  that can be reported, its exit code, an outcome (`refused` / `unavailable` /
+  `failed` / `timed_out`), whether repeating the same call could succeed, and
+  one sentence each in English and Japanese. Requested by `sora`, which folds
+  repeated failures into an incident file and had been guessing `retryable`
+  from the outcome.
+- **The catalogue is exhaustive by test.** A walk over the package finds every
+  exception class it defines; one missing from the catalogue fails the build.
+  Classes that are deliberately not reported as a kind are listed with the
+  reason.
+- **It carries no values** — no paths, no examples, no message templates —
+  held by patterns that are themselves checked against known leaks.
+- **stderr now leads with the kind**: `StorageError: no index at ...`, where it
+  said `tsumugi:` for every failure there is. `sora` believed this already
+  worked, having seen it on an *uncaught* traceback; making that case caught
+  last week had quietly removed the word.
+
 ### Added — `opened`, and two questions answered by measurement
 
 - **`tsumugi.opened(path)`**, a context manager that closes the connection when

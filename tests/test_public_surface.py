@@ -106,6 +106,7 @@ CLI_VERBS = frozenset(
         "context",
         "demo",
         "doctor",
+        "errors",
         "eval",
         "forget",
         "indexes",
