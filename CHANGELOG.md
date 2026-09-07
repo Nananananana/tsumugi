@@ -103,6 +103,26 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Added — preferring newer passages
+
+- **`--ordering recent`** (`TSUMUGI_ORDERING=recent`), with `TSUMUGI_FRESHNESS`
+  deciding how much of the ordering recency gets. Asked for by `sora`, whose
+  front page wants today's world. A document states its date in front matter:
+  `observed_at`, `published`, `date`, `updated`, `fetched_at`.
+- **Relative, never absolute.** Ranking by age needs a *now*, and a package
+  built from the same question and corpus would then differ between Tuesday and
+  Wednesday -- `package_id` would stop identifying a package. Candidates are
+  compared only against each other.
+- **Undated documents are neutral**, taking their own relevance rank for the
+  recency term, so one dated file cannot rearrange a folder of notes.
+- **Measured as a no-op where it should be one**: identical recall, precision
+  and trap on the labelled corpus, because zero of its documents state a date.
+  That proves the reduction and says nothing about whether recency helps.
+- A date now reaches a candidate from *any* document. It previously required
+  the document to also declare a `layer`, so kiseki exports carried one and an
+  ordinary note never did -- found end to end, with every unit test of the date
+  reader passing throughout.
+
 ### Changed
 
 - `context` at the MCP surface now honours the configured `ordering`,

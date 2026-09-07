@@ -238,6 +238,31 @@ def build_context(
 _DECLARED_WITHOUT_CONFIDENCE: Final = 0.5
 
 
+#: What a document may call the date it is from, best first. Read into
+#: `observed_at`, which the contract already defines as *when the underlying
+#: observation was made* -- for an article that is when it was published.
+#:
+#: `fetched_at` is deliberately last and deliberately included: it is when a
+#: crawler took a copy, which is a worse answer than the article's own date and
+#: a much better one than nothing. `musubi` writes it on every feed item.
+DATE_KEYS: Final = ("observed_at", "published", "date", "updated", "fetched_at")
+
+
+def _dated(metadata: Mapping[str, str]) -> str | None:
+    """The first date a document states about itself, or ``None``.
+
+    Not the file's mtime. A synced folder rewrites every file it touches, so
+    mtime says when the sync ran; a corpus that arrives over Dropbox would date
+    every document to the same minute and a recency ordering would rank it by
+    nothing at all.
+    """
+    for key in DATE_KEYS:
+        value = metadata.get(key)
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
 def _provenance_of(document: Document | None) -> ItemProvenance:
     """What kind of statement a passage from this document is.
 
@@ -255,7 +280,14 @@ def _provenance_of(document: Document | None) -> ItemProvenance:
     metadata = document.metadata
     declared = metadata.get("layer")
     if not declared:
-        return ItemProvenance()
+        # A document that declares no layer is a fact, which is the default --
+        # but it may still say when it is from, and an ordering that prefers
+        # newer passages needs that. **This used to return a bare
+        # `ItemProvenance()`**, so a date reached a candidate only from a
+        # document that also declared a layer: kiseki exports had one and an
+        # ordinary note never did. Found end to end; every unit test of the
+        # date reader passed throughout.
+        return ItemProvenance(observed_at=_dated(metadata))
     try:
         layer = Layer(declared)
     except ValueError:
@@ -274,7 +306,7 @@ def _provenance_of(document: Document | None) -> ItemProvenance:
     return ItemProvenance(
         layer=layer,
         producer=metadata.get("producer") or "tsumugi.ingest/1",
-        observed_at=metadata.get("observed_at") or None,
+        observed_at=_dated(metadata),
         confidence=confidence,
     )
 

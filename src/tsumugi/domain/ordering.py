@@ -42,7 +42,15 @@ from .redundancy import similarity
 if TYPE_CHECKING:  # pragma: no cover - a type, not a dependency
     from .assembly import Candidate
 
-__all__ = ["DEFAULT_DIVERSITY", "ORDERINGS", "Ordering", "by_score", "maximal_marginal_relevance"]
+__all__ = [
+    "DEFAULT_DIVERSITY",
+    "DEFAULT_FRESHNESS",
+    "ORDERINGS",
+    "Ordering",
+    "by_score",
+    "maximal_marginal_relevance",
+    "prefer_recent",
+]
 
 #: An ordering takes what could be sent and says in what order to try it.
 Ordering = Callable[[Sequence["Candidate"], str], list["Candidate"]]
@@ -66,6 +74,75 @@ def _tiebreak(candidate: Candidate) -> tuple[str, str, int]:
 def by_score(candidates: Sequence[Candidate], query: str = "") -> list[Candidate]:
     """Descending score. The ordering every measured number here was taken on."""
     return sorted(candidates, key=lambda c: (-c.score, *_tiebreak(c)))
+
+
+#: How much of the ordering recency is allowed to decide. 0.0 is exactly
+#: `by_score`; 1.0 ignores the question and sorts by date alone, which is a
+#: newspaper rather than an answer. 0.3 lets a newer passage overtake a
+#: slightly better-scoring older one and not a much better one.
+DEFAULT_FRESHNESS: Final = 0.3
+
+
+def prefer_recent(
+    candidates: Sequence[Candidate],
+    query: str = "",
+    *,
+    freshness: float = DEFAULT_FRESHNESS,
+) -> list[Candidate]:
+    """Relevance, nudged towards whichever passages say they are newer.
+
+    Asked for by `sora`, whose front page wants *today's world*: the same topic
+    should surface the newer article.
+
+    **Relative, never absolute, and that is a reproducibility requirement
+    rather than a simplification.** Ranking by age would need a *now*, and a
+    package built from the same question and the same corpus would then differ
+    between Tuesday and Wednesday -- which ADR-0003 forbids and, worse, would
+    make `package_id` stop identifying a package. So this compares candidates
+    only against each other: the newest of them is the newest whenever you ask.
+
+    Both signals enter as **ranks**, not values. Blending a bm25 score with a
+    date needs a common scale that does not exist; blending two orderings does
+    not. A candidate that states no date takes its own score rank for the date
+    term, so it is neither rewarded nor punished for saying nothing -- with no
+    dates anywhere this reduces exactly to `by_score`, which is what the
+    labelled corpus measures.
+    """
+    if not 0.0 <= freshness <= 1.0:
+        raise ValueError(f"freshness is a share and must be between 0 and 1, not {freshness}")
+
+    ranked = by_score(candidates, query)
+    by_position = {id(candidate): position for position, candidate in enumerate(ranked)}
+
+    # Newest first among those that say. Ties keep the score order, which is
+    # already deterministic.
+    dated = sorted(
+        (c for c in ranked if c.provenance.observed_at),
+        key=lambda c: (_reverse(c.provenance.observed_at), by_position[id(c)]),
+    )
+    date_rank = {id(candidate): position for position, candidate in enumerate(dated)}
+
+    def blended(candidate: Candidate) -> tuple[float, str, str, int]:
+        score_position = by_position[id(candidate)]
+        # No stated date: its own score rank, so saying nothing is neutral.
+        recency_position = date_rank.get(id(candidate), score_position)
+        return (
+            (1.0 - freshness) * score_position + freshness * recency_position,
+            *_tiebreak(candidate),
+        )
+
+    return sorted(ranked, key=blended)
+
+
+def _reverse(when: str | None) -> str:
+    """A sort key that puts later strings first, without parsing them.
+
+    ISO 8601 sorts lexicographically, which is the whole reason the contract
+    asks for it. Refusing to parse means a date this library does not
+    understand still orders sensibly against others of its own shape, instead
+    of raising in the middle of a query.
+    """
+    return "".join(chr(0x10FFFF - ord(character)) for character in when or "")
 
 
 def maximal_marginal_relevance(
@@ -118,4 +195,5 @@ def maximal_marginal_relevance(
 ORDERINGS: Final[dict[str, Ordering]] = {
     "score": by_score,
     "mmr": maximal_marginal_relevance,
+    "recent": prefer_recent,
 }

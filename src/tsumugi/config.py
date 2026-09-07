@@ -22,9 +22,11 @@ from typing import Any, Final
 from .application.search import DEFAULT_CONFIRMATION, Confirmation
 from .domain.ordering import (
     DEFAULT_DIVERSITY,
+    DEFAULT_FRESHNESS,
     ORDERINGS,
     Ordering,
     maximal_marginal_relevance,
+    prefer_recent,
 )
 from .domain.redundancy import DEFAULT_THRESHOLD
 from .errors import ConfigurationError
@@ -85,6 +87,10 @@ class TsumugiConfig:
     #: is exactly ``score``, 0.0 is pure novelty and ignores the question.
     #: Ignored unless ``ordering`` is ``mmr``.
     diversity: float = DEFAULT_DIVERSITY
+    #: How much of the `recent` ordering recency decides. 0.0 is exactly
+    #: `score`; 1.0 sorts by date alone, which is a newspaper rather than an
+    #: answer. Ignored unless ``ordering`` is ``recent``.
+    freshness: float = DEFAULT_FRESHNESS
     #: How alike two passages must be before one is marked a near-duplicate of
     #: the other. Measured on this corpus, moving it between 0.5 and 0.9 changes
     #: no reported number -- which is the reason it is a setting rather than a
@@ -141,9 +147,15 @@ class TsumugiConfig:
                 f"unknown ordering {self.ordering!r}. "
                 f"Known: {', '.join(sorted([*ORDERINGS, 'rerank']))}"
             ) from None
-        if chosen is not maximal_marginal_relevance:
-            return chosen
-        return partial(maximal_marginal_relevance, diversity=self.diversity)
+        # Each ordering that takes a parameter is bound to the setting that
+        # carries it. A `partial` rather than a lookup at call time, so an
+        # `Ordering` is one shape everywhere: candidates and a query, nothing
+        # else to remember.
+        if chosen is maximal_marginal_relevance:
+            return partial(maximal_marginal_relevance, diversity=self.diversity)
+        if chosen is prefer_recent:
+            return partial(prefer_recent, freshness=self.freshness)
+        return chosen
 
     def resolved_index_path(self, name: str | None = None) -> Path:
         """The index a caller means: the default, or one of the named ones.
@@ -212,6 +224,13 @@ class TsumugiConfig:
                 ) from error
         if ordering := source.get("TSUMUGI_ORDERING"):
             values["ordering"] = ordering
+        if freshness := source.get("TSUMUGI_FRESHNESS"):
+            try:
+                values["freshness"] = float(freshness)
+            except ValueError as error:
+                raise ConfigurationError(
+                    f"TSUMUGI_FRESHNESS must be a number between 0 and 1, not {freshness!r}"
+                ) from error
         if diversity := source.get("TSUMUGI_DIVERSITY"):
             try:
                 values["diversity"] = float(diversity)

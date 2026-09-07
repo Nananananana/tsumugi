@@ -229,6 +229,35 @@ afterwards is the record of whoever did it, and belongs beside the package —
 in `akashi`'s `protection_by`, in your own job record — not inside it.
 [ADR-0027](adr/0027-a-package-records-what-tsumugi-built.md) has the reasoning.
 
+## Preferring newer passages
+
+`--ordering recent`, or `TSUMUGI_ORDERING=recent`, with
+`TSUMUGI_FRESHNESS` (default `0.3`) deciding how much of the ordering recency
+gets. A document states its own date in front matter — `observed_at`,
+`published`, `date`, `updated`, `fetched_at`, in that order of preference.
+
+**It is relative, and that is a requirement rather than a simplification.**
+Ranking by age needs a *now*, and then the same question over the same corpus
+produces a different package on Wednesday than on Tuesday: `package_id` would
+stop identifying a package (ADR-0003). So candidates are compared only against
+each other, and the newest of them is the newest whenever you ask.
+
+Two consequences to plan around:
+
+- **A document that states no date is neither rewarded nor punished.** It takes
+  its own relevance rank for the recency term. Pushing undated passages to the
+  bottom would let one dated file rearrange a folder of notes.
+- **With no dates anywhere it is exactly `score`.** Measured on the labelled
+  corpus: recall 87.2%, precision 98.2%, trap 5.0% under both — identical,
+  because **zero of that corpus's documents state a date.** So that measurement
+  proves the reduction holds and says nothing at all about whether preferring
+  newer passages is any good. Nobody here can answer that yet; a corpus with
+  dates and a judgement about which answer is better would be needed.
+
+The file's mtime is deliberately not used. A synced folder rewrites what it
+touches, so mtime says when the sync ran, and a corpus arriving over Dropbox
+would date every document to the same minute.
+
 ## Front matter is not evidence
 
 A file that opens with
@@ -255,13 +284,10 @@ rather than quietly searched.
 
 ## What is not here yet, honestly
 
-- **`recency`.** A caller asked to weight newer documents from the query side
-  and read that a `recency` signal already exists. It does not: the name
-  appears in `selection.signals`' docstring as an *example* of a signal, and no
-  ranker emits it. A document carries no timestamp today except an optional
-  `observed_at` in its metadata. Doing this properly means a document date
-  (frontmatter, then file mtime as a fallback), an `ordering` that uses it, and
-  a measurement of what it does to the trap rate — in that order.
+- **`recency` is now `--ordering recent`**, and what it does *not* do is the
+  part worth reading. See "Preferring newer passages" above. What is still
+  missing: any measurement of whether it helps, because the labelled corpus
+  contains **zero** documents that state a date.
 - **Batch `search`.** One query per call. A process holding the connection open
   pays nothing for the round trip, so this is a convenience rather than a
   speed issue; ask if the round trips add up.
