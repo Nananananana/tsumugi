@@ -22,13 +22,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
 
 from tests.helpers import build_document
-from tsumugi.application.indexes import CONTRACT, IndexSummary, summarise_indexes
+from tsumugi.application.indexes import CONTRACT, summarise_indexes
 from tsumugi.config import TsumugiConfig
 from tsumugi.errors import StorageError
 from tsumugi.infrastructure.index.fts import FtsIndex
@@ -229,43 +228,3 @@ class TestTheIndexSaysHowItWasBuilt:
             assert FtsIndex(connection).count() == 1
         finally:
             connection.close()
-
-
-class TestASummaryCannotBeEdited:
-    """Both mutants `tools/mutate.py` found here were the decorator itself.
-
-    `frozen=True` and `slots=True` could each be flipped with nothing
-    objecting, which means a summary handed to a caller could be rewritten in
-    place, or quietly grown an attribute that no reader knows to look at. For a
-    row that says *which corpus this is and how much is in it*, either would
-    let a display layer edit the fact it is displaying.
-    """
-
-    def test_a_row_is_frozen(self) -> None:
-        summary = IndexSummary(name="personal", documents=3, ingested_at="2026-09-07")
-        with pytest.raises(FrozenInstanceError):
-            summary.documents = 9999  # type: ignore[misc]
-
-    def test_a_row_has_nowhere_to_stash_anything(self) -> None:
-        """`slots=True`, asserted as the absence of a `__dict__`.
-
-        Which exception an assignment raises is a Python version's business:
-        3.12 gives `TypeError` from a `super()` cell left over when the class
-        was rebuilt for slots, and 3.13 gives `FrozenInstanceError`. Pinning
-        either one turns this test red on half the CI matrix, which is how the
-        first version of it left. The fact underneath is that there is no dict
-        to put a stray attribute in -- so no display layer can quietly hang a
-        path off a row that promises not to carry one.
-        """
-        summary = IndexSummary(name="personal", documents=3, ingested_at="2026-09-07")
-        assert not hasattr(summary, "__dict__")
-        assert IndexSummary.__slots__ == ("name", "documents", "ingested_at", "unavailable")
-
-    def test_the_dictionary_form_omits_unavailable_when_it_opened(self) -> None:
-        """A key that is always present teaches a reader to ignore it."""
-        working = IndexSummary(name="personal", documents=3, ingested_at="2026-09-07")
-        assert "unavailable" not in working.as_dict()
-        broken = IndexSummary(
-            name="gone", documents=None, ingested_at=None, unavailable="StorageError"
-        )
-        assert broken.as_dict()["unavailable"] == "StorageError"

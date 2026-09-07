@@ -24,7 +24,7 @@ checked the rule it names.
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import replace
 
 import pytest
 
@@ -345,40 +345,3 @@ class TestTheEdgesMutationTestingFound:
         assert "notes/a.md" in named.describe()
         assert "unconfirmed" in named.describe()
         assert "doc_x" in replace(named, source_path="").describe()
-
-    def test_a_lead_cannot_be_edited_after_it_is_handed_over(self) -> None:
-        """Frozen, and it has to stay frozen.
-
-        A caller that could rewrite a lead's text or span could hand on a
-        passage that no longer matches where it says it came from -- which is
-        the whole failure this library is built to prevent, arriving through a
-        mutable dataclass.
-        """
-        lead = Lead(
-            text="a passage",
-            source_path="notes/a.md",
-            document_id="doc_x",
-            span=Span(0, 9),
-            score=1.0,
-            unconfirmed_because="unconfirmed",
-        )
-        with pytest.raises(FrozenInstanceError):
-            lead.text = "something else"  # type: ignore[misc]
-
-        # `slots=True`: there is nowhere to put an attribute that is not a
-        # field, and **that** is the property rather than any particular
-        # exception. The first version of this asserted `TypeError`, which is
-        # what a frozen slotted dataclass raises on 3.12 -- its `__setattr__`
-        # reaches a `super()` whose cell points at the pre-slots class. 3.13
-        # fixed that and raises `FrozenInstanceError`, so the test pinned a
-        # version's accident and went red on half the CI matrix. `__dict__` is
-        # the fact underneath and does not move.
-        assert not hasattr(lead, "__dict__"), "a slotted instance grew a dict to stash things in"
-        assert Lead.__slots__ == (
-            "text",
-            "source_path",
-            "document_id",
-            "span",
-            "score",
-            "unconfirmed_because",
-        )

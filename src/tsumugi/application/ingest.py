@@ -34,7 +34,7 @@ class Ingested:
     is_revision: bool
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class IngestReport:
     """What a run did, in enough detail to trust it."""
 

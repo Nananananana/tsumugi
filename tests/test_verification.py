@@ -508,3 +508,56 @@ class TestTheReportSaysWhatItIs:
             ]
         )
         assert json.loads(capsys.readouterr().out)["contract"] == CONTRACT
+
+
+class TestWhereAQuotationTurnedUp:
+    """`Located.describe` and `Citation.ambiguous`, both survivors of
+    `python tools/mutate.py`.
+
+    `describe` is what a reader sees under a citation — the file, the section,
+    the offsets. `ambiguous` is the difference between *found* and *found in
+    more than one place*, which ADR-0005 keeps as information rather than an
+    error: two passages saying the same thing is a fact about the corpus, and
+    resolving it for the reader would be choosing on their behalf.
+    """
+
+    def _located(self, source_path: str = "notes/gear.md", section: str = "Gear") -> Located:
+        digest = ContentHash.of("the tent weighs 2.4kg")
+        return Located(
+            item_id="itm_001",
+            anchor=Anchor(document_id="doc_x", span=Span(4, 25), text_hash=digest, version=digest),
+            source_path=source_path,
+            section=section,
+        )
+
+    def test_describe_names_the_file_the_section_and_the_offsets(self) -> None:
+        assert self._located().describe() == "notes/gear.md (Gear)[4:25]"
+
+    def test_a_missing_section_is_left_out_rather_than_shown_empty(self) -> None:
+        """`if self.section` — an empty bracket pair reads as a section named
+        nothing, rather than as a document with no sections."""
+        assert self._located(section="").describe() == "notes/gear.md[4:25]"
+
+    def test_a_missing_path_falls_back_to_the_document_id(self) -> None:
+        """A citation whose source path was never recorded still has to say
+        where it is, or the reader has an offset into nothing."""
+        assert self._located(source_path="", section="").describe() == "doc_x[4:25]"
+
+    def test_one_location_is_resolved_and_not_ambiguous(self) -> None:
+        """`> 1`, not `>= 1`. Every resolved citation would be ambiguous."""
+        citation = Citation(quotation="weighs 2.4kg", locations=(self._located(),))
+        assert citation.resolved
+        assert not citation.ambiguous
+
+    def test_two_locations_are_ambiguous(self) -> None:
+        citation = Citation(
+            quotation="weighs 2.4kg",
+            locations=(self._located(), self._located(source_path="notes/copy.md")),
+        )
+        assert citation.resolved
+        assert citation.ambiguous
+
+    def test_no_location_is_neither_resolved_nor_ambiguous(self) -> None:
+        citation = Citation(quotation="weighs 9kg")
+        assert not citation.resolved
+        assert not citation.ambiguous

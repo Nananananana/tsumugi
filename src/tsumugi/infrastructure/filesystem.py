@@ -77,7 +77,7 @@ class Skipped:
     rule: str = ""
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Walk:
     """What a walk found."""
 

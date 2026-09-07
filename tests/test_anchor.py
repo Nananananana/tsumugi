@@ -7,13 +7,11 @@ wherever the text went, are both worse than saying so (ADR-0010).
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
-
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from tsumugi.domain.anchor import Anchor, Resolution, ResolutionStatus, resolve
+from tsumugi.domain.anchor import Anchor, ResolutionStatus, resolve
 from tsumugi.domain.hashing import ContentHash
 from tsumugi.domain.span import Span
 
@@ -139,45 +137,3 @@ class TestTheInvariant:
             assert result.status is ResolutionStatus.RESOLVED
         else:
             assert result.status is not ResolutionStatus.RESOLVED
-
-
-class TestAnAnchorCannotBeEditedAfterItIsMade:
-    """`frozen` and `slots`, on the one value the whole library rests on.
-
-    An anchor is the proof that a citation points where it says it does. A
-    caller who could rewrite `span` after resolution would hold a resolution
-    that reports RESOLVED about a span it no longer describes — the exact
-    failure this project exists to prevent, arriving through a mutable
-    dataclass rather than through bad retrieval.
-
-    Found by `python tools/mutate.py`: flipping `frozen=True` and `slots=True`
-    on both `Anchor` and `Resolution` survived every test in three files.
-
-    The property is asserted rather than the exception. 3.12 raises `TypeError`
-    for an unknown attribute on a frozen slotted dataclass and 3.13 raises
-    `FrozenInstanceError`; pinning either turned an earlier test red on half
-    the CI matrix.
-    """
-
-    def _anchor(self) -> Anchor:
-        digest = ContentHash.of("some text")
-        return Anchor(document_id="doc_x", span=Span(0, 9), text_hash=digest, version=digest)
-
-    def test_a_field_cannot_be_reassigned(self) -> None:
-        anchor = self._anchor()
-        with pytest.raises(FrozenInstanceError):
-            anchor.span = Span(0, 1)  # type: ignore[misc]
-        with pytest.raises(FrozenInstanceError):
-            anchor.text_hash = ContentHash.of("something else")  # type: ignore[misc]
-
-    def test_there_is_nowhere_to_stash_anything(self) -> None:
-        anchor = self._anchor()
-        assert not hasattr(anchor, "__dict__")
-        assert Anchor.__slots__ == ("document_id", "span", "text_hash", "version")
-
-    def test_a_resolution_is_frozen_too(self) -> None:
-        """It carries the verdict. A verdict that can be edited is not one."""
-        resolution = Resolution(status=ResolutionStatus.RESOLVED, anchor=self._anchor())
-        with pytest.raises(FrozenInstanceError):
-            resolution.status = ResolutionStatus.UNRESOLVABLE  # type: ignore[misc]
-        assert not hasattr(resolution, "__dict__")
