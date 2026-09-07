@@ -12,12 +12,14 @@ this file holds evidence.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Final
 
 from ...errors import StorageError
 
-__all__ = ["SCHEMA_VERSION", "connect", "empty", "requires_fts5"]
+__all__ = ["SCHEMA_VERSION", "connect", "empty", "opened", "requires_fts5"]
 
 SCHEMA_VERSION: Final = 4
 
@@ -141,6 +143,32 @@ def connect(path: Path | str, *, create: bool = True) -> sqlite3.Connection:
     requires_fts5(connection)
     _migrate(connection)
     return connection
+
+
+@contextmanager
+def opened(path: Path | str, *, create: bool = True) -> Iterator[sqlite3.Connection]:
+    """`connect`, closed when the block ends. For a caller that is not a CLI.
+
+    `connect` hands back a raw `sqlite3.Connection` and the caller owns it.
+    That is right for the CLI, which has a registry that closes everything at
+    exit, and it is a trap for a library caller: the walk-through script in
+    `examples/` leaked one on its first version, and Windows then refused to
+    delete the directory it lived in.
+
+    **Additive, and deliberately not a change to `connect`.** The surface is
+    promised now (ADR-0023), and `with connect(...)` already means something
+    else in `sqlite3` -- it commits a transaction and leaves the connection
+    open, which is exactly the mistake this exists to prevent. A caller who
+    writes `with opened(...)` cannot get that by accident.
+
+        with opened(Path.home() / ".tsumugi" / "index.db") as connection:
+            store = SqliteDocumentStore(connection)
+    """
+    connection = connect(path, create=create)
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def _migrate(connection: sqlite3.Connection) -> None:

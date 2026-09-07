@@ -1331,3 +1331,44 @@ that a build issues no per-document read and never calls `all_current` at all.
 The count of *statements* could not see the first defect -- `all_current` is
 one statement that returns every row -- so the test that catches it counts the
 call instead. `sora` has the numbers for its one-second screen budget.
+
+## Two roadmap questions, answered negatively
+
+### Scoping the relative floor to a document
+
+`python tools/measure_floor_scope.py`. Section indexing bought 20.5 points of
+recall at realistic document length and cost 0.7 trap points;
+[proposal 0003](proposals/0003-what-running-it-taught.md) asked whether
+computing ADR-0019's floor within a document — *is this the right part of this
+document* — would recover them.
+
+| scope | recall | precision | trap |
+|---|---|---|---|
+| query (ships) | 87.2% | 98.2% | **5.0%** |
+| document | 87.2% | 97.0% | **26.7%** |
+
+**Five times worse**, recall unchanged. A weak section of a weak document
+clears its own document's low bar, so every document that matched anything at
+all contributes its best part as evidence. The 0.7 stands as the price of
+chunking. The variant lives in the tool rather than as a setting: a switch
+whose only measurement says it is five times worse is one somebody turns on.
+
+### Ideograph unigrams, for the Chinese residual
+
+Korean was fixed by expanding the *question* into its prefixes, which is free.
+The two Chinese cases that return nothing are `食物` asked of `食品` and `学期`
+asked of `开学`: they share a **character**, not a prefix, so query-side
+expansion cannot reach them — the index holds bigrams and a one-character query
+term matches no bigram.
+
+Index-side unigrams do retrieve them. Measured on one document:
+
+| | terms per character |
+|---|---|
+| shipped | 0.789 |
+| with ideograph unigrams | **1.421** |
+
+**80% more index**, to move two cases of 180 from silence to a lead that
+confirmation still rejects. Refused. The Chinese residual is genuine
+paraphrase — a vocabulary difference, not a tokenization one — which is the
+subject of proposal 0004's item 2, not of the tokenizer.

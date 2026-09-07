@@ -59,7 +59,7 @@ from .infrastructure.filesystem import walk
 from .infrastructure.freshness import remembered_roots
 from .infrastructure.index.fts import FtsIndex
 from .infrastructure.parsers import parser_for
-from .infrastructure.storage.database import connect
+from .infrastructure.storage.database import connect, opened
 from .infrastructure.storage.ledger import SqliteLedger
 from .infrastructure.storage.sqlite import SqliteDocumentStore
 from .interop import as_documents, texts_from
@@ -108,6 +108,7 @@ __all__ = [
     "ingest_paths",
     "leads_from",
     "maximal_marginal_relevance",
+    "opened",
     "parse_answer",
     "parser_for",
     "register_block_kind",

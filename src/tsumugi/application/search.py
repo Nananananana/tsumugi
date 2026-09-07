@@ -155,20 +155,7 @@ def search(
             )
         )
 
-    # Relevance is relative to the best evidence this query found. A document
-    # containing five words of a six-word question, where the missing word is
-    # the subject, is a document about something else -- and no absolute
-    # threshold can say that, because five words is a lot in one corpus and
-    # nothing in another.
-    strongest = max((result.matched for result in results), default=0)
-    if strongest:
-        floor = strongest * settings.relative_match_floor
-        results = [
-            r
-            if r.unconfirmed or r.matched >= floor or not r.matched
-            else replace(r, unconfirmed=True)
-            for r in results
-        ]
+    results = _apply_relative_floor(results, settings)
 
     # Ties break on the anchor, never on iteration order: a package has to be
     # reproducible (ADR-0003).
@@ -362,6 +349,47 @@ def _occurrences(piece: str, folded: str) -> list[int]:
         found.append(at)
         at = folded.find(piece, at + 1)
     return found
+
+
+def _apply_relative_floor(
+    results: list[SearchResult], settings: Confirmation
+) -> list[SearchResult]:
+    """Demote a match that is weak beside the best evidence this query found.
+
+    A document containing five words of a six-word question, where the missing
+    word is the subject, is a document about something else -- and no absolute
+    threshold can say that, because five words is a lot in one corpus and
+    nothing in another (ADR-0019).
+
+    **Beside the strongest match anywhere in this query's results**, and the
+    alternative is measured rather than argued. Section indexing turned one
+    document into several candidates and cost 0.7 trap points, so
+    `proposals/0003` asked whether scoping this comparison to a document --
+    *is this the right part of this document* -- would recover them.
+
+    It does the opposite. Measured over the labelled corpus by
+    `tools/measure_floor_scope.py`:
+
+        scope      recall   precision    trap
+        query       87.2%       98.2%    5.0%
+        document    87.2%       97.0%   26.7%
+
+    A weak section of a weak document clears its own document's low bar, so
+    every document that matched anything at all contributes its best part as
+    evidence. The variant lives in that tool rather than as a setting here: a
+    switch whose only measurement says it is five times worse is a switch
+    somebody will turn on.
+    """
+    strongest = max((result.matched for result in results), default=0)
+    if not strongest:
+        return results
+    floor = strongest * settings.relative_match_floor
+    return [
+        result
+        if result.unconfirmed or result.matched >= floor or not result.matched
+        else replace(result, unconfirmed=True)
+        for result in results
+    ]
 
 
 def _fold_with_origins(content: str) -> tuple[str, tuple[int, ...]]:

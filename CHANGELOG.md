@@ -103,6 +103,27 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Added — `opened`, and two questions answered by measurement
+
+- **`tsumugi.opened(path)`**, a context manager that closes the connection when
+  the block ends, including when it raises. `connect` still hands back a raw
+  connection the caller owns — right for the CLI, which has a registry, and a
+  trap for a library caller. Additive rather than a change to `connect`,
+  because `with connect(...)` already means something else in `sqlite3`: it
+  commits a transaction and leaves the connection open, which is the mistake
+  this exists to prevent.
+- **`docs/proposals/0004-what-a-consumer-taught.md`** revises the roadmap from
+  what being used taught. Four defects came from one outside consumer in a
+  week; this corpus had found none in a month.
+- **Two open questions closed by measuring, both negative.** Scoping ADR-0019's
+  relative floor to a document — proposal 0003's last open question about what
+  chunking cost — takes the trap rate from 5.0% to **26.7%** with recall
+  unchanged. And the query-expansion trick that fixed Korean does not transfer
+  to Chinese: those cases share a character rather than a prefix, and
+  index-side unigrams cost **80% more index** to move two cases of 180 from
+  silence to a lead confirmation rejects anyway. Both variants live in their
+  measuring tools rather than as settings.
+
 ### Fixed — a test that pinned a Python version's accident
 
 - Two tests asserted `TypeError` for assigning an unknown attribute to a frozen

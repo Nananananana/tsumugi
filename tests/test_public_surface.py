@@ -85,6 +85,7 @@ PUBLIC_SURFACE = frozenset(
         "contract_schema_text",
         "cost_model_for",
         "ingest_paths",
+        "opened",
         "leads_from",
         "parse_answer",
         "parser_for",
@@ -230,13 +231,51 @@ def test_a_question_nothing_confirms_says_so_rather_than_returning_nothing(
 def test_connect_hands_back_something_the_caller_must_close(tmp_path: Path) -> None:
     """`connect` returns a raw connection, and the caller owns it.
 
-    Recorded because it is the one rough edge the walk-through hit that is not
-    fixed: the first version of that script leaked the connection and Windows
-    refused to delete the directory. The CLI has a registry that closes
-    everything at exit; a library caller has `try/finally` and this sentence.
+    Unchanged, and no longer the only option: `opened` below closes it. This
+    stays because `connect` is on the promised surface and its ownership rule
+    has to keep being true.
     """
     connection = tsumugi.connect(tmp_path / "index.db")
     assert isinstance(connection, sqlite3.Connection)
     connection.close()
     with pytest.raises(sqlite3.ProgrammingError):
         connection.execute("SELECT 1")
+
+
+def test_opened_closes_the_connection_at_the_end_of_the_block(tmp_path: Path) -> None:
+    """The rough edge the walk-through hit, fixed additively.
+
+    Its first version leaked a connection and Windows then refused to delete
+    the directory it lived in. The CLI has a registry; a library caller had
+    `try/finally` and a sentence in a docstring.
+    """
+    with tsumugi.opened(tmp_path / "index.db") as connection:
+        assert connection.execute("SELECT 1").fetchone()[0] == 1
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")
+
+
+def test_opened_closes_even_when_the_block_raises(tmp_path: Path) -> None:
+    """The half that matters. A context manager that only closes on the happy
+    path leaves exactly the leak it was added to prevent, on exactly the runs
+    where a file handle is most likely to be in the way."""
+    with (
+        pytest.raises(ValueError, match="deliberate"),
+        tsumugi.opened(tmp_path / "index.db") as connection,
+    ):
+        raise ValueError("deliberate")
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")
+
+
+def test_opened_refuses_a_missing_index_like_connect_does(tmp_path: Path) -> None:
+    """`create=False` is why a reader would reach for it, so it travels."""
+    from tsumugi import StorageError
+
+    with (
+        pytest.raises(StorageError, match="no index"),
+        tsumugi.opened(tmp_path / "absent.db", create=False),
+    ):
+        pass
