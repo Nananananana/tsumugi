@@ -23,6 +23,16 @@ that works elsewhere.
 **It restores the file in a `finally` and compares bytes afterwards.** An
 earlier hand-run of this idea left a stray line in `pyproject.toml` for an hour
 because the restore was assumed rather than checked.
+
+**And it keeps a copy on disk, because a `finally` is not a guarantee.** The
+mutated file is `ast.unparse` output: every comment gone, every docstring
+reflowed. A run that is killed rather than interrupted -- a background task
+stopped, a terminal closed -- never reaches the `finally`, and what it leaves
+behind still imports, still passes the suite, and is missing the part of this
+repository that explains why any of it is the way it is. That happened once,
+and `git` was the only thing that got it back. So: a `.mutate-backup` beside
+the target for the length of the run, removed on a clean exit, and refused
+loudly on the next run if one is still there.
 """
 
 from __future__ import annotations
@@ -117,8 +127,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     path = (ROOT / args.target).resolve()
+    backup = path.with_suffix(path.suffix + ".mutate-backup")
+    if backup.exists():
+        # Not overwritten and not silently used: which of the two files is the
+        # real one is a question only a person can answer, and guessing wrong
+        # destroys the answer.
+        print(f"{backup.name} exists -- a previous run did not finish.", file=sys.stderr)
+        print(
+            f"Compare it with {path.name} and remove it before running again.",
+            file=sys.stderr,
+        )
+        return 2
+
     original = path.read_bytes()
     source = original.decode("utf-8")
+    backup.write_bytes(original)
     total = _count(source)
     if args.limit:
         total = min(total, args.limit)
@@ -149,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         path.write_bytes(original)
         assert path.read_bytes() == original, "the original was not restored"
+        backup.unlink()
 
     print()
     print(f"{killed} killed, {len(survivors)} survived of {total}")

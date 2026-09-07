@@ -468,6 +468,45 @@ def _fold(content: str) -> tuple[str, tuple[int, ...]]:
     return "".join(folded), tuple(origins)
 
 
+def _source_span(origins: tuple[int, ...], content: str, start: int, end: int) -> Span:
+    """The span of ``content`` a folded match at ``[start, end)`` came from.
+
+    **A source character the match ends inside is included**, which is the
+    whole reason this is a function rather than two calls to `_origin`.
+
+    One source character can fold to several: `ﬁ` to `fi`, `㍿` to `株式会社`.
+    A match that ends part-way through one of those expansions maps its end to
+    the origin of a character the match already covers, so mapping both ends
+    alone cuts the source short:
+
+    | text | question | folded match | mapped ends | quoted |
+    |---|---|---|---|---|
+    | ``0㍿`` | ``0株`` | ``[0, 2)`` | ``[0, 1)`` | ``0`` -- the wrong text |
+    | ``㍿`` | ``株式`` | ``[0, 2)`` | ``[0, 0)`` | ``""`` -- nothing at all |
+
+    The second row is the sharper failure only because it is louder. Both are
+    an anchor pointing at text that does not contain the quotation it claims,
+    and the empty one still resolves RESOLVED: the empty string really is at
+    that offset.
+
+    So the end is carried out to the end of the source character that produced
+    the last folded character of the match. It contains the match; it merely
+    contains more, which is what a citation into one character has to do.
+
+    Found by a property test over text that folds unevenly -- the one shape no
+    document in the corpus has in quantity, and the same blind spot that once
+    let anchor offsets be computed in folded space and applied to the original.
+    It had not reached a reader: every result is widened to its sentence before
+    it becomes one, and no caller in this library passes a `context` of zero.
+    "Nothing calls it that way today" is not a property of an anchor.
+    """
+    begins = _origin(origins, start, len(content))
+    # `end - 1` is inside the map: `end > start >= 0` and `start` is a position
+    # a `find` succeeded at, so the run has at least one folded character.
+    last = origins[end - 1] + 1
+    return Span(begins, max(_origin(origins, end, len(content)), last))
+
+
 def _origin(origins: tuple[int, ...], at: int, length: int) -> int:
     """The index in the original string for folded index ``at``.
 
@@ -521,10 +560,9 @@ def _confirm_by_coverage(
     best_spread = -1
     for anchor in positions:
         spans = [
-            Span(begins, max(_origin(origins, at + len(text), len(content)), begins))
+            _source_span(origins, content, at, at + len(text))
             for text, occurrences in located
             for at in [min(occurrences, key=lambda p: (abs(p - anchor), p))]
-            for begins in [_origin(origins, at, len(content))]
         ]
         spread = max(s.end for s in spans) - min(s.start for s in spans)
         if best_spans is None or spread < best_spread:
@@ -591,9 +629,7 @@ def _confirm(content: str, needles: Sequence[str]) -> tuple[list[Span], int]:
     for needle in sorted(needles, key=len, reverse=True):
         start = folded.find(needle)
         while start != -1 and len(found) < 64:
-            begins = _origin(origins, start, len(content))
-            ends = _origin(origins, start + len(needle), len(content))
-            found.append(Span(begins, max(ends, begins)))
+            found.append(_source_span(origins, content, start, start + len(needle)))
             start = folded.find(needle, start + 1)
         if found:
             return found, len(needle)
