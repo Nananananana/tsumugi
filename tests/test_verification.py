@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from tsumugi.application.verify import (
     AnswerFormatError,
     ProtectedPackageError,
+    _unfenced,
     parse_answer,
     verify_answer,
 )
@@ -561,3 +562,75 @@ class TestWhereAQuotationTurnedUp:
         citation = Citation(quotation="weighs 9kg")
         assert not citation.resolved
         assert not citation.ambiguous
+
+
+class TestWhatCountsAsAFencedAnswer:
+    """`_unfenced` is the one place this library guesses about a model's output.
+
+    It is deliberately narrow: the whole payload has to be one fenced block.
+    "Find the JSON somewhere in there" is the behaviour it refuses to have,
+    because a model that wrote prose *and* JSON has said two things and picking
+    one is a guess about which it meant.
+
+    `python tools/mutate.py src/tsumugi/application/verify.py` left three
+    survivors here, and all three were that narrowness -- the suite fed it
+    well-formed fences and bare JSON, never a fence that only opens.
+    """
+
+    BACKTICKS = chr(96) * 3
+
+    def _fenced(self, body: str, tag: str = "json") -> str:
+        return self.BACKTICKS + tag + chr(10) + body + chr(10) + self.BACKTICKS
+
+    def test_a_whole_payload_fence_is_read(self) -> None:
+        payload = self._fenced('{"claims": [{"text": "a claim", "citations": []}]}')
+        assert parse_answer(payload) == [("a claim", [])]
+
+    def test_a_fence_that_only_opens_is_not_a_fence(self) -> None:
+        """`not startswith or not endswith`, and the `or` is the whole rule.
+
+        Mutated to `and`, the payload is stripped whenever it has *either*
+        marker, so a truncated answer -- a model cut off mid-stream, which is
+        the common way to get an opening fence and no closing one -- would
+        have its first line removed and be read as though it were complete.
+        A truncated answer is not a shorter answer; it is an answer whose
+        claims were still being written.
+        """
+        opened = self.BACKTICKS + "json" + chr(10) + '{"claims": []}'
+        assert _unfenced(opened) == opened
+        with pytest.raises(AnswerFormatError):
+            parse_answer(opened)
+
+    def test_a_fence_that_only_closes_is_not_a_fence(self) -> None:
+        closed = '{"claims": []}' + chr(10) + self.BACKTICKS
+        assert _unfenced(closed) == closed
+        with pytest.raises(AnswerFormatError):
+            parse_answer(closed)
+
+    def test_a_fence_buried_in_prose_is_prose(self) -> None:
+        buried = "Here you go:" + chr(10) + self._fenced('{"claims": []}')
+        assert _unfenced(buried) == buried
+        with pytest.raises(AnswerFormatError):
+            parse_answer(buried)
+
+    def test_a_language_tag_is_ignored(self) -> None:
+        for tag in ("", "json", "JSON", "javascript"):
+            assert parse_answer(self._fenced('{"claims": []}', tag)) == []
+
+    def test_a_degenerate_fence_is_returned_unchanged(self) -> None:
+        """`len(lines) < 2`. Three backticks alone open and close at once.
+
+        Without the guard, `lines[1:-1]` of a one-line payload is empty, and
+        the caller is handed `""` -- a payload that is not the one it was
+        given. Both spellings raise from `parse_answer` today, so this is a
+        statement about the helper rather than about the outcome: a function
+        that cannot find a fence returns what it was given, and does not
+        invent an empty answer.
+        """
+        assert _unfenced(self.BACKTICKS) == self.BACKTICKS
+        empty_fence = self.BACKTICKS + chr(10) + self.BACKTICKS
+        assert _unfenced(empty_fence) == ""
+
+    def test_surrounding_whitespace_does_not_defeat_the_fence(self) -> None:
+        padded = chr(10) + "  " + self._fenced('{"claims": []}') + chr(10) * 2
+        assert parse_answer(padded) == []
