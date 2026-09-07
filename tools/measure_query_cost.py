@@ -16,6 +16,13 @@ all, which would make this tool report that folding is free. It is free for
 English. `docs/measurements.md` already records what happens when a number is
 taken on the one shape that flatters it.
 
+**And its documents are unlike each other**, for the same reason one level up.
+The first version of this rotated a fixed set of sentences, which made every
+document a near-copy of every other -- and that is the *fast* path through
+`mark_duplicates`, where a marked passage drops out of the comparison set. The
+harness was measuring the case that costs least. `--alike` builds the other
+shape, so both can be seen.
+
 It reports the same call twice: as shipped, and with the fold's fast path
 disabled, so the cost of the **NFKC composition walk** is a number rather than
 an argument. The second run patches `unicodedata.is_normalized` to return
@@ -78,17 +85,42 @@ QUERIES = [
 ]
 
 
-def _document(seed: int) -> str:
+#: Filler that makes each document unlike the others. Rotating a fixed set of
+#: sentences was the first version of this and it made every document a
+#: near-copy of every other -- which is the *fast* path through
+#: `mark_duplicates`, so the harness measured the case that costs least. The
+#: same blind spot this tool exists to avoid, one level up.
+DISTINCT = [
+    "この記録は{n}番目の案件についてのものである。",
+    "担当は第{n}班、期限は{n}月末とする。",
+    "経費の上限は{n}万円、超過分は別途申請する。",
+    "参考資料は書庫の{n}番棚に収めてある。",
+    "前回からの変更点は{n}箇所、いずれも軽微である。",
+]
+
+
+def _document(seed: int, *, alike: bool) -> str:
+    """One synthetic document.
+
+    ``alike`` decides whether the corpus is full of near-duplicates or of
+    documents that share only their vocabulary. Both are real shapes and they
+    exercise opposite paths, so neither one on its own is a measurement.
+    """
     body: list[str] = []
     while sum(len(line) for line in body) < DOCUMENT_CHARACTERS:
-        body.append(SENTENCES[(seed + len(body)) % len(SENTENCES)])
+        index = len(body)
+        body.append(SENTENCES[(seed + index) % len(SENTENCES)])
+        if not alike:
+            body.append(DISTINCT[(seed + index) % len(DISTINCT)].format(n=seed * 7 + index))
     return f"# 記録{seed}" + NL * 2 + "".join(body)[:DOCUMENT_CHARACTERS] + NL
 
 
-def _build_corpus(root: Path, documents: int) -> None:
+def _build_corpus(root: Path, documents: int, *, alike: bool = False) -> None:
     root.mkdir(parents=True)
     for n in range(documents):
-        (root / f"note{n:05d}.md").write_text(_document(n), encoding="utf-8", newline="")
+        (root / f"note{n:05d}.md").write_text(
+            _document(n, alike=alike), encoding="utf-8", newline=""
+        )
 
 
 def _time_queries(store: object, index: object, repeats: int) -> list[float]:
@@ -123,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--keep", action="store_true", help="leave the corpus behind for a second run"
     )
+    parser.add_argument(
+        "--alike",
+        action="store_true",
+        help="build documents that are near-copies of each other, the cheap shape",
+    )
     args = parser.parse_args(argv)
 
     workspace = ROOT / ".measure-query-cost"
@@ -130,8 +167,11 @@ def main(argv: list[str] | None = None) -> int:
         shutil.rmtree(workspace)
     root = workspace / "corpus"
 
-    print(f"Building {args.documents:,} documents of {DOCUMENT_CHARACTERS:,} characters...")
-    _build_corpus(root, args.documents)
+    shape = "near-copies of each other" if args.alike else "unlike each other"
+    print(
+        f"Building {args.documents:,} documents of {DOCUMENT_CHARACTERS:,} characters, {shape}..."
+    )
+    _build_corpus(root, args.documents, alike=args.alike)
     corpus_bytes = sum(f.stat().st_size for f in root.glob("*.md"))
 
     connection = connect(workspace / "index.db")
