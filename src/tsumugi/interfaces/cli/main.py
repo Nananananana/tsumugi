@@ -54,7 +54,12 @@ from ...infrastructure.filesystem import IgnoreRules, walk
 from ...infrastructure.freshness import FilesystemFreshness, remembered_roots
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for, registered_suffixes
-from ...infrastructure.storage.database import SCHEMA_VERSION, connect, empty
+from ...infrastructure.storage.database import (
+    SCHEMA_VERSION,
+    connect,
+    empty,
+    rebuildable_writes,
+)
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 from ...ports.llm import LLMProvider
@@ -519,7 +524,11 @@ def _ingest(args: argparse.Namespace, config: TsumugiConfig) -> int:
         found = walk(root, rules=rules, follow_symlinks=config.follow_symlinks)
         files, skipped = found.files, found.skipped
 
-    report = ingest_paths(files, root=root, store=store, index=index, parser_for=parser_for)
+    # An index is rebuildable and a re-run is incremental, so this does not
+    # wait for the disk on every document. See `rebuildable_writes`: an
+    # interrupted run still keeps everything it committed.
+    with rebuildable_writes(connection):
+        report = ingest_paths(files, root=root, store=store, index=index, parser_for=parser_for)
     for entry in skipped:
         report.skipped.append((entry.path.as_posix(), f"{entry.reason} ({entry.rule})"))
 

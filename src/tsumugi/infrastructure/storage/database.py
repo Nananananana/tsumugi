@@ -19,7 +19,14 @@ from typing import Final
 
 from ...errors import StorageError
 
-__all__ = ["SCHEMA_VERSION", "connect", "empty", "opened", "requires_fts5"]
+__all__ = [
+    "SCHEMA_VERSION",
+    "connect",
+    "empty",
+    "opened",
+    "rebuildable_writes",
+    "requires_fts5",
+]
 
 SCHEMA_VERSION: Final = 4
 
@@ -139,6 +146,12 @@ def connect(path: Path | str, *, create: bool = True) -> sqlite3.Connection:
     connection.execute("PRAGMA foreign_keys = ON")
     # An index is derived data that can be rebuilt from the corpus, so
     # durability is worth less here than the write speed of an ingest run.
+    #
+    # **But this file is not only the index.** The ledger lives in it too, and
+    # a ledger is the record of what was sent and what was used -- evidence,
+    # not something a re-run reconstructs. So `synchronous` stays at its
+    # default here and is lowered only around the writes that *are*
+    # rebuildable; see `rebuildable_writes`.
     connection.execute("PRAGMA journal_mode = WAL")
     requires_fts5(connection)
     _migrate(connection)
@@ -169,6 +182,51 @@ def opened(path: Path | str, *, create: bool = True) -> Iterator[sqlite3.Connect
         yield connection
     finally:
         connection.close()
+
+
+@contextmanager
+def rebuildable_writes(connection: sqlite3.Connection) -> Iterator[None]:
+    """Commit without waiting for the disk, for writes a re-run would redo.
+
+        with rebuildable_writes(connection):
+            ingest_paths(...)
+
+    In WAL mode SQLite's default `synchronous = FULL` flushes the log to disk
+    on **every commit**, and ingest commits twice a document -- once for the
+    store, once for the index. Measured over 300 documents of 6,800
+    characters, five interleaved rounds, best of each:
+
+        FULL      1.73 s      5.78 ms a document
+        NORMAL    1.21 s      4.04 ms a document      -30%
+        OFF       1.12 s      3.74 ms a document      -35%
+
+    `NORMAL` takes most of it, and the five points `OFF` adds are not the same
+    kind of thing: `OFF` can leave the database **corrupt** after a power cut,
+    while `NORMAL` can only lose whole commits from the end.
+
+    **What is given up, precisely.** An application crash -- an exception, a
+    `Ctrl-C`, the process killed -- loses nothing at all; the WAL still holds
+    every committed row. Only a power cut or an OS crash can drop the most
+    recent commits. So the property that an interrupted ingest keeps what it
+    already did, which is the reason ingest commits per document rather than
+    in batches, is exactly preserved.
+
+    And what a power cut would cost here is a re-run: `ingest` is incremental,
+    skips a document whose hash it already holds, and the corpus is the files
+    on disk (ADR-0014). The index is derived; losing its tail is not losing
+    anything.
+
+    **Not for the ledger**, which shares this database and is not derived from
+    anything. A package that was sent cannot be reconstructed by re-reading
+    the corpus, which is why this is a block a caller enters deliberately
+    rather than a setting on the connection.
+    """
+    previous = connection.execute("PRAGMA synchronous").fetchone()[0]
+    connection.execute("PRAGMA synchronous = NORMAL")
+    try:
+        yield
+    finally:
+        connection.execute(f"PRAGMA synchronous = {previous}")
 
 
 def _migrate(connection: sqlite3.Connection) -> None:

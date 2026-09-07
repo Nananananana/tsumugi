@@ -11,7 +11,7 @@ from tsumugi.domain.anchor import Anchor, ResolutionStatus, resolve
 from tsumugi.domain.span import Span
 from tsumugi.errors import StorageError
 from tsumugi.infrastructure.index.fts import FtsIndex
-from tsumugi.infrastructure.storage.database import connect
+from tsumugi.infrastructure.storage.database import connect, rebuildable_writes
 from tsumugi.infrastructure.storage.sqlite import SqliteDocumentStore
 
 from .helpers import build_document, rewind_to_schema
@@ -268,3 +268,73 @@ class TestTheDatabase:
         path = tmp_path / "twice.db"
         connect(path).close()
         connect(path).close()
+
+
+class TestWritesThatARerunWouldRedo:
+    """`rebuildable_writes` lowers `synchronous` for the length of a block.
+
+    The reason it is a block and not a setting on the connection: the ledger
+    shares this database and is **not** derived from anything. A package that
+    was sent cannot be reconstructed by re-reading the corpus, so the writes
+    that record one keep waiting for the disk.
+
+    Measured over 300 documents, five interleaved rounds, best of each: 1.73 s
+    at `FULL` against 1.21 s at `NORMAL`, 5.78 ms a document against 4.04.
+    """
+
+    #: `PRAGMA synchronous` answers with a number.
+    FULL = 2
+    NORMAL = 1
+
+    def test_the_connection_waits_for_the_disk_by_default(
+        self, connection: sqlite3.Connection
+    ) -> None:
+        """The positive control, and it has to come first: if the default were
+        already `NORMAL`, every assertion below would pass while the block did
+        nothing."""
+        assert connection.execute("PRAGMA synchronous").fetchone()[0] == self.FULL
+
+    def test_inside_the_block_it_does_not(self, connection: sqlite3.Connection) -> None:
+        with rebuildable_writes(connection):
+            assert connection.execute("PRAGMA synchronous").fetchone()[0] == self.NORMAL
+
+    def test_it_is_put_back_afterwards(self, connection: sqlite3.Connection) -> None:
+        with rebuildable_writes(connection):
+            pass
+        assert connection.execute("PRAGMA synchronous").fetchone()[0] == self.FULL
+
+    def test_it_is_put_back_when_the_block_raises(self, connection: sqlite3.Connection) -> None:
+        """An ingest that fails part way through is the ordinary case -- a file
+        that cannot be parsed, a `Ctrl-C`. Leaving the connection lowered would
+        make every later ledger write on it quietly less durable, and nothing
+        would say so.
+        """
+        with pytest.raises(ZeroDivisionError), rebuildable_writes(connection):
+            raise ZeroDivisionError
+
+        assert connection.execute("PRAGMA synchronous").fetchone()[0] == self.FULL
+
+    def test_it_restores_what_it_found_rather_than_the_default(
+        self, connection: sqlite3.Connection
+    ) -> None:
+        """A caller who had set their own value gets it back.
+
+        Writing `FULL` unconditionally would work today and would be a trap
+        the first time somebody chooses otherwise for their own reasons.
+        """
+        connection.execute("PRAGMA synchronous = OFF")
+        with rebuildable_writes(connection):
+            assert connection.execute("PRAGMA synchronous").fetchone()[0] == self.NORMAL
+        assert connection.execute("PRAGMA synchronous").fetchone()[0] == 0
+
+    def test_what_was_written_inside_the_block_is_there(
+        self, connection: sqlite3.Connection
+    ) -> None:
+        """Durability is not visibility. `NORMAL` changes when a commit reaches
+        the platter, never whether the row is in the database."""
+        store = SqliteDocumentStore(connection)
+        with rebuildable_writes(connection):
+            store.put(build_document("notes/a.md", "テントの重量は2.4kg。"))
+
+        assert store.by_path("notes/a.md") is not None
+        assert store.count() == 1

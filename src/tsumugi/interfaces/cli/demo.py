@@ -38,7 +38,7 @@ from ...infrastructure.filesystem import walk
 from ...infrastructure.freshness import remembered_roots
 from ...infrastructure.index.fts import FtsIndex
 from ...infrastructure.parsers import parser_for
-from ...infrastructure.storage.database import connect
+from ...infrastructure.storage.database import connect, rebuildable_writes
 from ...infrastructure.storage.ledger import SqliteLedger
 from ...infrastructure.storage.sqlite import SqliteDocumentStore
 
@@ -126,7 +126,10 @@ def _run(workspace: Path, root: Path, *, model: str | None = None) -> int:
     connection = connect(workspace / "index.db")
     store, index = SqliteDocumentStore(connection), FtsIndex(connection)
     found = walk(root)
-    report = ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
+    with rebuildable_writes(connection):
+        report = ingest_paths(
+            found.files, root=root, store=store, index=index, parser_for=parser_for
+        )
 
     _rule("2. Reading it")
     print(f"  {report.summary()}")

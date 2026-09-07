@@ -1448,3 +1448,53 @@ answer is a citation pointing at the wrong text, and it buys 1.5× on a path
 that is already under 10 ms — against 124× on the paths real corpora take,
 bought by a branch that touches nothing. Written down so the number exists if
 the trade ever changes.
+
+## Ingest waits for the disk twice a document *(measured 2026-09-08)*
+
+Profiling ingest at 300 Japanese documents put `_io.open` at 6 ms a file, which
+is what `docs/measurements.md` has said since the `search_rows` fix. Measured
+again without the profiler, a warm read is **0.06 ms**. The 6 ms was a cold
+cache and the profiler's per-call overhead; the ingest path's real shape is:
+
+| | per document |
+|---|---|
+| tokenizer (`index_terms`, 4,004 terms) | 1.39 ms |
+| markdown parse | 0.34 ms |
+| file read, warm | 0.06 ms |
+| **whole ingest** | **3.2–5.8 ms** |
+
+The rest is SQLite, and most of that was **waiting for the disk**. In WAL mode
+SQLite's default `synchronous = FULL` flushes the log on every commit, and
+ingest commits twice a document — once for the store, once for the index.
+
+| `synchronous` | 300 documents | per document | |
+|---|---|---|---|
+| `FULL` (the default) | 1.73 s | 5.78 ms | |
+| `NORMAL` | 1.21 s | 4.04 ms | **−30%** |
+| `OFF` | 1.12 s | 3.74 ms | −35% |
+
+Five interleaved rounds, best of each. `NORMAL` takes most of it, and the five
+points `OFF` adds are not the same kind of thing: `OFF` can leave the database
+**corrupt** after a power cut, `NORMAL` can only lose whole commits from the
+end.
+
+**Measured again end to end on a quieter machine: 1.12 s → 0.96 s, 14%.** Both
+numbers are here because neither is wrong — the fsync is a fixed cost and the
+rest of the work is not, so the share it represents moves with machine load.
+The earlier note applies unchanged: this corpus has read 455 and 571
+documents/second an hour apart with no code change.
+
+### Why this is a block and not a pragma on the connection
+
+The index is derived and a re-run rebuilds it: `ingest` is incremental, skips a
+document whose hash it already holds, and the corpus is the files on disk
+(ADR-0014). **The ledger is not derived**, and it lives in the same database. A
+package that was sent cannot be reconstructed by re-reading a corpus.
+
+So `rebuildable_writes(connection)` lowers `synchronous` for the length of a
+block and puts back whatever it found, and only ingest enters it. What is given
+up is precise: an application crash — an exception, a `Ctrl-C`, the process
+killed — loses nothing, because the WAL still holds every committed row. Only a
+power cut or an OS crash can drop the most recent commits. **The property that
+an interrupted ingest keeps what it already did is exactly preserved**, which
+is the reason ingest commits per document rather than in batches.

@@ -29,7 +29,7 @@ from ..infrastructure.filesystem import walk
 from ..infrastructure.freshness import FilesystemFreshness
 from ..infrastructure.index.fts import FtsIndex
 from ..infrastructure.parsers import parser_for
-from ..infrastructure.storage.database import connect
+from ..infrastructure.storage.database import connect, rebuildable_writes
 from ..infrastructure.storage.sqlite import SqliteDocumentStore
 from ..ports.cost import CostModel
 from .dataset import Case
@@ -61,7 +61,8 @@ def prepared_case(
         store, index = SqliteDocumentStore(connection), FtsIndex(connection)
 
         found = walk(root)
-        ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
+        with rebuildable_writes(connection):
+            ingest_paths(found.files, root=root, store=store, index=index, parser_for=parser_for)
 
         # A stale_anchor case edits a document after it was indexed. Nothing
         # re-ingests: the point is that the index holds what it read and the
