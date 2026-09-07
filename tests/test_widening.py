@@ -146,3 +146,66 @@ class TestTheHelpersOnTheirOwn:
     def test_a_floor_equal_to_the_position_scans_nothing(self) -> None:
         content = "First. Second."
         assert _sentence_start(content, 7, 7) == 7
+
+
+class TestTheEdgesTheFirstPassMissed:
+    """A second mutation sweep, after the cases above were written.
+
+    Everything here is one character wide. That is not a coincidence: a window
+    is defined entirely by where it stops, so every remaining question about it
+    is a question about a single index.
+    """
+
+    def test_a_terminator_directly_before_the_match_is_seen(self) -> None:
+        """`range(at - 1, floor - 1, -1)` starts at `at - 1`, and the character
+        directly before a match is exactly where a stop most often is -- a
+        match on the first word of a sentence. Start the scan one earlier and
+        that stop is invisible, so the window swallows the sentence before it.
+        """
+        content = "前の文。テントの重量"
+        assert _sentence_start(content, 0, 4) == 4
+        assert _window(content, "テント") == "テントの重量"
+
+    def test_a_full_stop_two_from_the_end_is_not_a_sentence_end(self) -> None:
+        """`index + 1 >= len(content)`, and the `+ 1` is the whole rule.
+
+        A soft stop ends a sentence when the text ends *immediately after it*.
+        At one character from the end it does not: `tent.x` is not two
+        sentences, and treating it as one cuts the last character off the
+        evidence.
+        """
+        content = "A tent.x"
+        assert _sentence_end(content, 0, len(content)) == len(content)
+
+    def test_a_full_stop_at_the_very_end_still_is_one(self) -> None:
+        """The positive control for the test above."""
+        content = "A tent."
+        assert _sentence_end(content, 0, len(content)) == len(content)
+
+    def test_a_window_after_a_newline_keeps_the_first_character_of_the_line(self) -> None:
+        """`line_start + 1` -- the character *after* the newline, not two after
+        it. Off by one here drops the first letter of the line from every
+        citation that begins one, and a citation reading `he tent weighs 2.4kg`
+        is a quotation of something nobody wrote."""
+        content = "first line" + NL + "The tent weighs 2.4kg"
+        assert _window(content, "tent") == "The tent weighs 2.4kg"
+
+    def test_a_window_always_contains_the_match_it_grew_from(self) -> None:
+        """The trim that drops the space after a full stop is bounded by
+        `start < span.start`, and the bound is the point.
+
+        Widen a span that itself begins on a space and an unbounded trim walks
+        past the match's own start, returning a window that begins *inside*
+        what it was widened around. An anchor built from it quotes less than
+        was matched, and the `text_hash` is of text that does not contain the
+        evidence.
+        """
+        content = "abc.  def ghi"
+        match = Span(5, 9)  # begins on the second space
+        assert content[match.start].isspace(), "the case only exists on a leading space"
+
+        window = _widen(content, match, 400)
+
+        assert window.start <= match.start, window
+        assert window.end >= match.end, window
+        assert content[match.start : match.end] in window.slice(content)

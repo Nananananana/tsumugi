@@ -22,9 +22,13 @@ import pytest
 
 from tsumugi.application.ingest import ingest_paths
 from tsumugi.application.search import (
+    _OCCURRENCE_CAP,
     Confirmation,
     SearchResult,
     _apply_relative_floor,
+    _fold,
+    _longest_present,
+    _occurrences,
     _trim_punctuation,
     search,
 )
@@ -255,3 +259,67 @@ class TestWhichSectionAHitIsReportedIn:
 
         assert results
         assert results[0].section == "はじめに", results[0].section
+
+
+class TestFindingTheLongestPieceOfATermThatIsPresent:
+    """`集合場所` asked of a document that says `集合` should count what it
+    shares, not nothing. Two characters is the floor for a compound -- one
+    character of a compound is a coincidence -- and one character is the floor
+    for a term that *is* one character, which is most Chinese nouns.
+    """
+
+    def test_a_whole_term_present_is_found_whole(self) -> None:
+        assert _longest_present("集合", "本日の集合場所は駅前") == (3, "集合")
+
+    def test_a_compound_falls_back_to_the_part_that_is_there(self) -> None:
+        at, piece = _longest_present("集合場所", "本日の集合は駅前")
+        assert piece == "集合"
+        assert at == 3
+
+    def test_a_single_character_term_may_match_on_one_character(self) -> None:
+        """`floor = 1 if len(term) == 1 else 2`, and the `1` is not decoration.
+
+        Raise it and a one-character term can never match anything, because
+        the search range becomes empty -- silently, for every such term, and
+        Chinese writes most of its nouns that way.
+        """
+        assert _longest_present("重", "重量は2.4kg") == (0, "重")
+
+    def test_one_character_of_a_compound_is_not_a_match(self) -> None:
+        """The other half of the same expression, and the reason it is a
+        conditional rather than a constant. `場` alone in a document about
+        somewhere else is a coincidence, not shared meaning."""
+        assert _longest_present("集合場所", "会場の予約") == (-1, "")
+
+    def test_a_term_that_is_absent_says_so_with_minus_one(self) -> None:
+        """`-1`, which every caller tests for by equality. Any other sentinel
+        and an absent term is treated as located with an empty piece -- and an
+        empty piece is found at every position of every document."""
+        at, piece = _longest_present("テント", "米と味噌を持つ")
+        assert at == -1
+        assert piece == ""
+
+
+class TestEnumeratingOccurrences:
+    def test_overlapping_occurrences_are_all_found(self) -> None:
+        """`find(piece, at + 1)`, not `at + len(piece)`.
+
+        Coverage anchors on where terms crowd together, so it needs every
+        position rather than a tiling. Stepping past the match would miss the
+        overlaps, and in CJK -- where a two-character piece inside a run of
+        repeated characters is ordinary -- that is a third of them.
+        """
+        folded, _ = _fold("ああああ")
+        assert _occurrences("ああ", folded) == [0, 1, 2]
+
+    def test_the_search_stops_at_the_cap(self) -> None:
+        """A bound on work, and the number is behaviour: it is the point at
+        which the library stops looking, so a term repeated more often than
+        this is anchored on a bounded view of where it appears."""
+        folded, _ = _fold("あ" * 200)
+        assert len(_occurrences("あ", folded)) == _OCCURRENCE_CAP
+        assert _occurrences("あ", folded) == list(range(_OCCURRENCE_CAP))
+
+    def test_a_piece_that_is_absent_has_no_occurrences(self) -> None:
+        folded, _ = _fold("米と味噌")
+        assert _occurrences("テント", folded) == []
