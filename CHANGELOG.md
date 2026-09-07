@@ -103,6 +103,37 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Fixed — a citation began with a space, and the source claimed a rule it did not have
+
+Found by sweeping the core with `python tools/mutate.py`, which had only been
+run on the modules written last week. `search.py` had **73 surviving mutants of
+144** — 73 changes to retrieval that no test objected to. Killed 99 of 147 now,
+and two of the survivors were real:
+
+- **Every window opening on a full stop began with a space.** `_sentence_start`
+  returns the index just past the terminator, which is the space after it, so a
+  citation read `" The tent weighs 2.4kg."`. Trimmed, bounded by the match so a
+  window can never eat into what it was widened around. Costs nothing measured:
+  recall 87.2%, precision 98.2%, trap 5.0%, all unchanged.
+- **The source said `e.g.` was protected from the soft-stop rule. It is not.**
+  A space follows that full stop, so the window starts after it. Protecting it
+  needs a list of abbreviations, which is a per-language resource refused three
+  times (ADR-0007, ADR-0018, ADR-0019) — so the claim is withdrawn rather than
+  the list added, and the behaviour is pinned by a test that says why.
+
+The rest were suites that could not answer a question. Two clusters mattered
+enough to close: seventeen mutants in the window that decides **what text a
+reader sees under a citation** (proposal 0003 measured that as 68% of the
+recall loss at realistic document length), and fourteen in the script ranges
+that decide **which characters of a question carry its subject** — every
+boundary could move by one unnoticed, because the suite only ever passed
+characters sitting comfortably inside them.
+
+- **`Anchor` and `Resolution` were mutable.** Flipping `frozen` and `slots`
+  survived every test in three files. An anchor is the proof a citation points
+  where it says; a caller who could rewrite its span would hold a resolution
+  reporting RESOLVED about a span it no longer describes.
+
 ### Fixed — two stderr lines pretended to be error kinds
 
 - **`ingest` exit 1 led with `index: <path>`**, and `index` is a bare

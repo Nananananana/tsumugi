@@ -604,9 +604,17 @@ def _confirm(content: str, needles: Sequence[str]) -> tuple[list[Span], int]:
 #: nothing else uses these, so no lookahead is needed.
 _HARD_STOPS: Final = "。．！？!?"
 
-#: A full stop ends a sentence in Latin script only when something follows it
-#: that is not more sentence. ``2.4kg`` and ``e.g.`` are not sentence ends, and
-#: a rule that thought they were would cut an item in half.
+#: A full stop ends a sentence in Latin script only when whitespace or the
+#: end of the text follows it. ``2.4kg`` is therefore not a sentence end, and
+#: a rule that thought it were would return ``4kg.`` as the evidence for how
+#: heavy a tent is.
+#:
+#: **``e.g.`` is not protected, and this comment used to claim it was.** A
+#: space follows that full stop, so the window starts after it. Protecting it
+#: needs a list of abbreviations, which is a per-language resource -- ADR-0007
+#: refused a segmenter, ADR-0018 a stopword list and ADR-0019 a word list,
+#: each for the same reason. So the cost is a window that starts one clause
+#: late, and the claim is withdrawn rather than the list added.
 _SOFT_STOP: Final = "."
 
 
@@ -654,6 +662,14 @@ def _widen(content: str, span: Span, context: int) -> Span:
     start = max(
         floor if line_start == -1 else line_start + 1, _sentence_start(content, floor, span.start)
     )
+
+    # A sentence does not begin with the space after the previous full stop.
+    # `_sentence_start` returns the index just past the terminator, which is
+    # that space, so every window opening on a soft stop carried one -- a
+    # citation reading " The tent weighs 2.4kg." Bounded by the match, so a
+    # window can never eat into what it was widened around.
+    while start < span.start and content[start].isspace():
+        start += 1
 
     line_end = content.find("\n", span.end, ceiling)
     end = min(ceiling if line_end == -1 else line_end, _sentence_end(content, span.end, ceiling))
