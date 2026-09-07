@@ -618,6 +618,12 @@ def _repeats(item: ContextItem) -> list[str]:
     Read out of the signals rather than stored twice: the signal is what
     ``assembly`` produced and what the published document carries, and a second
     copy of the same fact is a second thing to keep in step.
+
+    The ``maxsplit`` of 1 is the one surviving mutant in this module and it is
+    an **equivalent program**: what follows the colon is an item id (``itm_003``)
+    or the fallback prose ``assembly`` writes when the original was not sent,
+    and neither can contain a colon. Raising it to 2 changes nothing today, and
+    would begin to matter only if the part after the colon ever grew one.
     """
     if item.selection is None:
         return []

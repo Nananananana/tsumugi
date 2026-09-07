@@ -182,7 +182,13 @@ def fit_to_budget(
                 _omission(
                     candidate,
                     OmissionRule.BUDGET_EXHAUSTED,
-                    f"ranked {len(items) + len(omissions) + 1}; {cost} "
+                    # `position` is the index into `ordered`, so it *is* the
+                    # rank. Counting what had been considered so far read the
+                    # same until a near-duplicate appeared: those are held back
+                    # to a second pass, so the count fell one short of the rank
+                    # for every candidate after one -- the account named a
+                    # position that was not the candidate's.
+                    f"ranked {position + 1}; {cost} "
                     f"{budget.unit.value} would exceed the limit of {budget.limit} "
                     f"with {budget.remaining(spent)} left",
                     cost,

@@ -470,3 +470,272 @@ class TestTheRenderedPromptCarriesTheMarking:
         # the published document carries.
         package = self._package("redundant_with:itm_001")
         assert "redundant_with:itm_001" in package.to_dict()["items"][0]["selection"]["signals"]
+
+
+class TestTheEdgesOfEveryRule:
+    """Each threshold tested *at* its value, not comfortably inside it.
+
+    `python tools/mutate.py src/tsumugi/domain/assembly.py` left six survivors,
+    and five of them were one comparison moved by nothing: `<` to `<=`, `>` to
+    `>=`, `0` to `1`. The suite above exercises every rule generously -- a
+    candidate scoring 0.01 against a floor of 0.5, forty characters against a
+    limit of fifteen -- so a rule that fired one candidate early or late kept
+    every test green.
+
+    That matters more here than in most places. These comparisons decide
+    **what a reader is sent**, and each of them has a defensible opposite:
+    whether a floor is reached or exceeded, whether a budget may be filled
+    exactly, are decisions rather than accidents. Written down, they stop
+    being either.
+    """
+
+    def _candidate(self, text: str, score: float) -> Candidate:
+        document = build_document("edges.md", text)
+        return Candidate(
+            text=text,
+            anchor=Anchor.into(document, Span(0, len(text))),
+            score=score,
+        )
+
+    def test_a_score_exactly_at_the_floor_is_kept(self) -> None:
+        """`<`, not `<=`: `minimum_score` is a floor to reach, not to clear.
+
+        The omission it would otherwise produce says "below the floor", and a
+        candidate scoring exactly the floor is not below it.
+        """
+        at_the_floor = self._candidate("a passage scoring exactly the floor", 0.5)
+        fitted = fit_to_budget(
+            [at_the_floor], budget=Budget.characters(1000), cost_of=len, minimum_score=0.5
+        )
+        assert len(fitted.items) == 1
+        assert fitted.omissions == ()
+
+    def test_a_hair_under_the_floor_is_dropped(self) -> None:
+        """The positive control for the test above: the floor does reject."""
+        fitted = fit_to_budget(
+            [self._candidate("a passage just under the floor", 0.4999)],
+            budget=Budget.characters(1000),
+            cost_of=len,
+            minimum_score=0.5,
+        )
+        assert fitted.items == ()
+        assert fitted.omissions[0].rule is OmissionRule.BELOW_THRESHOLD
+
+    def test_a_candidate_that_fills_the_budget_exactly_is_sent(self) -> None:
+        """`>`, not `>=`: the limit is a ceiling that may be reached.
+
+        Refusing the candidate that fits exactly would leave the reader a
+        package one item short of what it claims to afford, and `spent` would
+        never equal `limit` for any corpus.
+        """
+        exact = self._candidate("0123456789", 0.9)
+        fitted = fit_to_budget([exact], budget=Budget.characters(10), cost_of=len)
+        assert len(fitted.items) == 1
+        assert fitted.spent == 10
+        assert fitted.omissions == ()
+
+    def test_one_character_over_does_not_fit(self) -> None:
+        """The positive control: the ceiling is a ceiling."""
+        fitted = fit_to_budget(
+            [self._candidate("0123456789", 0.9)], budget=Budget.characters(9), cost_of=len
+        )
+        assert fitted.items == ()
+        assert fitted.omissions[0].rule is OmissionRule.BUDGET_EXHAUSTED
+
+    def test_the_rank_in_a_budget_omission_is_the_candidates_rank(self) -> None:
+        """It used to be a count of what had been considered, which is the same
+        number right up until a near-duplicate appears.
+
+        Duplicates are held back to a second pass (ADR-0008 marks, never
+        vetoes), so for every candidate after one, the count fell one short.
+        A package that says "ranked 2" about the third-best passage is telling
+        the reader something that is not true, in the one field that exists to
+        say how close the passage came.
+        """
+        repeated = "alpha bravo charlie"
+        candidates = [
+            self._candidate(repeated, 0.90),
+            self._candidate(repeated, 0.85),  # deferred to the second pass
+            self._candidate("zulu yankee xray wh", 0.80),
+            self._candidate("skey victor uniform", 0.75),
+        ]
+        fitted = fit_to_budget(candidates, budget=Budget.characters(20), cost_of=len)
+
+        assert len(fitted.items) == 1
+        ranks = [
+            o.reason.split(";")[0]
+            for o in fitted.omissions
+            if o.rule is OmissionRule.BUDGET_EXHAUSTED
+        ]
+        assert ranks == ["ranked 3", "ranked 4"], ranks
+
+    def test_a_cap_of_zero_is_not_a_cap(self) -> None:
+        """`> 0`. A cap of zero would print "returned its cap of 0 candidates"
+        beside the candidates it plainly did return."""
+        fitted = fit_to_budget(
+            [self._candidate("a passage", 0.9)],
+            budget=Budget.characters(1000),
+            cost_of=len,
+            truncated_at=0,
+        )
+        assert [o for o in fitted.omissions if o.rule is OmissionRule.TRUNCATED_BY_CAP] == []
+
+    def test_a_cap_of_one_is_a_cap(self) -> None:
+        """The other side of the same comparison: `> 0`, not `> 1`. A corpus
+        searched with a cap of one really was seen through a keyhole, and that
+        is the case where saying so matters most."""
+        fitted = fit_to_budget(
+            [self._candidate("a passage", 0.9)],
+            budget=Budget.characters(1000),
+            cost_of=len,
+            truncated_at=1,
+        )
+        capped = [o for o in fitted.omissions if o.rule is OmissionRule.TRUNCATED_BY_CAP]
+        assert len(capped) == 1
+        assert "cap of 1 candidates" in capped[0].reason
+
+    def test_the_corpus_wide_omission_points_at_nothing(self) -> None:
+        """`_NOWHERE` is `Span(0, 0)`, and the emptiness is the point.
+
+        A cap is a statement about what was never looked at, so there is no
+        text to anchor. Any non-empty span here would claim a character of a
+        document that does not exist -- `CORPUS_WIDE` is not a document id --
+        and a consumer resolving it would be resolving a fiction.
+        """
+        fitted = fit_to_budget(
+            [self._candidate("a passage", 0.9)],
+            budget=Budget.characters(1000),
+            cost_of=len,
+            truncated_at=50,
+        )
+        (capped,) = [o for o in fitted.omissions if o.rule is OmissionRule.TRUNCATED_BY_CAP]
+        assert capped.document_id == CORPUS_WIDE
+        assert capped.span.start == capped.span.end == 0
+
+
+class TestTheContractsOwnEdges:
+    """Nine survivors from `python tools/mutate.py src/tsumugi/domain/package.py`.
+
+    This is the frozen v1 contract and the prompt a model actually reads, so
+    the two kinds of gap here have different costs. A comparison off by one
+    (`estimate > limit`) makes a legal package unbuildable. A field silently
+    dropped on the way back in (`constraints`) makes `from_json(to_json(p))`
+    a different package with the same name -- and the name is a sha256 over
+    the bytes, so the two disagree about their own identity.
+    """
+
+    def test_a_package_may_spend_its_whole_budget(self) -> None:
+        """`estimate > limit`, not `>=`, and this one is load-bearing across
+        two modules.
+
+        `fit_to_budget` places a candidate that fills the budget exactly
+        (`spent + cost > limit`). If `BudgetReport` refused the same number,
+        the assembler would produce packages the contract cannot hold, and
+        the failure would appear only on corpora whose passages happen to sum
+        to the limit -- which is to say, rarely and unrepeatably.
+        """
+        report = BudgetReport(Budget.characters(100), 100, "characters@1")
+        assert report.estimate == report.budget.limit
+
+        with pytest.raises(ValueError, match="over its own budget"):
+            BudgetReport(Budget.characters(100), 101, "characters@1")
+
+    def test_omitted_by_selects_the_rule_it_is_given(self) -> None:
+        """Nothing in the library calls this; it exists for consumers.
+
+        Untested, `==` could be `!=` and the method would return every
+        omission *except* the ones asked for -- a caller filtering for
+        `budget_exhausted` would be handed the stale anchors and told they
+        were budget.
+        """
+        dropped = package(
+            omissions=(
+                Omission(
+                    rule=OmissionRule.BUDGET_EXHAUSTED,
+                    reason="no room",
+                    document_id=DOCUMENT.document_id,
+                    span=Span(0, 5),
+                ),
+                Omission(
+                    rule=OmissionRule.BELOW_THRESHOLD,
+                    reason="too weak",
+                    document_id=DOCUMENT.document_id,
+                    span=Span(5, 10),
+                ),
+            )
+        )
+        assert dropped.dropped == 2
+        (budget,) = dropped.omitted_by("budget_exhausted")
+        assert budget.reason == "no room"
+        (weak,) = dropped.omitted_by("below_threshold")
+        assert weak.reason == "too weak"
+        assert dropped.omitted_by("stale_anchor") == ()
+
+    def test_a_role_alone_renders_a_system_block(self) -> None:
+        """`role or rules`, not `and`. Either half is enough on its own, and
+        both halves reach the model only through this block."""
+        prompt = package(instructions={"role": "You answer from the context only."}).render()
+        assert "# SYSTEM\nYou answer from the context only." in prompt
+
+    def test_rules_alone_render_a_system_block(self) -> None:
+        prompt = package(instructions={"rules": ["Cite every claim.", "Say when unsure."]}).render()
+        assert "# SYSTEM\n- Cite every claim.\n- Say when unsure." in prompt
+
+    def test_rules_survive_beside_a_role(self) -> None:
+        """`self.instructions.get("rules") or []` is the fallback for a
+        missing key. Mutated to `and []` it evaluates to the empty list
+        whenever rules are *present*, which drops every rule from the prompt
+        while leaving the role -- a prompt that still looks right."""
+        prompt = package(
+            instructions={"role": "You answer from the context only.", "rules": ["Cite."]}
+        ).render()
+        assert "# SYSTEM\nYou answer from the context only.\n- Cite." in prompt
+
+    def test_no_instructions_render_no_system_block(self) -> None:
+        assert "# SYSTEM" not in package().render()
+
+    def test_an_output_schema_renders_readably_and_in_a_fixed_order(self) -> None:
+        """Three settings on one `json.dumps`, and two of them are promises.
+
+        `sort_keys=True` is ADR-0003 reaching into the prompt: the same
+        package must render to the same text, and a schema dict built in a
+        different key order would otherwise render differently. `ensure_ascii=
+        False` is what keeps a Japanese schema readable to the model rather
+        than arriving as `\u6587\u5b57`.
+        """
+        schema = {"文字数": {"type": "integer"}, "answer": {"type": "string"}}
+        prompt = package(output_schema=schema).render()
+
+        block = prompt.split("# OUTPUT_SCHEMA\n", 1)[1]
+        assert "文字数" in block
+        assert "u6587" not in block
+        assert block.index('"answer"') < block.index('"文字数"'), block
+        assert '\n  "answer"' in block, "indent=2, so a nested schema stays readable"
+
+        reordered = {"answer": {"type": "string"}, "文字数": {"type": "integer"}}
+        assert package(output_schema=reordered).render() == prompt
+
+    def test_constraints_survive_a_round_trip(self) -> None:
+        """`data.get("constraints") or {}`. Mutated to `and {}` the field is
+        dropped exactly when it is present, and only when it is present -- so
+        a suite that round-trips packages without constraints sees nothing.
+
+        The package id is a sha256 over the canonical bytes, so a field lost
+        on the way in is not a cosmetic loss: the two packages disagree about
+        which package they are.
+        """
+        original = package(constraints={"max_words": 200, "language": "ja"})
+        assert original.constraints
+
+        returned = ContextPackage.from_json(original.to_json())
+        assert returned.constraints == {"max_words": 200, "language": "ja"}
+        assert returned.package_id == original.package_id
+        assert "- language: ja" in returned.render()
+
+    def test_instructions_survive_a_round_trip(self) -> None:
+        """The neighbouring `or {}`, which was already covered -- kept here so
+        the pair is visible as a pair rather than one tested and one not."""
+        original = package(instructions={"role": "answer briefly"})
+        returned = ContextPackage.from_json(original.to_json())
+        assert returned.instructions == {"role": "answer briefly"}
+        assert returned.package_id == original.package_id
