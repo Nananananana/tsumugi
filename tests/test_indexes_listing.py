@@ -247,13 +247,18 @@ class TestASummaryCannotBeEdited:
             summary.documents = 9999  # type: ignore[misc]
 
     def test_a_row_has_nowhere_to_stash_anything(self) -> None:
-        """`slots=True`. The exception is `TypeError` rather than
-        `AttributeError`, because a frozen slotted dataclass is rebuilt as a
-        new class and its `__setattr__` reaches a `super()` whose cell points
-        at the original. Pinned as observed, not as expected."""
+        """`slots=True`, asserted as the absence of a `__dict__`.
+
+        Which exception an assignment raises is a Python version's business:
+        3.12 gives `TypeError` from a `super()` cell left over when the class
+        was rebuilt for slots, and 3.13 gives `FrozenInstanceError`. Pinning
+        either one turns this test red on half the CI matrix, which is how the
+        first version of it left. The fact underneath is that there is no dict
+        to put a stray attribute in -- so no display layer can quietly hang a
+        path off a row that promises not to carry one.
+        """
         summary = IndexSummary(name="personal", documents=3, ingested_at="2026-09-07")
-        with pytest.raises(TypeError):
-            summary.path = "/home/ada/.tsumugi/personal.db"  # type: ignore[attr-defined]
+        assert not hasattr(summary, "__dict__")
         assert IndexSummary.__slots__ == ("name", "documents", "ingested_at", "unavailable")
 
     def test_the_dictionary_form_omits_unavailable_when_it_opened(self) -> None:

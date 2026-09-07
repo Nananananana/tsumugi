@@ -24,11 +24,28 @@ ROOT = Path(__file__).resolve().parent.parent
 LINK = re.compile(r"\[[^\]]*\]\((?!https?:|mailto:|#)([^)#]+)(?:#[^)]*)?\)")
 
 
+def _inside_a_virtualenv(path: Path) -> bool:
+    """Whether any directory above ``path`` is a virtual environment.
+
+    By its `pyvenv.cfg` rather than by being called `.venv`. A second
+    environment for another Python -- `.venv313`, for checking the version
+    matrix locally -- put a dependency's own README in scope, and the link
+    checker failed on `nltk`'s CONTRIBUTING.md. The name of an environment is
+    the developer's business; the marker file is the fact.
+    """
+    for parent in path.parents:
+        if (parent / "pyvenv.cfg").exists():
+            return True
+        if parent == ROOT:
+            break
+    return False
+
+
 def _documents() -> list[Path]:
     found = [
         path
         for path in ROOT.rglob("*.md")
-        if not {".git", ".venv", "node_modules"} & set(path.parts)
+        if not {".git", "node_modules"} & set(path.parts) and not _inside_a_virtualenv(path)
     ]
     # `for x in []: assert` is green. A renamed directory or a typo in the
     # glob would turn every check below into a check of nothing, and nothing

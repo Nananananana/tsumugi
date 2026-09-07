@@ -103,6 +103,21 @@ surface.
   statements could not see the first defect: `all_current` is a single
   statement that returns every row.
 
+### Fixed — a test that pinned a Python version's accident
+
+- Two tests asserted `TypeError` for assigning an unknown attribute to a frozen
+  slotted dataclass. That is what **3.12** raises, from a `super()` cell left
+  over when the class is rebuilt for slots; **3.13** fixed it and raises
+  `FrozenInstanceError`. Green here, red on half the CI matrix. They assert the
+  property now -- a slotted instance has no `__dict__` -- which does not move
+  between versions.
+- `tools/gates.py` runs the suite on a second interpreter when one is present
+  (`.venv313`), so half the matrix is reachable locally instead of only in CI.
+  Not a gate: it is absent on a fresh clone.
+- The documentation link checker skipped `.venv` by name and so scanned a
+  second environment, failing on a dependency's own `CONTRIBUTING.md`. It
+  recognises a virtualenv by its `pyvenv.cfg` now.
+
 ### Fixed — found by mutation testing
 
 `python tools/mutate.py` edits one expression and runs the tests. A surviving

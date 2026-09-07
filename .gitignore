@@ -24,3 +24,6 @@ index.db
 # A library states ranges and lets a consumer resolve them; a lockfile here
 # would pin *our* dev environment and nothing installs from it -- CI uses pip.
 uv.lock
+
+# A second environment for checking the Python matrix locally.
+.venv*

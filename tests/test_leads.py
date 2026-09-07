@@ -365,15 +365,15 @@ class TestTheEdgesMutationTestingFound:
         with pytest.raises(FrozenInstanceError):
             lead.text = "something else"  # type: ignore[misc]
 
-        # `slots=True`, so there is nowhere to put an attribute that is not a
-        # field. The exception is `TypeError` rather than `AttributeError`:
-        # a frozen slotted dataclass is rebuilt as a new class and its
-        # `__setattr__` reaches a `super()` whose cell points at the original,
-        # so the failure surfaces from that rather than from the slots. Pinned
-        # as observed rather than as expected -- a passing test written from
-        # the docs would have been green on `slots=False` too.
-        with pytest.raises(TypeError):
-            lead.extra = "a place to stash state"  # type: ignore[attr-defined]
+        # `slots=True`: there is nowhere to put an attribute that is not a
+        # field, and **that** is the property rather than any particular
+        # exception. The first version of this asserted `TypeError`, which is
+        # what a frozen slotted dataclass raises on 3.12 -- its `__setattr__`
+        # reaches a `super()` whose cell points at the pre-slots class. 3.13
+        # fixed that and raises `FrozenInstanceError`, so the test pinned a
+        # version's accident and went red on half the CI matrix. `__dict__` is
+        # the fact underneath and does not move.
+        assert not hasattr(lead, "__dict__"), "a slotted instance grew a dict to stash things in"
         assert Lead.__slots__ == (
             "text",
             "source_path",

@@ -26,7 +26,9 @@ environment, and CI runs in several deliberately different ones. It cannot see:
   nine commits on `if TYPE_CHECKING: from mamori import PrivacySession`,
   because the lint job installs `[dev]` without the siblings. This file
   reported mypy green the whole time, correctly, for this machine.
-- the no-extras install, the wheel contents, and the OS × Python matrix.
+- the no-extras install, the wheel contents, and the OS × Python matrix. Half
+  of the last one is now reachable: make a `.venv313` and the report runs the
+  suite there too. Three operating systems are still CI's alone.
 
 To reproduce an environment difference, build the environment:
 
@@ -148,6 +150,44 @@ _GH_LAST_RUN = (
 )
 
 
+#: Where a second interpreter lives, if a developer has made one. CI runs the
+#: suite on 3.12 and 3.13 across three operating systems; this machine runs one
+#: of the six, and the gap is real rather than theoretical -- a test that
+#: pinned `TypeError` for assigning to a frozen slotted dataclass was green on
+#: 3.12 and red on 3.13, where the interpreter stopped raising it.
+#:
+#: Not a gate. It is absent on a fresh clone, and a gate that is usually
+#: skipped teaches people to ignore the report.
+#:
+#:     uv venv --python 3.13 .venv313
+#:     uv pip install --python .venv313/Scripts/python -e ".[dev]"
+SECOND_PYTHON = ROOT / ".venv313" / "Scripts" / "python.exe"
+
+
+def second_interpreter_result() -> str:
+    """The suite on another Python, when one is installed here."""
+    if not SECOND_PYTHON.exists():
+        return f"not run (no {SECOND_PYTHON.relative_to(ROOT).as_posix()}; see gates.py)"
+    finished = subprocess.run(  # noqa: S603
+        [str(SECOND_PYTHON), "-m", "pytest", "-q", "-p", "no:randomly"],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        env={**_environment(), "PYTHONUTF8": "1"},
+        cwd=ROOT,
+    )
+    version = subprocess.run(  # noqa: S603
+        [str(SECOND_PYTHON), "-c", "import sys; print('.'.join(map(str, sys.version_info[:3])))"],
+        capture_output=True,
+        text=True,
+        env=_environment(),
+    ).stdout.strip()
+    if finished.returncode == 0:
+        return f"green on {version or 'the second interpreter'}"
+    tail = [line for line in finished.stdout.splitlines() if line.startswith("FAILED")]
+    return f"FAILED on {version}: " + ("; ".join(tail[:3]) or f"exit {finished.returncode}")
+
+
 def last_ci_result() -> str:
     """What GitHub made of the last push. Asked, rather than assumed.
 
@@ -209,6 +249,7 @@ def main() -> int:
 
     if not failures:
         print(f"\n{len(GATES)} gates, all green.")
+        print(f"a second Python -- {second_interpreter_result()}")
         print(f"last CI run on main -- {last_ci_result()}")
         return 0
 
