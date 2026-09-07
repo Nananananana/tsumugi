@@ -280,3 +280,45 @@ class TestTheEnvironmentReachesThem:
 
     def test_an_unset_environment_leaves_the_defaults_alone(self) -> None:
         assert TsumugiConfig.from_env({}).confirmation() == DEFAULT_CONFIRMATION
+
+
+class TestASettingThatIsAShareIsCheckedAgainstItsRange:
+    """Three environment variables said *"must be a number between 0 and 1"*
+    and checked only that it was a number.
+
+    `TSUMUGI_FRESHNESS=-3` and `TSUMUGI_REDUNDANCY_THRESHOLD=7.5` were both
+    accepted, and neither means anything. `freshness` and `diversity` are
+    weights blended against a score position; a redundancy threshold below
+    zero marks **every** candidate as a copy of the first, and one above one
+    marks none — redundancy switched off by a value that looks like a setting.
+
+    A message naming a range it does not enforce is worse than no message. It
+    is the reason a reader believes the value they typed was understood.
+    """
+
+    SHARES = ("TSUMUGI_FRESHNESS", "TSUMUGI_DIVERSITY", "TSUMUGI_REDUNDANCY_THRESHOLD")
+
+    @pytest.mark.parametrize("variable", SHARES)
+    @pytest.mark.parametrize("value", ["-3", "7.5", "-0.01", "1.01"])
+    def test_a_value_outside_the_range_is_refused(self, variable: str, value: str) -> None:
+        with pytest.raises(ConfigurationError, match="between 0 and 1"):
+            TsumugiConfig.from_env({variable: value})
+
+    @pytest.mark.parametrize("variable", SHARES)
+    @pytest.mark.parametrize("value", ["0", "1", "0.75"])
+    def test_both_ends_of_the_range_are_inside_it(self, variable: str, value: str) -> None:
+        """The positive control, and the ends carry meaning in each case: zero
+        turns a weight off, one turns it up all the way."""
+        assert TsumugiConfig.from_env({variable: value}) is not None
+
+    @pytest.mark.parametrize("variable", SHARES)
+    def test_something_that_is_not_a_number_still_says_so(self, variable: str) -> None:
+        with pytest.raises(ConfigurationError, match="must be a number"):
+            TsumugiConfig.from_env({variable: "quite a lot"})
+
+    @pytest.mark.parametrize("variable", SHARES)
+    def test_the_message_names_the_variable(self, variable: str) -> None:
+        """Three variables share one helper now, and a shared helper that lost
+        the name would leave a reader with three files to check."""
+        with pytest.raises(ConfigurationError, match=variable):
+            TsumugiConfig.from_env({variable: "7.5"})

@@ -1498,3 +1498,67 @@ killed — loses nothing, because the WAL still holds every committed row. Only 
 power cut or an OS crash can drop the most recent commits. **The property that
 an interrupted ingest keeps what it already did is exactly preserved**, which
 is the reason ingest commits per document rather than in batches.
+
+## Near-duplicate detection was quadratic in the *absence* of duplicates *(2026-09-08)*
+
+`0005` predicted that heavy near-duplication was the shape most likely to hide
+something, because `mark_duplicates` compares pairwise. **The prediction was
+backwards**, and the measurement is the reason it is written down here rather
+than argued about.
+
+| candidates | no duplicates | all near-copies |
+|---|---|---|
+| 10 | 0.40 ms | 0.10 ms |
+| 25 | 2.40 ms | 0.27 ms |
+| 50 | **9.56 ms** | 0.56 ms |
+| 100 | 33.20 ms | 1.03 ms |
+| 200 | **132.28 ms** | 2.44 ms |
+
+Duplicates were always cheap: a marked passage stops being a cluster head and
+drops out of the comparison set, so the more duplication there is, the less
+work remains. It is the **absence** of duplication that costs — every candidate
+asking every earlier one and being told they have nothing in common.
+
+That is the normal state of a well-kept notes folder, and it is the opposite of
+what a duplicate-heavy fixture measures. At the shipped candidate limit of 50
+it was 9.56 ms a query, against a whole `context` call of 26–41 ms.
+
+**Containment is `shared / min(len(a), len(b))`**, so a passage sharing no
+shingle with another cannot reach any threshold above zero. An index from
+shingle to the heads containing it turns "ask everyone" into "look up the ones
+that share something", and the count it produces *is* `len(a & b)` — the only
+quantity a `Similarity` needs, so no set intersection is done at all.
+
+| candidates | before | after | |
+|---|---|---|---|
+| 50 | 9.56 ms | **1.42 ms** | 6.7× |
+| 100 | 33.20 ms | **3.37 ms** | 9.9× |
+| 200 | 132.28 ms | **8.72 ms** | 15.2× |
+
+Nothing is approximated and no pair that could pass is skipped — verified
+against a direct all-pairs comparison over 400 random corpora at five
+thresholds, and as a property test in `tests/test_redundancy.py`.
+
+**Two things the rewrite had to be careful about.** The comparison set is built
+by walking a `frozenset` of strings, whose iteration order moves between runs,
+and the tie-break keeps whichever candidate arrived first — so the candidates
+are sorted before comparison, or two runs of the same query would stop
+producing the same package (ADR-0003).
+
+And at a threshold of **exactly zero** the two implementations deliberately
+differ. `is_near_duplicate(0.0)` is `score >= 0.0`, so the old comparison marked
+every candidate as a duplicate of the first with a reason reading `0% overlap
+with itm_001`. That sentence went into a published package and was not true.
+Two passages sharing no five-character run are not near-duplicates of each
+other, whatever number a caller put in a file.
+
+### Three settings promised a range and checked a type
+
+`TSUMUGI_FRESHNESS`, `TSUMUGI_DIVERSITY` and `TSUMUGI_REDUNDANCY_THRESHOLD` all
+said *"must be a number between 0 and 1"* and verified only that it was a
+number. `-3` and `7.5` were accepted by all three. A redundancy threshold below
+zero marks every candidate as a copy of the first; above one it marks none,
+which is redundancy switched off by a value that looks like a setting.
+
+A message that names a range and does not enforce it is worse than no message:
+it is the reason a reader believes the value they typed was understood.

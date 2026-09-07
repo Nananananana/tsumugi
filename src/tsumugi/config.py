@@ -52,6 +52,32 @@ def default_index_path() -> Path:
     return Path.home() / DEFAULT_INDEX_DIRECTORY / "index.db"
 
 
+def _share(variable: str, raw: str) -> float:
+    """A setting that is a fraction, refused when it is not one.
+
+    All three of these said *"must be a number between 0 and 1"* and checked
+    only that it was a number. `TSUMUGI_FRESHNESS=-3` and
+    `TSUMUGI_REDUNDANCY_THRESHOLD=7.5` were both accepted, and neither means
+    anything: `freshness` and `diversity` are weights blended against a score
+    position, and a redundancy threshold below zero marks **every** candidate
+    as a copy of the first while one above one marks none, which is redundancy
+    switched off by a value that looks like a setting.
+
+    A message that names a range and does not enforce it is worse than no
+    message: it is the reason a reader believes the value they typed was
+    understood.
+    """
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise ConfigurationError(
+            f"{variable} must be a number between 0 and 1, not {raw!r}"
+        ) from error
+    if not 0.0 <= value <= 1.0:
+        raise ConfigurationError(f"{variable} must be between 0 and 1, not {value}")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class TsumugiConfig:
     """The whole configuration."""
@@ -224,28 +250,13 @@ class TsumugiConfig:
                 ) from error
         if ordering := source.get("TSUMUGI_ORDERING"):
             values["ordering"] = ordering
-        if freshness := source.get("TSUMUGI_FRESHNESS"):
-            try:
-                values["freshness"] = float(freshness)
-            except ValueError as error:
-                raise ConfigurationError(
-                    f"TSUMUGI_FRESHNESS must be a number between 0 and 1, not {freshness!r}"
-                ) from error
-        if diversity := source.get("TSUMUGI_DIVERSITY"):
-            try:
-                values["diversity"] = float(diversity)
-            except ValueError as error:
-                raise ConfigurationError(
-                    f"TSUMUGI_DIVERSITY must be a number between 0 and 1, not {diversity!r}"
-                ) from error
-        if threshold := source.get("TSUMUGI_REDUNDANCY_THRESHOLD"):
-            try:
-                values["redundancy_threshold"] = float(threshold)
-            except ValueError as error:
-                raise ConfigurationError(
-                    "TSUMUGI_REDUNDANCY_THRESHOLD must be a number between 0 and 1, "
-                    f"not {threshold!r}"
-                ) from error
+        for variable, field in (
+            ("TSUMUGI_FRESHNESS", "freshness"),
+            ("TSUMUGI_DIVERSITY", "diversity"),
+            ("TSUMUGI_REDUNDANCY_THRESHOLD", "redundancy_threshold"),
+        ):
+            if raw := source.get(variable):
+                values[field] = _share(variable, raw)
         for variable, field, cast in (
             ("TSUMUGI_COVERAGE_THRESHOLD", "coverage_threshold", float),
             ("TSUMUGI_RELATIVE_MATCH_FLOOR", "relative_match_floor", float),

@@ -236,3 +236,117 @@ class TestDeterminism:
         assert mark_duplicates(texts, threshold=threshold) == mark_duplicates(
             texts, threshold=threshold
         )
+
+
+class TestOnlyPassagesThatShareSomethingAreCompared:
+    """`mark_duplicates` used to ask every earlier head, and the answer for
+    almost all of them was *nothing in common*.
+
+    Containment is `shared / min(len(a), len(b))`, so a passage sharing no
+    shingle with another cannot reach any threshold above zero. Asking anyway
+    is the whole of the quadratic cost — and the case where every question gets
+    that answer is a corpus of **unrelated** documents, which is the normal
+    state of a well-kept notes folder and the opposite of what a
+    duplicate-heavy fixture measures:
+
+        candidates    no duplicates    all near-copies
+        50              9.56 ms ->  1.42 ms      0.56 ms
+        100            33.20 ms ->  3.37 ms      1.03 ms
+        200           132.28 ms ->  8.72 ms      2.44 ms
+
+    Duplicates were always cheap: a marked passage stops being a head and drops
+    out of the comparison set. It is the *absence* of duplication that cost.
+    """
+
+    def _unrelated(self, count: int) -> list[str]:
+        return [f"第{index}項について、独立した記述がここにある。" for index in range(count)]
+
+    def test_passages_with_nothing_in_common_are_not_marked(self) -> None:
+        assert mark_duplicates(["テントの重量は2.4kg", "the ledger holds no text"]) == {}
+
+    def test_a_passage_sharing_no_shingle_is_not_a_duplicate_at_any_threshold(self) -> None:
+        """Including a threshold of zero, which is reachable from a config file.
+
+        `is_near_duplicate(0.0)` is `score >= 0.0`, so the old comparison
+        marked **every** candidate as a duplicate of the first one, with a
+        reason reading `0% overlap with itm_001`. That sentence is in a
+        published package, and it is not true: two passages sharing no
+        five-character run are not near-duplicates of each other, whatever
+        number a caller put in a file.
+        """
+        pair = ["テントの重量は2.4kg", "the ledger holds no text"]
+        assert mark_duplicates(pair, threshold=0.0) == {}
+
+    def test_a_passage_that_shares_everything_is_still_marked_at_zero(self) -> None:
+        """The positive control: a threshold of zero is permissive, not inert."""
+        copy = "テントの重量は2.4kg、二人用である。"
+        marks = mark_duplicates([copy, copy], threshold=0.0)
+        assert marks[1][0] == 0
+        assert marks[1][1].score == pytest.approx(1.0)
+
+    def test_the_earliest_head_wins_a_tie(self) -> None:
+        """Two heads equally alike, and the lower index has to win.
+
+        The comparison set is now built by walking an inverted index, and
+        `frozenset` iteration order over strings **moves between runs**. Two
+        runs of the same query produce the same package (ADR-0003), and a
+        tie-break that kept whichever candidate arrived first would have ended
+        that guarantee -- silently, and only sometimes.
+        """
+        passage = "テントの重量は2.4kg、二人用である。予備は持たない。"
+        marks = mark_duplicates(["前置き。" + passage, "別の前置き。" + passage, passage])
+        assert marks[2][0] == 0, marks
+
+    def test_a_chain_of_copies_collapses_to_one_survivor(self) -> None:
+        """Only heads are indexed, which is the rule the old `earlier in marks`
+        skip enforced. A chain of near-copies points at one passage rather than
+        at each other."""
+        passage = "集合場所は駅前の広場、七時とする。"
+        marks = mark_duplicates([passage, passage + "（写し）", passage + "（写しの写し）"])
+        assert [marks[index][0] for index in (1, 2)] == [0, 0]
+
+    @given(
+        texts=st.lists(
+            st.sampled_from(
+                [
+                    "テントの重量は2.4kg、二人用である。",
+                    "テントの重量は2.4kg、二人用である。（追記）",
+                    "予備の電池は持たない方針にした。",
+                    "the ledger holds no text of its own",
+                    "the ledger holds no text of its own, and that is deliberate",
+                    "",
+                    "短い",
+                ]
+            ),
+            max_size=12,
+        ),
+        threshold=st.floats(0.01, 1.0),
+    )
+    def test_it_agrees_with_comparing_every_pair(self, texts: list[str], threshold: float) -> None:
+        """The property the rewrite has to satisfy: nothing that could pass is
+        skipped, and the numbers are the same ones.
+
+        Stated against a direct all-pairs comparison written here, so it cannot
+        pass by the two implementations sharing a mistake. Thresholds start at
+        0.01 rather than 0: at exactly zero the two deliberately differ, which
+        is the case above.
+        """
+        prepared = [shingles(text) for text in texts]
+        expected: dict[int, tuple[int, float]] = {}
+        for index in range(1, len(texts)):
+            best: tuple[int, float] | None = None
+            for earlier in range(index):
+                if earlier in expected:
+                    continue
+                found = similarity(texts[earlier], texts[index])
+                if found.is_near_duplicate(threshold) and (best is None or found.score > best[1]):
+                    best = (earlier, found.score)
+            if best is not None:
+                expected[index] = best
+
+        found_marks = mark_duplicates(texts, threshold=threshold)
+        assert found_marks.keys() == expected.keys(), (texts, threshold)
+        for index, (head, score) in expected.items():
+            assert found_marks[index][0] == head
+            assert found_marks[index][1].score == pytest.approx(score)
+        assert len(prepared) == len(texts)

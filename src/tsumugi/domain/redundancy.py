@@ -144,22 +144,68 @@ def mark_duplicates(
     is right, and guessing would systematically prefer whichever heuristic was
     picked -- see ADR-0015.
     """
-    # Shingled once each, up front. The comparison below is quadratic in the
-    # number of passages and shingling is linear in their length, so doing it
-    # inside the loop made the whole thing quadratic in *characters*.
+    # Shingled once each, up front. Comparison is quadratic in the number of
+    # passages and shingling is linear in their length, so doing it inside the
+    # loop made the whole thing quadratic in *characters*.
     prepared = [shingles(text) for text in texts]
 
+    # **Which earlier passages can possibly be near-duplicates**, found by
+    # looking them up rather than by asking each in turn.
+    #
+    # Containment is `shared / min(len(a), len(b))`, so a passage sharing *no*
+    # shingle with another cannot reach any threshold above zero. Comparing it
+    # anyway is the whole of the quadratic cost, and a corpus of unrelated
+    # documents is the case where every comparison is that one -- which is the
+    # normal state of a well-kept notes folder, and the opposite of what a
+    # duplicate-heavy fixture measures:
+    #
+    #     candidates    no duplicates    all near-copies
+    #     50                  9.56 ms            0.56 ms
+    #     100                33.20 ms            1.03 ms
+    #     200               132.28 ms            2.44 ms
+    #
+    # Duplicates are cheap because a marked passage stops being a head and
+    # drops out of the comparison set. It is the *absence* of duplication that
+    # costs, and at the shipped candidate limit of 50 that was most of what a
+    # query spent outside the index.
+    #
+    # So: an index from shingle to the heads that contain it. Walking one
+    # passage's shingles through it counts, for each earlier head, exactly how
+    # many shingles they share -- which is `len(a & b)`, the only quantity a
+    # `Similarity` needs. Nothing is approximated and no pair that could pass
+    # is skipped.
+    postings: dict[str, list[int]] = {}
     marks: dict[int, tuple[int, Similarity]] = {}
-    for index in range(1, len(texts)):
+
+    for index, current in enumerate(prepared):
+        shared: dict[int, int] = {}
+        for shingle in current:
+            for earlier in postings.get(shingle, ()):
+                shared[earlier] = shared.get(earlier, 0) + 1
+
         best: tuple[int, Similarity] | None = None
-        for earlier in range(index):
-            if earlier in marks:
-                # Compare against cluster heads only, so a chain of near-copies
-                # collapses to one survivor rather than a chain of pointers.
-                continue
-            found = _compare(prepared[earlier], prepared[index])
+        # **Sorted.** `shared` is filled in the iteration order of a frozenset
+        # of strings, which moves between runs, and the tie-break below keeps
+        # whichever candidate arrived first. Two runs of the same query produce
+        # the same package (ADR-0003), and that guarantee would have ended
+        # here.
+        for earlier in sorted(shared):
+            count = shared[earlier]
+            other = prepared[earlier]
+            found = Similarity(
+                containment=count / min(len(other), len(current)),
+                jaccard=count / (len(other) + len(current) - count),
+            )
             if found.is_near_duplicate(threshold) and (best is None or found.score > best[1].score):
                 best = (earlier, found)
+
         if best is not None:
             marks[index] = best
+            continue
+        # Only heads are indexed, so a chain of near-copies collapses to one
+        # survivor rather than a chain of pointers -- the same rule the
+        # `earlier in marks` skip used to enforce.
+        for shingle in current:
+            postings.setdefault(shingle, []).append(index)
+
     return marks
