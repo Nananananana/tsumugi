@@ -128,7 +128,13 @@ def search(
                     text=scoped[:context],
                     source_path=document.source_path,
                     score=hit.score,
-                    section=_section_name(document, 0),
+                    # `region.start`, not 0. The confirmed path below names the
+                    # section the match is in; this one named the section at
+                    # the head of the document, so every unconfirmed hit in a
+                    # multi-section file was labelled with the first heading it
+                    # happened to have. `search` publishes this field, and a
+                    # reader following it turns to the wrong page.
+                    section=_section_name(document, region.start),
                     unconfirmed=True,
                 )
             )
